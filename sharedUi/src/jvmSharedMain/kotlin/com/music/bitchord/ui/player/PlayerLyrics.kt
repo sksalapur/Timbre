@@ -135,21 +135,12 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
 
-/** Returns true if [text] contains any RTL script characters (Hebrew, Arabic, Persian, etc.). */
-private fun isRtl(text: String): Boolean {
-    for (ch in text) {
-        // Check explicit Unicode ranges for common RTL scripts.
-        when {
-            ch in '\u0590'..'\u05FF' -> return true // Hebrew
-            ch in '\u0600'..'\u06FF' -> return true // Arabic
-            ch in '\u0750'..'\u077F' -> return true // Arabic supplement
-            ch in '\u08A0'..'\u08FF' -> return true // Arabic extended
-            ch in '\uFB50'..'\uFDFF' -> return true // Arabic presentation forms
-            ch in '\uFE70'..'\uFEFF' -> return true // Arabic presentation forms-B
-        }
-    }
-    return false
-}
+/** Returns true if any character in [text] belongs to a BMP RTL script. */
+private fun String.isRtl(): Boolean =
+    any { it in '\u0590'..'\u08FF' || it in '\uFB50'..'\uFEFF' }
+
+/** Returns true if [text] contains any RTL script characters (Hebrew, Arabic, Syriac, Thaana, N'Ko, Samaritan, Mandaic, etc.). */
+private fun isRtl(text: String): Boolean = text.isRtl()
 
 /** Returns the text direction for [text]: LTR by default, RTL when detected. */
 private fun textDirectionFor(text: String): androidx.compose.ui.text.style.TextDirection {
