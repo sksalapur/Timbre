@@ -680,10 +680,11 @@ private fun SweptLyricLine(
     // for the case where it is one short line in a wide panel, and the lines
     // within the block, for the case where it has wrapped. Neither alone is
     // enough, and the three copies all take both, so they still land on top of
-    // each other.  Do NOT apply TopEnd alignment to plain RTL lines — the
-    // Text's own textAlign + textDirection handle RTL layout correctly, and
-    // forcing the Box to TopEnd breaks sweep clipping and causes freezing.
-    val effectiveAlign = alignEnd
+    // each other.  RTL lines also need TopEnd alignment: the Text's textAlign
+    // + textDirection handle the glyph flow, but the Box anchor must match so
+    // that sweep clipping (which is anchored to the right edge) does not break
+    // or freeze when the text block itself sits on the right side of the row.
+    val effectiveAlign = alignEnd || rtlAlign
     Box(
         modifier.lyricParticles(layout, translationProgress, glowRoom),
         contentAlignment = if (effectiveAlign) Alignment.TopEnd else Alignment.TopStart,
@@ -1098,14 +1099,14 @@ private fun ContentDrawScope.sweepTo(
                     0f to Color.White,
                     1f to Color.Transparent,
                     startX = if (isRtlLine) {
-                        charPos
+                        (charPos - WIPE_FEATHER.toPx())
+                            .coerceAtLeast(layout.getLineLeft(visualLine))
                     } else {
                         (charPos - WIPE_FEATHER.toPx())
                             .coerceAtLeast(layout.getLineLeft(visualLine))
                     },
                     endX = if (isRtlLine) {
-                        (charPos + WIPE_FEATHER.toPx())
-                            .coerceAtMost(layout.getLineRight(visualLine))
+                        charPos
                     } else {
                         charPos
                     },
