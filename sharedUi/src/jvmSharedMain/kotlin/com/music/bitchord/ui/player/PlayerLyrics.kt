@@ -119,14 +119,26 @@ import com.music.bitchord.data.lyrics.LyricsSource
 import com.music.bitchord.data.lyrics.translationLanguageName
 import com.music.bitchord.ui.haptics.Haptic
 import com.music.bitchord.ui.haptics.Haptics
+import com.music.bitchord.ui.haptics.rememberHaptics
+import com.music.bitchord.ui.icons.BitChordIcons
+import com.music.bitchord.ui.rememberIsForeground
+import java.util.Locale
+import kotlin.math.PI
+import kotlin.math.abs
+import kotlin.math.roundToInt
+import kotlin.math.sin
+import kotlin.random.Random
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
+
 
 /** Returns true if [text] contains any RTL script characters (Hebrew, Arabic, Persian, etc.). */
 private fun isRtl(text: String): Boolean {
     for (ch in text) {
-        val cat = Character.getType(ch)
-        // RTL scripts use RightToLeft or RightToLeftOther category codes.
-        if (cat == Character.RIGHT_TO_LEFT || cat == Character.RIGHT_TO_LEFT_ARABIC) return true
-        // Also check explicit Unicode ranges for common RTL scripts.
+        // Check explicit Unicode ranges for common RTL scripts.
         when {
             ch in '\u0590'..'\u05FF' -> return true // Hebrew
             ch in '\u0600'..'\u06FF' -> return true // Arabic
@@ -144,22 +156,6 @@ private fun textDirectionFor(text: String): androidx.compose.ui.text.style.TextD
     return if (isRtl(text)) androidx.compose.ui.text.style.TextDirection.ContentOrRtl
     else androidx.compose.ui.text.style.TextDirection.ContentOrLtr
 }
-
-import com.music.bitchord.ui.haptics.rememberHaptics
-import com.music.bitchord.ui.icons.BitChordIcons
-import com.music.bitchord.ui.rememberIsForeground
-import java.util.Locale
-import kotlin.math.PI
-import kotlin.math.abs
-import kotlin.math.roundToInt
-import kotlin.math.sin
-import kotlin.random.Random
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.launch
-
 
 /**
  * How far back the part of the playing line that hasn't been sung yet is held.
