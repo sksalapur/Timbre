@@ -136,13 +136,32 @@ import kotlinx.coroutines.launch
 
 
 /** Returns true if any character in [text] belongs to a BMP RTL script. */
-private fun isRtl(text: String): Boolean = text.any { it in '\u0590'..'\u08FF' || it in '\uFB50'..'\uFEFF' }
+private fun isRtl(text: String): Boolean {
+    var rtlCount = 0
+    var ltrCount = 0
+    for (ch in text) {
+        val code = ch.code
+        // Hebrew presentation forms
+        if (code in 0xFB1D..0xFB4F) return true
+        val dir = Character.getDirectionality(ch)
+        when (dir) {
+            Character.DIRECTIONALITY_RIGHT_TO_LEFT,
+            Character.DIRECTIONALITY_RIGHT_TO_LEFT_ARABIC -> rtlCount++
+            Character.DIRECTIONALITY_LEFT_TO_RIGHT -> ltrCount++
+        }
+    }
+    return rtlCount > ltrCount
+}
 
 /** Returns the text direction for [text]: LTR by default, RTL when detected. */
 private fun textDirectionFor(text: String): androidx.compose.ui.text.style.TextDirection {
-    return if (isRtl(text)) androidx.compose.ui.text.style.TextDirection.ContentOrRtl
-    else androidx.compose.ui.text.style.TextDirection.ContentOrLtr
+    return if (isRtl(text)) androidx.compose.ui.text.style.TextDirection.Rtl
+    else androidx.compose.ui.text.style.TextDirection.Ltr
 }
+
+/** Whether this text should align to the right end of its box. */
+private fun alignsRight(text: String, alignEnd: Boolean, laneLocked: Boolean): Boolean =
+    if (laneLocked) alignEnd else isRtl(text)
 
 /**
  * How far back the part of the playing line that hasn't been sung yet is held.
@@ -604,7 +623,7 @@ private fun SweptLyricLine(
     feather: Boolean = false,
     rise: Boolean = true,
     alignEnd: Boolean = false,
-    rtlAlign: Boolean = false,
+    laneLocked: Boolean = false,
     translationProgress: State<Float>? = null,
 ) {
     var layout by remember(line) { mutableStateOf<TextLayoutResult?>(null) }
@@ -680,11 +699,10 @@ private fun SweptLyricLine(
     // for the case where it is one short line in a wide panel, and the lines
     // within the block, for the case where it has wrapped. Neither alone is
     // enough, and the three copies all take both, so they still land on top of
-    // each other.  RTL lines also need TopEnd alignment: the Text's textAlign
-    // + textDirection handle the glyph flow, but the Box anchor must match so
-    // that sweep clipping (which is anchored to the right edge) does not break
-    // or freeze when the text block itself sits on the right side of the row.
-    val effectiveAlign = alignEnd || rtlAlign
+    // each other.  When laneLocked (duet backing/featured), the alignment is
+    // driven by the lane itself rather than the text direction, preventing RTL
+    // detection from overriding a duet vocal's intended position.
+    val effectiveAlign = alignEnd || !laneLocked && isRtl(line.text)
     Box(
         modifier.lyricParticles(layout, translationProgress, glowRoom),
         contentAlignment = if (effectiveAlign) Alignment.TopEnd else Alignment.TopStart,
@@ -1093,14 +1111,17 @@ private fun ContentDrawScope.sweepTo(
         // and below it: DstIn erases whatever the source does not cover, and
         // outside the clip there is no source at all, so they are left alone.
         // Within it the brush clamps — opaque behind the feather, gone past it.
+        // For RTL lines the feather sits on the right side of the sweep boundary
+        // (between revealed and unrevealed text), not the wrong side where it
+        // would erase into the already-lit area.
         clipRect(top = top, bottom = bottom) {
             drawRect(
                 brush = Brush.horizontalGradient(
                     0f to Color.White,
                     1f to Color.Transparent,
                     startX = if (isRtlLine) {
-                        (charPos - WIPE_FEATHER.toPx())
-                            .coerceAtLeast(layout.getLineLeft(visualLine))
+                        (charPos + WIPE_FEATHER.toPx())
+                            .coerceAtMost(layout.getLineRight(visualLine))
                     } else {
                         (charPos - WIPE_FEATHER.toPx())
                             .coerceAtLeast(layout.getLineLeft(visualLine))
@@ -1460,9 +1481,11 @@ internal fun LyricsPanel(
             if (!isSynced) emptyList() else activeLyricRows(lines, clock.longValue)
         }
     }
+    // Pre-compute effective end times so isActive and sung checks use them too.
+    val ends = remember(lines) { effectiveEndTimes(lines) }
     // The uppermost unfinished vocal owns the scroll anchor until its end,
     // even as later rows begin their own independent highlight animations.
-    val scrollLine = activeRows.firstOrNull() ?: -1
+    val scrollLine = activeRows.firstOrNull() ?: lines.indexOfLast { it.timeMs <= clock.longValue }.coerceAtLeast(-1)
     // Where the panel is heading, which is a beat ahead of where the singing
     // is. Movement that starts on the downbeat arrives after it — the line is
     // already being sung by the time it settles, and you read it late. Started
@@ -1705,7 +1728,7 @@ internal fun LyricsPanel(
             // not just whether it falls inside the broad active set. This keeps
             // past lines dim even when the user scrolls back to them.
             val isActive = isSynced && index in activeRows &&
-                positionMs in (line.timeMs..line.endMs)
+                positionMs in (line.timeMs..ends[index])
             // Symmetric either side of the playing line, and shallow: the two
             // rows around it stay readable so you can follow back over what was
             // just sung as well as ahead, and everything past that recedes to
@@ -1803,11 +1826,9 @@ internal fun LyricsPanel(
             } else {
                 val alignEnd = duet && line.alignment == LyricAlignment.End
                 // Detect RTL content and set proper text direction + alignment.
-                // RTL lines right-align and use BiDi-aware layout so punctuation
-                // (e.g. '?', '!') renders on the correct side, and the word-sync
-                // sweep flows right-to-left without clipping glitches.
-                val lineIsRtl = isRtl(line.text)
-                val rtlAlign = if (alignEnd || lineIsRtl) TextAlign.End else TextAlign.Start
+                // Use alignsRight helper so duet backing/featured lanes keep their
+                // lane-driven alignment instead of being overridden by RTL detection.
+                val rtlAlign = if (alignsRight(line.text, alignEnd, false)) TextAlign.End else TextAlign.Start
                 val style = if (isSynced) {
                     MaterialTheme.typography.headlineLarge.copy(
                         fontSize = 34.sp,
@@ -1839,7 +1860,7 @@ internal fun LyricsPanel(
                 // Whether this line has already finished playing, based on the
                 // actual playback timestamp rather than scroll position. This
                 // keeps past lines dim when the user scrolls back to read them.
-                val sung = isSynced && positionMs >= line.endMs
+                val sung = isSynced && positionMs >= ends[index]
                 // Rows behind the one being scrolled to are the ones that
                 // fan out; the ones it is moving away from arrive together.
                 val behind = if (run.delta >= 0f) index - focusLine else focusLine - index
@@ -1936,7 +1957,7 @@ internal fun LyricsPanel(
                         glowAlpha = glow,
                         room = GLOW_ROOM,
                         alignEnd = alignEnd,
-                        rtlAlign = lineIsRtl,
+                        laneLocked = duet,
                         modifier = Modifier.fillMaxWidth(),
                     )
                     // A line the service handed back unchanged ("falling
@@ -1953,7 +1974,7 @@ internal fun LyricsPanel(
                             glowAlpha = 0f,
                             room = 0.dp,
                             alignEnd = alignEnd,
-                            rtlAlign = lineIsRtl,
+                            laneLocked = duet,
                             // Only the rows actually in front of the reader get the
                             // particle pass. Sixty rows' worth of glyph boxes is a
                             // layout walk per frame for text nobody is looking at.
@@ -1989,7 +2010,7 @@ internal fun LyricsPanel(
                             glowAlpha = 0f,
                                 room = 0.dp,
                                 alignEnd = alignEnd,
-                                rtlAlign = lineIsRtl,
+                                laneLocked = duet,
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     // No top inset: the lead's own bottom room is
@@ -2015,7 +2036,7 @@ internal fun LyricsPanel(
                                         glowAlpha = 0f,
                                         room = 0.dp,
                                         alignEnd = alignEnd,
-                                        rtlAlign = lineIsRtl,
+                                        laneLocked = duet,
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .revealBelow(subReveal.progress)
@@ -2055,8 +2076,8 @@ private fun PanelVoice(
     room: Dp,
     /** Whether this line is one of the right-hand voice's; see [LyricAlignment]. */
     alignEnd: Boolean,
-    /** Whether this line contains RTL script text. */
-    rtlAlign: Boolean = false,
+    /** When true, alignment is driven by lane (duet) not text direction. */
+    laneLocked: Boolean = false,
     translationProgress: State<Float>? = null,
     modifier: Modifier = Modifier,
 ) {
@@ -2084,7 +2105,7 @@ private fun PanelVoice(
             glowRoom = room,
             feather = isActive,
             alignEnd = alignEnd,
-            rtlAlign = rtlAlign,
+            laneLocked = laneLocked,
             translationProgress = translationProgress,
         )
     } else if (line.isWordSynced) {
@@ -2105,7 +2126,7 @@ private fun PanelVoice(
             glowAlpha = 0f,
             glowRoom = room,
             alignEnd = alignEnd,
-            rtlAlign = rtlAlign,
+            laneLocked = laneLocked,
             translationProgress = translationProgress,
         )
     } else {
