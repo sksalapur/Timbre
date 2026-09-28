@@ -119,6 +119,32 @@ import com.music.bitchord.data.lyrics.LyricsSource
 import com.music.bitchord.data.lyrics.translationLanguageName
 import com.music.bitchord.ui.haptics.Haptic
 import com.music.bitchord.ui.haptics.Haptics
+
+/** Returns true if [text] contains any RTL script characters (Hebrew, Arabic, Persian, etc.). */
+private fun isRtl(text: String): Boolean {
+    for (ch in text) {
+        val cat = Character.getType(ch)
+        // RTL scripts use RightToLeft or RightToLeftOther category codes.
+        if (cat == Character.RIGHT_TO_LEFT || cat == Character.RIGHT_TO_LEFT_ARABIC) return true
+        // Also check explicit Unicode ranges for common RTL scripts.
+        when {
+            ch in '\u0590'..'\u05FF' -> return true // Hebrew
+            ch in '\u0600'..'\u06FF' -> return true // Arabic
+            ch in '\u0750'..'\u077F' -> return true // Arabic supplement
+            ch in '\u08A0'..'\u08FF' -> return true // Arabic extended
+            ch in '\uFB50'..'\uFDFF' -> return true // Arabic presentation forms
+            ch in '\uFE70'..'\uFEFF' -> return true // Arabic presentation forms-B
+        }
+    }
+    return false
+}
+
+/** Returns the text direction for [text]: LTR by default, RTL when detected. */
+private fun textDirectionFor(text: String): androidx.compose.ui.text.style.TextDirection {
+    return if (isRtl(text)) androidx.compose.ui.text.style.TextDirection.ContentOrRtl
+    else androidx.compose.ui.text.style.TextDirection.ContentOrLtr
+}
+
 import com.music.bitchord.ui.haptics.rememberHaptics
 import com.music.bitchord.ui.icons.BitChordIcons
 import com.music.bitchord.ui.rememberIsForeground
@@ -595,6 +621,7 @@ private fun SweptLyricLine(
     feather: Boolean = false,
     rise: Boolean = true,
     alignEnd: Boolean = false,
+    rtlAlign: Boolean = false,
     translationProgress: State<Float>? = null,
 ) {
     var layout by remember(line) { mutableStateOf<TextLayoutResult?>(null) }
@@ -670,10 +697,12 @@ private fun SweptLyricLine(
     // for the case where it is one short line in a wide panel, and the lines
     // within the block, for the case where it has wrapped. Neither alone is
     // enough, and the three copies all take both, so they still land on top of
-    // each other.
+    // each other. RTL lines also right-align so the word-sync sweep flows
+    // right-to-left without layout bounds clipping glitches.
+    val effectiveAlign = alignEnd || rtlAlign
     Box(
         modifier.lyricParticles(layout, translationProgress, glowRoom),
-        contentAlignment = if (alignEnd) Alignment.TopEnd else Alignment.TopStart,
+        contentAlignment = if (effectiveAlign) Alignment.TopEnd else Alignment.TopStart,
     ) {
         Text(
             text = line.text,
@@ -1669,7 +1698,11 @@ internal fun LyricsPanel(
             // read as dim while it was still being sung.
             val offset = if (scrollLine < 0) 0 else index - scrollLine
             val distance = abs(offset)
-            val isActive = isSynced && index in activeRows
+            // Strictly check playback timestamp against this line's own range,
+            // not just whether it falls inside the broad active set. This keeps
+            // past lines dim even when the user scrolls back to them.
+            val isActive = isSynced && index in activeRows &&
+                positionMs in (line.timeMs..line.endMs)
             // Symmetric either side of the playing line, and shallow: the two
             // rows around it stay readable so you can follow back over what was
             // just sung as well as ahead, and everything past that recedes to
@@ -1766,19 +1799,27 @@ internal fun LyricsPanel(
                 }
             } else {
                 val alignEnd = duet && line.alignment == LyricAlignment.End
+                // Detect RTL content and set proper text direction + alignment.
+                // RTL lines right-align and use BiDi-aware layout so punctuation
+                // (e.g. '?', '!') renders on the correct side, and the word-sync
+                // sweep flows right-to-left without clipping glitches.
+                val lineIsRtl = isRtl(line.text)
+                val rtlAlign = if (alignEnd || lineIsRtl) TextAlign.End else TextAlign.Start
                 val style = if (isSynced) {
                     MaterialTheme.typography.headlineLarge.copy(
                         fontSize = 34.sp,
                         lineHeight = 41.sp,
                         fontWeight = FontWeight.ExtraBold,
-                        textAlign = if (alignEnd) TextAlign.End else TextAlign.Start,
+                        textAlign = rtlAlign,
+                        textDirection = textDirectionFor(line.text),
                     )
                 } else {
                     MaterialTheme.typography.headlineMedium.copy(
                         fontSize = 30.sp,
                         lineHeight = 38.sp,
                         fontWeight = FontWeight.ExtraBold,
-                        textAlign = if (alignEnd) TextAlign.End else TextAlign.Start,
+                        textAlign = rtlAlign,
+                        textDirection = textDirectionFor(line.text),
                     )
                 }
                 // The stack sits fractionally back and the playing line comes
@@ -1889,6 +1930,7 @@ internal fun LyricsPanel(
                         glowAlpha = glow,
                         room = GLOW_ROOM,
                         alignEnd = alignEnd,
+                        rtlAlign = lineIsRtl,
                         modifier = Modifier.fillMaxWidth(),
                     )
                     // A line the service handed back unchanged ("falling
@@ -1905,6 +1947,7 @@ internal fun LyricsPanel(
                             glowAlpha = 0f,
                             room = 0.dp,
                             alignEnd = alignEnd,
+                            rtlAlign = lineIsRtl,
                             // Only the rows actually in front of the reader get the
                             // particle pass. Sixty rows' worth of glyph boxes is a
                             // layout walk per frame for text nobody is looking at.
@@ -1938,33 +1981,35 @@ internal fun LyricsPanel(
                             // makes the row read as two equal lines, which is
                             // the thing this split exists to stop.
                             glowAlpha = 0f,
-                            room = 0.dp,
-                            alignEnd = alignEnd,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                // No top inset: the lead's own bottom room is
-                                // the gap, which leaves the two voices closer
-                                // to each other than to the rows either side.
-                                .padding(start = GLOW_ROOM, end = GLOW_ROOM, bottom = GLOW_ROOM)
-                                .graphicsLayer { alpha = BACKING_ALPHA },
-                        )
-                        sub?.background
-                            ?.takeIf { it.text.differsFrom(backing.text) }
-                            ?.let { subBacking ->
-                                PanelVoice(
-                                    line = subBacking.withoutBracketPunctuation(),
-                                    clock = clock,
-                                    style = subStyle.copy(
-                                        fontSize = SUB_BACKING_FONT_SIZE,
-                                        lineHeight = SUB_BACKING_LINE_HEIGHT,
-                                    ),
-                                    isActive = isActive,
-                                    sung = sung,
-                                    synced = isSynced,
-                                    browsing = browsing,
-                                    glowAlpha = 0f,
-                                    room = 0.dp,
-                                    alignEnd = alignEnd,
+                                room = 0.dp,
+                                alignEnd = alignEnd,
+                                rtlAlign = lineIsRtl,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    // No top inset: the lead's own bottom room is
+                                    // the gap, which leaves the two voices closer
+                                    // to each other than to the rows either side.
+                                    .padding(start = GLOW_ROOM, end = GLOW_ROOM, bottom = GLOW_ROOM)
+                                    .graphicsLayer { alpha = BACKING_ALPHA },
+                            )
+                            sub?.background
+                                ?.takeIf { it.text.differsFrom(backing.text) }
+                                ?.let { subBacking ->
+                                    PanelVoice(
+                                        line = subBacking.withoutBracketPunctuation(),
+                                        clock = clock,
+                                        style = subStyle.copy(
+                                            fontSize = SUB_BACKING_FONT_SIZE,
+                                            lineHeight = SUB_BACKING_LINE_HEIGHT,
+                                        ),
+                                        isActive = isActive,
+                                        sung = sung,
+                                        synced = isSynced,
+                                        browsing = browsing,
+                                        glowAlpha = 0f,
+                                        room = 0.dp,
+                                        alignEnd = alignEnd,
+                                        rtlAlign = lineIsRtl,
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .revealBelow(subReveal.progress)
@@ -2004,6 +2049,8 @@ private fun PanelVoice(
     room: Dp,
     /** Whether this line is one of the right-hand voice's; see [LyricAlignment]. */
     alignEnd: Boolean,
+    /** Whether this line contains RTL script text. */
+    rtlAlign: Boolean = false,
     translationProgress: State<Float>? = null,
     modifier: Modifier = Modifier,
 ) {
@@ -2031,6 +2078,7 @@ private fun PanelVoice(
             glowRoom = room,
             feather = isActive,
             alignEnd = alignEnd,
+            rtlAlign = rtlAlign,
             translationProgress = translationProgress,
         )
     } else if (line.isWordSynced) {
@@ -2051,6 +2099,7 @@ private fun PanelVoice(
             glowAlpha = 0f,
             glowRoom = room,
             alignEnd = alignEnd,
+            rtlAlign = rtlAlign,
             translationProgress = translationProgress,
         )
     } else {
