@@ -672,7 +672,7 @@ private fun SweptLyricLine(
             position >= line.endMs -> drawContent()
             // Not started: nothing lit, the dim copy is the whole of it.
             position <= line.timeMs -> Unit
-            else -> layout?.let { sweepTo(it, line.revealedChars(position), feather) }
+            else -> layout?.let { sweepTo(it, line.revealedChars(position), feather, isRtl(line.text)) }
         }
     }
 
@@ -680,9 +680,10 @@ private fun SweptLyricLine(
     // for the case where it is one short line in a wide panel, and the lines
     // within the block, for the case where it has wrapped. Neither alone is
     // enough, and the three copies all take both, so they still land on top of
-    // each other. RTL lines also right-align so the word-sync sweep flows
-    // right-to-left without layout bounds clipping glitches.
-    val effectiveAlign = alignEnd || rtlAlign
+    // each other.  Do NOT apply TopEnd alignment to plain RTL lines — the
+    // Text's own textAlign + textDirection handle RTL layout correctly, and
+    // forcing the Box to TopEnd breaks sweep clipping and causes freezing.
+    val effectiveAlign = alignEnd
     Box(
         modifier.lyricParticles(layout, translationProgress, glowRoom),
         contentAlignment = if (effectiveAlign) Alignment.TopEnd else Alignment.TopStart,
@@ -1047,6 +1048,7 @@ private fun ContentDrawScope.sweepTo(
     layout: TextLayoutResult,
     revealedChars: Float,
     feather: Boolean,
+    isRtlLine: Boolean = false,
 ) {
     if (revealedChars <= 0f) return
     if (revealedChars >= layout.layoutInput.text.length) {
@@ -1060,17 +1062,25 @@ private fun ContentDrawScope.sweepTo(
         if (revealedChars <= start) return
         val end = layout.getLineEnd(visualLine, visibleEnd = true)
         val cut = revealedChars < end
-        val right = if (cut) {
+        val charPos = if (cut) {
             horizontalAt(layout, revealedChars, visualLine)
         } else {
-            layout.getLineRight(visualLine)
+            if (isRtlLine) layout.getLineLeft(visualLine) else layout.getLineRight(visualLine)
+        }
+        // For RTL lines the sweep fills right-to-left: clip from the line's
+        // right edge down to the sweep boundary.  For LTR it fills left-to-
+        // right as before.
+        val (clipLeft, clipRight) = if (isRtlLine) {
+            charPos to layout.getLineRight(visualLine)
+        } else {
+            layout.getLineLeft(visualLine) to charPos
         }
         val top = layout.getLineTop(visualLine)
         val bottom = layout.getLineBottom(visualLine)
         clipRect(
-            left = layout.getLineLeft(visualLine),
+            left = clipLeft,
             top = top,
-            right = right,
+            right = clipRight,
             bottom = bottom,
         ) {
             this@sweepTo.drawContent()
@@ -1087,9 +1097,18 @@ private fun ContentDrawScope.sweepTo(
                 brush = Brush.horizontalGradient(
                     0f to Color.White,
                     1f to Color.Transparent,
-                    startX = (right - WIPE_FEATHER.toPx())
-                        .coerceAtLeast(layout.getLineLeft(visualLine)),
-                    endX = right,
+                    startX = if (isRtlLine) {
+                        charPos
+                    } else {
+                        (charPos - WIPE_FEATHER.toPx())
+                            .coerceAtLeast(layout.getLineLeft(visualLine))
+                    },
+                    endX = if (isRtlLine) {
+                        (charPos + WIPE_FEATHER.toPx())
+                            .coerceAtMost(layout.getLineRight(visualLine))
+                    } else {
+                        charPos
+                    },
                 ),
                 blendMode = BlendMode.DstIn,
             )
@@ -1816,7 +1835,10 @@ internal fun LyricsPanel(
                 // Behind the panel's focus, so the words close up to full
                 // brightness as it leaves rather than when the last syllable
                 // lands — the dim, the blur and the movement together.
-                val sung = offset < 0
+                // Whether this line has already finished playing, based on the
+                // actual playback timestamp rather than scroll position. This
+                // keeps past lines dim when the user scrolls back to read them.
+                val sung = isSynced && positionMs >= line.endMs
                 // Rows behind the one being scrolled to are the ones that
                 // fan out; the ones it is moving away from arrive together.
                 val behind = if (run.delta >= 0f) index - focusLine else focusLine - index
