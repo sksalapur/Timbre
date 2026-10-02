@@ -703,7 +703,7 @@
     <string name="replay_songs_end_week"> filled your week.</string>
     <string name="replay_songs_start">In total, </string>
     <string name="replay_summary_start">Your </string>
-    <string name="replay_summary_end_week">listening had a week.</string>
+    <string name="replay_summary_end_week">week</string>
     <string name="saved">Saved</string>
     <string name="saved_bang">Saved!</string>
     <string name="share_my_replay">Share my Replay</string>
