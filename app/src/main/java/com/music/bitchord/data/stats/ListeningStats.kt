@@ -746,18 +746,24 @@ data class RankedSong(val song: Song, val ms: Long, val plays: Int)
 
 /** How far back a Replay reaches. */
 enum class ReplayPeriod(val chip: String) {
+    THIS_WEEK("This week"),
     THIS_MONTH("This month"),
     THIS_YEAR("This year"),
     ALL_TIME("All time"),
     ;
 
     fun covers(month: YearMonth, today: LocalDate): Boolean = when (this) {
+        THIS_WEEK -> {
+            val startOfWeek = today.with(java.time.DayOfWeek.MONDAY)
+            month == YearMonth.from(startOfWeek)
+        }
         THIS_MONTH -> month == YearMonth.from(today)
         THIS_YEAR -> month.year == today.year
         ALL_TIME -> true
     }
 
     fun label(today: LocalDate): String = when (this) {
+        THIS_WEEK -> "This week"
         THIS_MONTH -> YearMonth.from(today).month.name.lowercase(Locale.ROOT)
             .replaceFirstChar { it.uppercase(Locale.ROOT) } + " ${today.year}"
         THIS_YEAR -> today.year.toString()
