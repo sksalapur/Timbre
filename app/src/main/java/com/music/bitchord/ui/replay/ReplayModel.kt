@@ -141,10 +141,10 @@ fun ReplaySummary.storyHeadline(context: Context, page: ReplayStoryPage): List<H
         " " to false,
         context.replayCount(totalPlays, R.plurals.replay_song_count) to true,
         " " to false,
-        if (period == ReplayPeriod.THIS_WEEK) context.getString(R.string.replay_songs_end_week) else context.getString(R.string.replay_songs_end),
+        (if (period == ReplayPeriod.THIS_WEEK) context.getString(R.string.replay_songs_end_week) else context.getString(R.string.replay_songs_end)) to false,
     )
     ReplayStoryPage.ARTISTS -> runs(
-        if (period == ReplayPeriod.THIS_WEEK) context.getString(R.string.replay_artist_start_week) else context.getString(R.string.replay_artist_start),
+        (if (period == ReplayPeriod.THIS_WEEK) context.getString(R.string.replay_artist_start_week) else context.getString(R.string.replay_artist_start)) to false,
         " " to false,
         context.getString(R.string.replay_artist_focus) to true,
         " " to false,
