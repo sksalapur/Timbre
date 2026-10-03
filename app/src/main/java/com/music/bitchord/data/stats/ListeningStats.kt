@@ -164,6 +164,14 @@ object ListeningStats {
             trackDay.ms += playedMs
             if (countsAsPlay) trackDay.plays++
 
+            // Also populate per-entity days map so weekRange() can read it.
+            track.days = track.days.toMutableMap().apply {
+                computeIfAbsent(dayKey) { DayStats() }.also { d ->
+                    d.ms += playedMs
+                    if (countsAsPlay) d.plays++
+                }
+            }
+
             // The lead artist, not the credit as a string. A track billed
             // "Cheema Y & Gur Sidhu" is not a third artist who happens to share
             // both their names, and filing it as one is how a chart lists the
@@ -192,6 +200,14 @@ object ListeningStats {
                 val artistDay = bucket.artistDays.computeIfAbsent(dayKey) { DayStats() }
                 artistDay.ms += playedMs
                 if (countsAsPlay) artistDay.plays++
+
+                // Also populate per-entity days map so weekRange() can read it.
+                artist.days = artist.days.toMutableMap().apply {
+                    computeIfAbsent(dayKey) { DayStats() }.also { d ->
+                        d.ms += playedMs
+                        if (countsAsPlay) d.plays++
+                    }
+                }
             }
 
             song.albumName?.trim()?.takeIf { it.isNotEmpty() }?.let { name ->
@@ -209,6 +225,14 @@ object ListeningStats {
                 val albumDay = bucket.albumDays.computeIfAbsent(dayKey) { DayStats() }
                 albumDay.ms += playedMs
                 if (countsAsPlay) albumDay.plays++
+
+                // Also populate per-entity days map so weekRange() can read it.
+                album.days = album.days.toMutableMap().apply {
+                    computeIfAbsent(dayKey) { DayStats() }.also { d ->
+                        d.ms += playedMs
+                        if (countsAsPlay) d.plays++
+                    }
+                }
             }
 
             bucket.hours[at.hour] += playedMs
@@ -830,6 +854,17 @@ data class TrackEntry(
         if (albumId == null) albumId = other.albumId
         if (artistId == null) artistId = other.artistId
         if (art == null) art = other.art
+        // Merge per-day sub-buckets.
+        if (other.days.isNotEmpty()) {
+            days = days.toMutableMap().apply {
+                other.days.forEach { (dateKey, stats) ->
+                    computeIfAbsent(dateKey) { DayStats() }.also { existing ->
+                        existing.ms += stats.ms
+                        existing.plays += stats.plays
+                    }
+                }
+            }
+        }
     }
 
     /** Sum ms/plays for days that fall within [range]. */
@@ -837,7 +872,7 @@ data class TrackEntry(
         var totalMs = 0L
         var totalPlays = 0
         for ((dateStr, stats) in days) {
-            val date = runCatching { LocalDate.parse(dateStr.replace("-", "/")) }.getOrNull() ?: continue
+            val date = runCatching { LocalDate.parse(dateStr) }.getOrNull() ?: continue
             if (date >= range.first && date <= range.second) {
                 totalMs += stats.ms
                 totalPlays += stats.plays
@@ -877,6 +912,17 @@ data class NameEntry(
         plays += other.plays
         if (art == null) art = other.art
         if (id == null) id = other.id
+        // Merge per-day sub-buckets.
+        if (other.days.isNotEmpty()) {
+            days = days.toMutableMap().apply {
+                other.days.forEach { (dateKey, stats) ->
+                    computeIfAbsent(dateKey) { DayStats() }.also { existing ->
+                        existing.ms += stats.ms
+                        existing.plays += stats.plays
+                    }
+                }
+            }
+        }
     }
 
     /** Sum ms/plays for days that fall within [range]. */
@@ -884,7 +930,7 @@ data class NameEntry(
         var totalMs = 0L
         var totalPlays = 0
         for ((dateStr, stats) in days) {
-            val date = runCatching { LocalDate.parse(dateStr.replace("-", "/")) }.getOrNull() ?: continue
+            val date = runCatching { LocalDate.parse(dateStr) }.getOrNull() ?: continue
             if (date >= range.first && date <= range.second) {
                 totalMs += stats.ms
                 totalPlays += stats.plays
