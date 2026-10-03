@@ -580,7 +580,7 @@ object ListeningStats {
                                 thumbnailUrl = entry.art,
                                 artistId = entry.artistId,
                                 albumId = entry.albumId,
-                                albumName = entry.albumName,
+                                albumName = entry.album,
                             ),
                             ms = ms,
                             plays = plays,
@@ -598,7 +598,7 @@ object ListeningStats {
                                 thumbnailUrl = it.art,
                                 artistId = it.artistId,
                                 albumId = it.albumId,
-                                albumName = it.albumName,
+                                albumName = it.album,
                             ),
                             ms = it.ms,
                             plays = it.plays,
@@ -798,7 +798,7 @@ object ListeningStats {
 
 /** Daily-level listening for a single track or artist. */
 @Serializable
-private data class DayStats(
+public data class DayStats(
     val ms: Long = 0L,
     val plays: Int = 0,
 )
@@ -947,6 +947,12 @@ enum class ReplayPeriod(val chip: String) {
     }
 
     fun covers(month: YearMonth, today: LocalDate): Boolean = when (this) {
+        THIS_WEEK -> {
+            val range = month.atDay(1)..month.atEndOfMonth()
+            val weekStart = today.with(java.time.DayOfWeek.MONDAY)
+            val weekEnd = today
+            !(weekEnd < range.first || weekStart > range.second)
+        }
         THIS_MONTH -> month == YearMonth.from(today)
         THIS_YEAR -> month.year == today.year
         ALL_TIME -> true
