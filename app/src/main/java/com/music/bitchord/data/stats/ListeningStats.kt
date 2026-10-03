@@ -165,11 +165,9 @@ object ListeningStats {
             if (countsAsPlay) trackDay.plays++
 
             // Also populate per-entity days map so weekRange() can read it.
-            track.days = track.days.toMutableMap().apply {
-                computeIfAbsent(dayKey) { DayStats() }.also { d ->
-                    d.ms += playedMs
-                    if (countsAsPlay) d.plays++
-                }
+            track.days.computeIfAbsent(dayKey) { DayStats() }.also { d ->
+                d.ms += playedMs
+                if (countsAsPlay) d.plays++
             }
 
             // The lead artist, not the credit as a string. A track billed
@@ -202,11 +200,9 @@ object ListeningStats {
                 if (countsAsPlay) artistDay.plays++
 
                 // Also populate per-entity days map so weekRange() can read it.
-                artist.days = artist.days.toMutableMap().apply {
-                    computeIfAbsent(dayKey) { DayStats() }.also { d ->
-                        d.ms += playedMs
-                        if (countsAsPlay) d.plays++
-                    }
+                artist.days.computeIfAbsent(dayKey) { DayStats() }.also { d ->
+                    d.ms += playedMs
+                    if (countsAsPlay) d.plays++
                 }
             }
 
@@ -227,11 +223,9 @@ object ListeningStats {
                 if (countsAsPlay) albumDay.plays++
 
                 // Also populate per-entity days map so weekRange() can read it.
-                album.days = album.days.toMutableMap().apply {
-                    computeIfAbsent(dayKey) { DayStats() }.also { d ->
-                        d.ms += playedMs
-                        if (countsAsPlay) d.plays++
-                    }
+                album.days.computeIfAbsent(dayKey) { DayStats() }.also { d ->
+                    d.ms += playedMs
+                    if (countsAsPlay) d.plays++
                 }
             }
 
@@ -844,7 +838,7 @@ data class TrackEntry(
     var plays: Int = 0,
     var last: Long = 0L,
     /** Per-day breakdown for weekly queries. Key: "YYYY-MM-DD". */
-    val days: Map<String, DayStats> = emptyMap(),
+    var days: MutableMap<String, DayStats> = mutableMapOf(),
 ) {
     fun absorb(other: TrackEntry) {
         ms += other.ms
@@ -856,12 +850,10 @@ data class TrackEntry(
         if (art == null) art = other.art
         // Merge per-day sub-buckets.
         if (other.days.isNotEmpty()) {
-            days = days.toMutableMap().apply {
-                other.days.forEach { (dateKey, stats) ->
-                    computeIfAbsent(dateKey) { DayStats() }.also { existing ->
-                        existing.ms += stats.ms
-                        existing.plays += stats.plays
-                    }
+            other.days.forEach { (dateKey, stats) ->
+                days.computeIfAbsent(dateKey) { DayStats() }.also { existing ->
+                    existing.ms += stats.ms
+                    existing.plays += stats.plays
                 }
             }
         }
@@ -905,7 +897,7 @@ data class NameEntry(
     var plays: Int = 0,
     val key: String? = null,
     /** Per-day breakdown for weekly queries. Key: "YYYY-MM-DD". */
-    val days: Map<String, DayStats> = emptyMap(),
+    var days: MutableMap<String, DayStats> = mutableMapOf(),
 ) {
     fun absorb(other: NameEntry) {
         ms += other.ms
@@ -914,12 +906,10 @@ data class NameEntry(
         if (id == null) id = other.id
         // Merge per-day sub-buckets.
         if (other.days.isNotEmpty()) {
-            days = days.toMutableMap().apply {
-                other.days.forEach { (dateKey, stats) ->
-                    computeIfAbsent(dateKey) { DayStats() }.also { existing ->
-                        existing.ms += stats.ms
-                        existing.plays += stats.plays
-                    }
+            other.days.forEach { (dateKey, stats) ->
+                days.computeIfAbsent(dateKey) { DayStats() }.also { existing ->
+                    existing.ms += stats.ms
+                    existing.plays += stats.plays
                 }
             }
         }
