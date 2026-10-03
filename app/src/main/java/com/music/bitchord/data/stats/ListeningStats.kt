@@ -802,8 +802,8 @@ object ListeningStats {
 /** Daily-level listening for a single track or artist. */
 @Serializable
 public data class DayStats(
-    val ms: Long = 0L,
-    val plays: Int = 0,
+    var ms: Long = 0L,
+    var plays: Int = 0,
 )
 
 /** One track's totals inside a bucket. */
