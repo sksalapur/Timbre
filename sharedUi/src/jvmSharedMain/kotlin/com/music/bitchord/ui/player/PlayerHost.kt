@@ -12,8 +12,10 @@ import com.music.bitchord.data.model.Song
 import com.music.bitchord.data.settings.AudioQuality
 import com.music.bitchord.data.settings.LastPlayerScreen
 import com.music.bitchord.data.settings.SmartAnalysis
+import com.music.bitchord.data.settings.MixBlend
 import com.music.bitchord.data.settings.TransitionWindow
 import dev.chrisbanes.haze.HazeState
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
 /**
@@ -86,7 +88,38 @@ interface PlayerHost {
     /** The full signal-chain readout, opened from the output drawer. */
     @Composable
     fun AudioPipelineDialog(hazeState: HazeState, isPlaying: Boolean, onDismiss: () -> Unit)
+
+    /** Casting to a network receiver. Absent, and so never drawn, where the platform has none. */
+    val castState: StateFlow<CastUi> get() = NoCast
+
+    /** The device picker the output drawer's Cast row opens, in the pipeline dialog's card. */
+    @Composable
+    fun CastDialog(hazeState: HazeState, onDismiss: () -> Unit) = Unit
+
+    /**
+     * Whether lines can be put on a share card here. False hides the pick mode
+     * altogether rather than offering a mode with nowhere to put its result.
+     */
+    val lyricsShareAvailable: Boolean get() = false
+
+    /**
+     * The picked lines, drawn as a picture this platform can write out and send.
+     * Absent, and so never called, where [lyricsShareAvailable] is false.
+     */
+    @Composable
+    fun LyricsShareSheet(hazeState: HazeState, request: LyricsShareRequest, onDismiss: () -> Unit) = Unit
 }
+
+private val NoCast = MutableStateFlow(CastUi())
+
+/** What the output drawer needs to know about casting to draw its row. */
+data class CastUi(
+    /** Whether this device can cast at all. False hides the row. */
+    val supported: Boolean = false,
+    /** The receiver the music is on now, or null when it is on this device. */
+    val connectedName: String? = null,
+    val connecting: Boolean = false,
+)
 
 /** Where the installed [PlayerHost] lives. */
 object PlayerPlatform {
@@ -125,6 +158,8 @@ interface PlayerSettingsSource {
     val smartFadeEnabled: StateFlow<Boolean>
     /** True only while an analysed Automix transition is audibly mixing two tracks. */
     val smartMixInProgress: StateFlow<Boolean>
+    /** The Automix blend in flight, for the scrubber's beat glow; null between blends. */
+    val smartMixBlend: StateFlow<MixBlend?>
     val smartTransitionWindow: StateFlow<TransitionWindow?>
     val spotifyCanvasAutoHide: StateFlow<Boolean>
     val syncedLyrics: StateFlow<Boolean>

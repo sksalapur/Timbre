@@ -18,8 +18,6 @@ import androidx.compose.ui.platform.LocalContext
 
 internal actual fun uptimeMillis(): Long = SystemClock.uptimeMillis()
 
-internal actual fun elapsedRealtimeMillis(): Long = SystemClock.elapsedRealtime()
-
 // RenderEffect, API 31+; `Modifier.blur` is a no-op below it.
 internal actual val renderEffectBlurSupported: Boolean
     get() = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
@@ -100,6 +98,13 @@ private object OverlayBack {
         view.findOnBackInvokedDispatcher()?.unregisterOnBackInvokedCallback(callback)
     }
 }
+
+/**
+ * A touch drag is the only thing that can move this platform's drawer, and a
+ * drag is also how the list inside it scrolls — so a finger that runs out of
+ * list has to take the drawer with it. See [PlayerDrawer].
+ */
+internal actual val drawerFollowsListScroll: Boolean get() = true
 
 internal actual fun DrawScope.clipShiftedDown(
     left: Float,

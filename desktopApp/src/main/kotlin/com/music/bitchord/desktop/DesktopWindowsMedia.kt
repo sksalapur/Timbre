@@ -19,6 +19,8 @@ internal object DesktopWindowsMedia {
 
     private val started = AtomicBoolean(false)
 
+    private val shutdownHookAdded = AtomicBoolean(false)
+
     @Volatile
     private var controller: Controller? = null
 
@@ -46,6 +48,13 @@ internal object DesktopWindowsMedia {
         if (!nativeStart()) {
             started.set(false)
             DesktopTrackLog.log("Windows media controls could not be created")
+            return
+        }
+        // Quitting from the tray is exitProcess, which never reaches the window's onDispose. The
+        // library's pump thread was then still running when the DLL unloaded, and destroying a
+        // joinable std::thread aborts the process — every quit ended in a native crash.
+        if (shutdownHookAdded.compareAndSet(false, true)) {
+            Runtime.getRuntime().addShutdownHook(Thread(::stop, "bitchord-smtc-stop"))
         }
     }
 

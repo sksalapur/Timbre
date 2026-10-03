@@ -21,6 +21,8 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
@@ -40,7 +42,14 @@ internal data class DesktopAddonManifest(
      * The settings schema the addon declares, read for its *defaults* rather than to build a form.
      */
     @SerialName("settings") val settings: List<DesktopAddonSetting> = emptyList(),
+    /**
+     * `allowDownloads` — `0` keeps the addon to playback only. Absent means allowed. (Android also
+     * reads `checkValidLossless`; the desktop app deliberately does not.)
+     */
+    @SerialName("allowDownloads") val allowDownloads: JsonElement? = null,
 ) {
+    val downloadsAllowed: Boolean get() = allowDownloads.asFlag() ?: true
+
     fun declares(resource: String): Boolean = resources.any { it.equals(resource, ignoreCase = true) }
 
     /** Whether this addon is worth asking anything. */
@@ -84,12 +93,21 @@ internal data class DesktopAddonTrack(
     @SerialName("format") val format: String = "",
     /** Not in the spec, but several addons send it and it says the same thing. */
     @SerialName("audioQuality") val audioQuality: String = "",
+    @SerialName("audioMode") val audioMode: String? = null,
+    @SerialName("audioModes") val audioModes: List<String> = emptyList(),
+    @SerialName("atmos") val atmos: Boolean? = null,
     /** A stream URL for the row itself; used only as a fallback — see [DesktopAddonSource]. */
     @SerialName("streamURL") val streamURL: String? = null,
 ) {
     val durationSec: Int? get() = duration?.takeIf { it > 0 }?.toInt()
 
     val artwork: String? get() = artworkURL?.ifBlank { null } ?: albumArtworkURL?.ifBlank { null }
+
+    /** Whether this catalogue row is the immersive mix rather than its stereo sibling. */
+    val isDolbyAtmos: Boolean
+        get() = atmos == true || ATMOS_HINT.containsMatchIn(
+            "$audioQuality ${audioMode.orEmpty()} ${audioModes.joinToString(" ")} $format",
+        )
 }
 
 @Serializable
@@ -104,6 +122,10 @@ internal data class DesktopAddonStream(
     @SerialName("fileCodec") val fileCodec: String? = null,
     @SerialName("container") val container: String? = null,
     @SerialName("containerFormat") val containerFormat: String? = null,
+    /** `none`, `hls` or `dash` — what the returned URL points at. */
+    @SerialName("manifest") val manifest: String? = null,
+    /** Older spelling used by compatible addons. */
+    @SerialName("mediaType") val mediaType: String? = null,
     @SerialName("mimeType") val mimeType: String? = null,
     /** `false`, or the name of a DRM scheme. */
     @SerialName("encrypted") val encrypted: JsonElement? = null,
@@ -132,6 +154,20 @@ internal data class DesktopAddonStream(
             return element.content.isNotBlank() &&
                 !element.content.equals("false", ignoreCase = true) &&
                 !element.content.equals("none", ignoreCase = true)
+        }
+
+    /** The demuxer the addon explicitly selected, including extensionless manifest URLs. */
+    val transport: String?
+        get() {
+            val stated = manifest?.ifBlank { null }
+                ?: mediaType?.ifBlank { null }
+                ?: format.ifBlank { null }
+                ?: return null
+            return when (stated.lowercase()) {
+                "hls", "m3u8", "application/x-mpegurl", "application/vnd.apple.mpegurl" -> HLS
+                "dash", "mpd", "application/dash+xml" -> DASH
+                else -> null
+            }
         }
 
     /**
@@ -165,11 +201,40 @@ internal data class DesktopAddonStream(
         private val KBPS_LABEL = Regex("""(\d{2,4})\s*kbps""", RegexOption.IGNORE_CASE)
         private val KHZ_LABEL = Regex("""([\d.]+)\s*kHz""", RegexOption.IGNORE_CASE)
         private val BIT_DEPTH_LABEL = Regex("""(\d{1,2})\s*-?\s*bit""", RegexOption.IGNORE_CASE)
-        private val ATMOS = Regex("""atmos|joc|eac3|e-ac-3""", RegexOption.IGNORE_CASE)
+        const val HLS = "hls"
+        const val DASH = "dash"
+
+        private val ATMOS = ATMOS_HINT
+    }
+}
+
+/** Every spelling compatible addons use for Dolby Atmos in catalogue and stream metadata. */
+private val ATMOS_HINT = Regex("""atmos|dolby|eac3[_-]?joc|e-?ac-?3|ec-?3""", RegexOption.IGNORE_CASE)
+
+/** Process-local setting read by clients without constructing preferences for every request. */
+internal object DesktopAddonSettings {
+    @Volatile
+    var dolbyAtmosEnabled: Boolean = DesktopPersistence().boolean("dolby_atmos", true)
+}
+
+/**
+ * A manifest switch however the addon wrote it — `1`/`0`, `true`/`false`, or either as a string —
+ * or null for "use the default", so a typo cannot flip a policy the wrong way. Same rule as
+ * Android's `AddonModels.asFlag`.
+ */
+internal fun JsonElement?.asFlag(): Boolean? {
+    val primitive = this as? JsonPrimitive ?: return null
+    if (primitive is JsonNull) return null
+    primitive.booleanOrNull?.let { return it }
+    return when (primitive.content.trim().lowercase()) {
+        "1", "true", "yes", "on" -> true
+        "0", "false", "no", "off" -> false
+        else -> primitive.content.toDoubleOrNull()?.let { it != 0.0 }
     }
 }
 
 private fun JsonElement.asQueryValue(): String? {
+    if (this is JsonNull) return null
     val primitive = this as? JsonPrimitive ?: return null
     return primitive.content.takeIf { it.isNotBlank() }
 }
@@ -252,6 +317,12 @@ internal class DesktopAddonClient(rawBaseUrl: String) {
         quietUntilMs = 0L
     }
 
+    /** Forces a real retry for completed track calls while retaining work already on the wire. */
+    fun clearCompletedTrackCalls() {
+        searches.clearCompleted()
+        streams.clearCompleted()
+    }
+
     /** The query parameters that travel with every request. */
     private suspend fun settingsFor(tier: String): Map<String, String> {
         val declared = manifest().getOrNull()?.settings.orEmpty()
@@ -266,6 +337,10 @@ internal class DesktopAddonClient(rawBaseUrl: String) {
                 .mapNotNull { it.stringValue }
             params[QUALITY_KEY] = matchTier(tier, options) ?: tier
         }
+        // `auto` asks for Atmos when available and stereo otherwise. A declared addon default is
+        // authoritative, exactly as on Android, so this never overwrites one.
+        val atmosWanted = DesktopCodecs.supportsDolbyAtmos && DesktopAddonSettings.dolbyAtmosEnabled
+        if (atmosWanted) params.putIfAbsent(ATMOS_KEY, ATMOS_AUTO)
         return params
     }
 
@@ -285,6 +360,9 @@ internal class DesktopAddonClient(rawBaseUrl: String) {
     private fun endpoint(segments: List<String>, params: Map<String, String>): String {
         val parsed = runCatching { Url(baseUrl) }.getOrNull()
             ?: throw DesktopAddonException("That is not a usable address")
+        if (parsed.protocol.name.lowercase() !in setOf("http", "https") || parsed.host.isBlank()) {
+            throw DesktopAddonException("That is not a usable address")
+        }
         return URLBuilder(parsed).apply {
             appendPathSegments(segments)
             params.forEach { (key, value) -> parameters.append(key, value) }
@@ -342,17 +420,19 @@ internal class DesktopAddonClient(rawBaseUrl: String) {
          * over ten seconds to mint a lossless URL, and cutting it off there is what left a Hi-Res
          * copy unfound while a 320 kbps one played.
          */
-        const val CALL_TIMEOUT_MS = 45_000L
+        const val CALL_TIMEOUT_MS = 20_000L
         const val MANIFEST_TTL_MS = 10 * 60 * 1000L
         const val SEARCH_TTL_MS = 10 * 60 * 1000L
         const val STREAM_TTL_MS = 5 * 60 * 1000L
 
         private const val QUALITY_KEY = "quality"
+        private const val ATMOS_KEY = "atmos"
+        private const val ATMOS_AUTO = "auto"
         private const val MANIFEST_SUFFIX = "/manifest.json"
         private const val MAX_RETRIES = 2
         private const val BACKOFF_BASE_MS = 500L
         private const val BACKOFF_CAP_MS = 8_000L
-        private const val USER_AGENT = "BitChord"
+        internal val USER_AGENT = "BitChord/v${System.getProperty("bitchord.version") ?: "1.7.1"}"
         private const val PROBE_QUERY = "music"
 
         private val LOSSLESS_WORDS = listOf("lossless", "flac", "hifi", "hi-res", "hires", "max", "best")
@@ -384,10 +464,10 @@ internal class DesktopAddonClient(rawBaseUrl: String) {
 
         fun manifestUrl(base: String): String = "$base$MANIFEST_SUFFIX"
 
-        /** A URL with its host hidden, for anything user-visible or logged. */
+        /** A URL with its token-bearing path hidden, for anything user-visible or logged. */
         fun redact(url: String): String = runCatching {
             val parsed = Url(url)
-            "${parsed.protocol.name}://***${parsed.encodedPath}"
+            "${parsed.protocol.name}://${parsed.host}/***"
         }.getOrDefault("***")
     }
 }
@@ -433,6 +513,36 @@ internal object DesktopAddonSource {
     /** Drops everything held for a source that was edited or removed. */
     fun forget(sourceId: String) {
         clients.remove(sourceId)?.clear()
+        rows.keys.removeIf { it.startsWith("$sourceId$SEPARATOR") }
+    }
+
+    /** Drops completed catalogue and stream answers but preserves requests already in flight. */
+    fun clearCompletedTrackCalls() = clients.values.forEach(DesktopAddonClient::clearCompletedTrackCalls)
+
+    // ── Manifest policy ─────────────────────────────────────────────────
+
+    /**
+     * What each addon's manifest said about `allowDownloads` this session. Read ahead of the
+     * stored config, which only catches up when the value actually changes.
+     */
+    private val learned = ConcurrentHashMap<String, Boolean>()
+
+    fun allowsDownloads(config: DesktopSourceConfig): Boolean = learned[config.id] ?: config.allowDownloads
+
+    /** Picks up a changed `allowDownloads` from the manifest — the client's cached copy, which the request reads anyway. */
+    private suspend fun refreshPolicy(config: DesktopSourceConfig) {
+        client(config).manifest().getOrNull()?.let { record(config, it) }
+    }
+
+    private fun record(config: DesktopSourceConfig, manifest: DesktopAddonManifest) {
+        val allowed = manifest.downloadsAllowed
+        if (learned.put(config.id, allowed) == allowed || config.allowDownloads == allowed) return
+        val persistence = DesktopPersistence()
+        val stored = persistence.sourceConfigs()
+        // An unsaved candidate from the editor has nothing to update.
+        if (stored.none { it.id == config.id }) return
+        DesktopTrackLog.log("${config.displayName}: manifest now says allowDownloads=$allowed")
+        persistence.saveSourceConfigs(stored.map { if (it.id == config.id) it.copy(allowDownloads = allowed) else it })
     }
 
     /** Whether this addon can be used, and what to say about it. */
@@ -441,6 +551,7 @@ internal object DesktopAddonSource {
         val addon = client(config)
         return addon.manifest().fold(
             onSuccess = { manifest ->
+                record(config, manifest)
                 Result.success(
                     listOfNotNull(
                         manifest.displayName.takeIf { it.isNotBlank() },
@@ -468,6 +579,7 @@ internal object DesktopAddonSource {
         limit: Int,
     ): Result<List<SearchResult>> = runCatching {
         if (query.isBlank()) return@runCatching emptyList()
+        refreshPolicy(config)
         val tracks = client(config)
             .search(query, DesktopAddonClient.TIER_LOSSLESS)
             .getOrElse { return@runCatching emptyList() }
@@ -486,7 +598,11 @@ internal object DesktopAddonSource {
                         durationText = track.durationSec?.let {
                             "${it / 60}:${"%02d".format(Locale.ROOT, it % 60)}"
                         },
-                        sourceQuality = DesktopModuleSource.qualityTier("${track.audioQuality} ${track.format}"),
+                        sourceQuality = if (track.isDolbyAtmos) {
+                            DesktopModuleSource.DOLBY
+                        } else {
+                            DesktopModuleSource.qualityTier("${track.audioQuality} ${track.format}")
+                        },
                     ),
                 )
             }
@@ -515,6 +631,7 @@ internal object DesktopAddonSource {
     ): Result<DesktopStream?> = runCatching {
         val reference = parseTrack(song.videoId)
             ?: return@runCatching null
+        refreshPolicy(config)
         val tier = tierFor(quality)
         val outcome = client(config).stream(reference.trackId, tier)
         val answer = outcome.getOrNull()
@@ -538,22 +655,27 @@ internal object DesktopAddonSource {
             )
             return@runCatching fromRow(config, reference.trackId, tier)
         }
-        openable(config, url, answer, tier)
+        openable(config, url, answer, reference.trackId, tier)
     }
 
     /** The stream the search row carried, when the `/stream` call had nothing. */
     private fun fromRow(config: DesktopSourceConfig, trackId: String, tier: String): DesktopStream? {
         val row = rows[rowKey(config.id, trackId)] ?: return null
         val url = row.streamURL?.ifBlank { null } ?: return null
-        return openable(config, url, DesktopAddonStream(url = url, format = row.format), tier)
+        return openable(config, url, DesktopAddonStream(url = url, format = row.format), trackId, tier)
     }
 
     private fun openable(
         config: DesktopSourceConfig,
         url: String,
         answer: DesktopAddonStream,
+        trackId: String,
         tier: String,
     ): DesktopStream? {
+        if (!playableUrl(url)) {
+            DesktopTrackLog.log("${config.displayName}: malformed stream URL; skipping it")
+            return null
+        }
         // Never sent a `?drm=`, so an encrypted answer is an addon ignoring the protocol.
         if (answer.isEncrypted) {
             DesktopTrackLog.log(
@@ -566,6 +688,8 @@ internal object DesktopAddonSource {
             format = formatOf(answer, url, tier),
             sourceId = config.id,
             isDolbyAtmos = answer.isDolbyAtmos,
+            transport = answer.transport,
+            durationSec = rows[rowKey(config.id, trackId)]?.durationSec,
         )
     }
 
@@ -613,6 +737,13 @@ internal object DesktopAddonSource {
         rows[rowKey(sourceId, track.id)] = track
     }
 
+    /** Only absolute HTTP(S) URLs may leave an addon and reach FFmpeg. */
+    private fun playableUrl(url: String): Boolean = runCatching {
+        val parsed = java.net.URI.create(url)
+        parsed.host?.isNotBlank() == true && parsed.scheme.lowercase() in setOf("http", "https") &&
+            !url.contains("${parsed.scheme}://${parsed.scheme}://", ignoreCase = true)
+    }.getOrDefault(false)
+
     private fun rowKey(sourceId: String, trackId: String) = "$sourceId$trackId"
 
     /** An addon's base URL embeds the account's signed token, so no message may carry one. */
@@ -647,7 +778,11 @@ internal object DesktopSourceFormats {
 
     suspend fun identify(rawUrl: String): Result<DesktopDetectedFormat> = withContext(Dispatchers.IO) {
         val url = rawUrl.trim().trimEnd('/')
-        if (url.isBlank() || runCatching { Url(url) }.getOrNull()?.host.isNullOrBlank()) {
+        val parsed = runCatching { Url(url) }.getOrNull()
+        if (
+            url.isBlank() || parsed == null || parsed.host.isBlank() ||
+            parsed.protocol.name.lowercase() !in setOf("http", "https")
+        ) {
             return@withContext Result.success(
                 DesktopDetectedFormat.Unsupported("That is not a web address BitChord can open"),
             )
@@ -702,37 +837,57 @@ internal object DesktopSourceFormats {
             }
         }
 
-        val manifest = runCatching {
-            DesktopAddonClient.json.decodeFromString<DesktopAddonManifest>(body)
-        }.getOrNull()
-        return when {
-            manifest == null -> DesktopDetectedFormat.Unsupported("BitChord does not recognise that JSON")
-            manifest.id.isBlank() ->
-                DesktopDetectedFormat.Unsupported("That JSON has no addon id, so it is not a manifest")
-            !manifest.isPlayable -> DesktopDetectedFormat.Unsupported(
-                "This addon declares ${manifest.resources.joinToString(", ")} — BitChord needs search",
+        val looksLikeManifest = obj["resources"] is JsonArray ||
+            (obj.containsKey("id") && (obj.containsKey("name") || obj.containsKey("version")))
+        if (looksLikeManifest) {
+            val manifest = runCatching {
+                DesktopAddonClient.json.decodeFromString<DesktopAddonManifest>(body)
+            }.getOrNull() ?: return DesktopDetectedFormat.Unsupported(
+                "That looks like an addon manifest, but it could not be read",
             )
-            else -> DesktopDetectedFormat.Addon(manifest, DesktopAddonClient.normalizeBase(url))
+            return when {
+                manifest.id.isBlank() ->
+                    DesktopDetectedFormat.Unsupported("That JSON has no addon id, so it is not a manifest")
+                !manifest.isPlayable -> DesktopDetectedFormat.Unsupported(
+                    "This addon declares ${manifest.resources.joinToString(", ")} — BitChord needs search",
+                )
+                else -> DesktopDetectedFormat.Addon(manifest, DesktopAddonClient.normalizeBase(url))
+            }
         }
+
+        val listKey = obj.entries.firstOrNull { it.value is JsonArray && (it.value as JsonArray).isNotEmpty() }?.key
+        if (listKey != null) {
+            return DesktopDetectedFormat.Unsupported(
+                "That JSON lists \"$listKey\", which is not a format BitChord reads",
+            )
+        }
+        val keys = obj.keys.take(4).joinToString(", ").ifBlank { "nothing" }
+        return DesktopDetectedFormat.Unsupported("Unrecognised JSON — it holds $keys")
     }
 
     /** Stand-in for an addon that works but published nothing describing itself. */
     private fun synthesised(base: String) = DesktopAddonManifest(
         id = base,
         name = runCatching { Url(base).host }.getOrNull().orEmpty().ifBlank { "Addon" },
-        resources = listOf("search"),
+        resources = listOf("search", "stream"),
     )
 
     private suspend fun fetch(url: String): Result<String> = runCatching {
-        val response = http.get(url) { header("Accept", "application/json") }
+        val response = http.get(url) {
+            header("Accept", "application/json")
+            header("User-Agent", DesktopAddonClient.USER_AGENT)
+        }
         val code = response.status.value
         when {
-            code in 200..299 -> response.bodyAsText()
+            code in 200..299 -> response.bodyAsText().takeIf { it.isNotBlank() }
+                ?: throw DesktopAddonException("Empty response")
             code == 404 -> throw DesktopAddonNotFound()
             code >= 500 -> throw DesktopAddonUnavailable("HTTP $code")
             else -> throw DesktopAddonException("HTTP $code")
         }
     }
 
-    private val http = HttpClient(CIO)
+    private val http = HttpClient(CIO) {
+        install(HttpTimeout) { requestTimeoutMillis = DesktopAddonClient.CALL_TIMEOUT_MS }
+    }
 }

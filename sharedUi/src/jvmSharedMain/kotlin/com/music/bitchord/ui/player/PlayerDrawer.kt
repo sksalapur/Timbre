@@ -48,6 +48,7 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
@@ -91,14 +92,20 @@ private const val DISMISS_DRAG_FRACTION = 0.25f
  * scrim, a grab handle, a title, drag down to put it away. Pulled out because
  * the drag gesture, the scrim fade tied to it, and the haze background are
  * identical between the two and worth keeping in exactly one place.
+ *
+ * Public because a platform's own player sheet draws in it too: the phone's
+ * lyrics card goes up in this same shell rather than in a second one that would
+ * have to re-learn the drag gesture, the scrim fade and the frosted material.
  */
 @OptIn(ExperimentalHazeMaterialsApi::class)
 @Composable
-internal fun PlayerDrawer(
+fun PlayerDrawer(
     hazeState: HazeState,
     title: String,
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
+    /** Air between the title and whatever the drawer opens with. */
+    titleGap: Dp = 14.dp,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val reduceDynamicBlur by PlayerSettings.reduceDynamicBlur.collectAsStateWithLifecycle()
@@ -127,6 +134,11 @@ internal fun PlayerDrawer(
     // behaves — and pushing back up returns it before the list scrolls again.
     // Everything left over is kept here rather than handed on to the player's
     // sheet, which would otherwise be dragged down along with the drawer.
+    //
+    // Only where scrolling is dragging, though: see [drawerFollowsListScroll].
+    // Where it is not, the connection is left off entirely and the drawer
+    // answers to its own drag alone, because a scroll leftover means something
+    // else there and must not be read as a pull.
     val dismissOnRelease: () -> Unit = {
         if (height > 0 && drag > height * DISMISS_DRAG_FRACTION) onDismiss() else drag = 0f
     }
@@ -141,6 +153,18 @@ internal fun PlayerDrawer(
 
             override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
                 if (source == NestedScrollSource.UserInput && available.y > 0f) drag += available.y
+                // Upward leftover is taken only as far as the drawer has already
+                // been dragged. Returning all of it would hand the player sheet
+                // — the very thing this connection is here to keep clear — the
+                // gesture meant to undo the drag, and the drawer would have no
+                // way back to where it started, because a list resting on its
+                // top consumes nothing and so never produces a pre-scroll to
+                // give back.
+                if (drag > 0f && available.y < 0f) {
+                    val used = available.y.coerceAtLeast(-drag)
+                    drag += used
+                    return Offset(0f, used)
+                }
                 return available
             }
 
@@ -204,7 +228,7 @@ internal fun PlayerDrawer(
                 // Dragged down to dismiss, like every other sheet in the app.
                 // Upward drag is clamped to zero rather than followed: there is
                 // nothing above the drawer to reveal.
-                .nestedScroll(drawerScroll)
+                .then(if (drawerFollowsListScroll) Modifier.nestedScroll(drawerScroll) else Modifier)
                 .pointerInput(height) {
                     detectVerticalDragGestures(
                         onDragEnd = dismissOnRelease,
@@ -237,7 +261,7 @@ internal fun PlayerDrawer(
                 color = Color.White,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(start = 4.dp, bottom = 14.dp),
+                    .padding(start = 4.dp, bottom = titleGap),
             )
             content()
         }

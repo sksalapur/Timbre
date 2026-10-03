@@ -196,7 +196,8 @@ internal object DesktopMusicSources {
         song: Song,
         qualityOverride: String? = null,
         excludedSourceId: String? = null,
-    ): Result<DesktopStream> = DesktopSourceRegistry.resolve(song, qualityOverride, excludedSourceId)
+        forDownload: Boolean = false,
+    ): Result<DesktopStream> = DesktopSourceRegistry.resolve(song, qualityOverride, excludedSourceId, forDownload)
 
     /** As [resolve], but for playback: races the sources and reports what is still running. */
     suspend fun resolveLive(
@@ -220,4 +221,6 @@ internal object DesktopMusicSources {
     fun sourceNameFor(stream: DesktopStream): String = DesktopSourceRegistry.sourceNameFor(stream)
 
     fun hasYouTubeOriginal(song: Song): Boolean = DesktopSourceRegistry.hasYouTubeOriginal(song)
+
+    fun mayServeFromAddon(song: Song): Boolean = DesktopSourceRegistry.mayServeFromAddon(song)
 }

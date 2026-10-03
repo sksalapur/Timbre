@@ -498,6 +498,10 @@
     <string name="hour_pm">%1$d PM</string>
     <string name="hours_minutes_short">%1$dh %2$dmin</string>
     <string name="listen_most_around">Vous écoutez surtout vers %1$s.</string>
+    <string name="lyrics_share_title">Partager les paroles</string>
+    <string name="lyrics_share_description">Les lignes que vous avez choisies, mises en page sur une carte avec la pochette.</string>
+    <string name="lyrics_share_story">Convertir en story</string>
+    <string name="lyrics_share_story_revert">Revenir à la carte</string>
     <string name="listening_shape">Votre profil d\'écoute</string>
     <string name="member_since">Membre depuis</string>
     <string name="member_since_value">Membre depuis %1$s</string>
@@ -529,6 +533,10 @@
     <string name="replay_minutes_end"> avec la musique.</string>
     <string name="replay_minutes_start">Vous avez passé </string>
     <string name="replay_minutes_value">%1$s</string>
+    <plurals name="replay_minutes_unit">
+        <item quantity="one">%1$s minute</item>
+        <item quantity="other">%1$s minutes</item>
+    </plurals>
     <string name="replay_mostly_around">, surtout vers %1$s.</string>
     <string name="replay_private_counting">Calculé de façon privée à partir de l\'historique d\'écoute sur cet appareil</string>
     <string name="replay_share_card_description">Une carte soignée avec vos principaux temps forts d\'écoute.</string>
@@ -537,16 +545,19 @@
     <string name="replay_songs_start">Au total, </string>
     <string name="replay_summary_start">Votre écoute avait un style </string>
     <string name="saved">Enregistré</string>
+    <string name="saved_bang">Enregistré !</string>
     <string name="share_my_replay">Partager mon Replay</string>
+    <string name="share_your_lyrics">Envoyer votre carte de paroles</string>
     <string name="share_your_replay">Partagez votre Replay</string>
     <string name="tap_share_for_picture">Appuyez sur Partager pour créer une image</string>
     <string name="top_album">Meilleur album</string>
     <string name="top_artist">Meilleur artiste</string>
     <string name="top_genre">Meilleur genre</string>
     <string name="top_song">Meilleure chanson</string>
-    <string name="when_you_listen_most">Quand vous écoutez le plus</string>
+    <string name="when_you_listen_the_most">Quand vous écoutez le plus</string>
     <string name="your_biggest_day">Votre plus grosse journée : %1$s</string>
     <string name="your_listening_experience">Votre expérience d\'écoute</string>
+    <string name="your_lyrics_card">Votre carte de paroles</string>
     <string name="your_replay">Votre Replay</string>
     <plurals name="replay_artist_count">
         <item quantity="one">%1$s artiste</item>
@@ -617,6 +628,8 @@
     <string name="version_cut_aligned">aligné</string>
     <string name="automix_enabled_subtitle">Chronomètre et mélange chaque transition à partir des morceaux eux-mêmes. Désactivez-le si le téléphone chauffe ou si la lecture saccade.</string>
     <string name="automix_disabled_subtitle">Chronomètre et mélange les transitions automatiquement, sans curseur. Les performances peuvent varier sur les appareils plus lents.</string>
+    <string name="advanced_automix">Automix avancé</string>
+    <string name="advanced_automix_subtitle">Mixe comme un DJ : garde les temps calés, place chaque changement sur le temps et coupe entre les morceaux qui ne se mélangent pas. Aucun traitement supplémentaire.</string>
     <string name="no_lyrics_sources_enabled">Aucune. Les paroles ne seront pas récupérées.</string>
     <string name="song_cache_large_subtitle">Conserve jusqu\'à %1$s d\'audio téléchargé sur le disque. Cela peut occuper une part importante de votre espace libre.</string>
     <string name="song_cache_limit_subtitle">Conserve l\'audio téléchargé sur le disque pour une recherche instantanée et de nouvelles écoutes</string>
@@ -856,6 +869,7 @@
     <string name="prefer_usb_dac">Préférer le DAC USB</string>
     <string name="loudness_normalization">Normalisation du volume</string>
     <string name="loudness_normalization_subtitle">Ramène chaque titre à la même intensité sonore</string>
+    <string name="loudness_off_on_speaker">Desactiver sur le haut-parleur du telephone</string>
     <string name="loudness_target">Intensité cible</string>
     <string name="loudness_target_subtitle">Plus bas pour un casque ; plus fort pour la voiture ou le haut-parleur du téléphone</string>
     <string name="loudness_target_value">%1$s LUFS</string>
@@ -1136,6 +1150,15 @@
 
 
     <string name="audio_pipeline">Audio Pipeline</string>
+    <string name="cast_dialog_title">Cast</string>
+    <string name="cast_dialog_subtitle">Play on a Chromecast or Google Cast speaker</string>
+    <string name="cast_searching">Looking for devices…</string>
+    <string name="cast_searching_hint">Your phone and the receiver need to be on the same Wi-Fi network.</string>
+    <string name="cast_device_connecting">Connecting…</string>
+    <string name="cast_device_connected">Casting</string>
+    <string name="cast_stop">Stop casting</string>
+    <string name="cast_track_unsupported">This track can\'t be cast</string>
+    <string name="cast_connect_failed">Couldn\'t connect to the receiver</string>
     <string name="audio_pipeline_subtitle">Chemin du signal en direct, du décodeur à la sortie</string>
 
     <string name="pipeline_track_info">Track Info</string>
@@ -1209,4 +1232,19 @@
 
 
 
+    <string name="source_needs_lossless_output">Nécessite une sortie sans perte · utilisez un appareil compatible sans perte</string>
+    <string name="source_needs_lossless_bt_codec">Nécessite une sortie sans perte · le Bluetooth utilise %1$s ; utilisez un appareil compatible sans perte</string>
+    <string name="source_needs_lossless_bt_unknown">Nécessite une sortie sans perte · impossible de savoir quel codec Bluetooth est utilisé</string>
+    <string name="source_downloads_off">Streaming uniquement</string>
+    <string name="lossless_output_permission">Vérifier le codec Bluetooth</string>
+    <string name="lossless_output_permission_detail">Autorisez Appareils à proximité pour qu’un casque LDAC ou LHDC débloque les modules sans perte</string>
+    <string name="cached_songs">Titres en cache</string>
+    <string name="cached_songs_subtitle">Titres de YouTube et JioSaavn dans le cache audio</string>
+    <string name="cached_songs_empty">Aucun titre en cache pour l’instant. Les titres lus depuis YouTube ou JioSaavn apparaîtront ici.</string>
+    <string name="show_cache_folder">Afficher le dossier des titres en cache</string>
+    <string name="show_cache_folder_subtitle">Ajoute à la Bibliothèque un dossier avec les titres YouTube et JioSaavn conservés dans le cache</string>
+    <string name="song_cache_unlimited">Illimité</string>
+    <string name="song_cache_unlimited_subtitle">Aucune limite. L’audio en cache peut grandir jusqu’à remplir votre stockage.</string>
+    <string name="clear_song_cache_title">Vider le cache audio ?</string>
+    <string name="clear_song_cache_warning">Tous les titres en cache seront supprimés et le dossier des titres en cache sera vidé. Ils seront à nouveau diffusés en streaming à la prochaine lecture.</string>
 </resources>

@@ -55,8 +55,8 @@ data class ArtworkPalette(
      * A blur wide enough to lose the picture leaves the mean of what it
      * sampled, so a page that starts from this colour where the artwork stops
      * reads as that blur carrying on rather than as a second surface beginning.
-     * Lighter than [background], which the page still settles into further
-     * down — the artwork's colour is strongest right under the artwork.
+     * Lighter than [background]. A detail page is this colour, flat, all the
+     * way down.
      */
     val wash: Color,
     /** Fill for the glass buttons and chips that sit on [background]. */
@@ -69,7 +69,16 @@ data class ArtworkPalette(
 )
 
 /**
- * Pulls [ArtworkPalette] out of the artwork at [imageUrl].
+ * Colours that came with the artwork rather than from decoding it — Apple
+ * Music publishes a background and a text colour for every artist photograph.
+ */
+@Immutable
+data class ArtworkKeyColors(val background: Color, val accent: Color)
+
+/**
+ * Pulls [ArtworkPalette] out of the artwork at [imageUrl], or out of
+ * [keyColors] when the source already supplied them and there is nothing to
+ * decode.
  *
  * Artwork that has already been read once is tinted on the very first frame,
  * off [seedCache] — a sheet opened from a page it shares a cover with, or a
@@ -91,14 +100,18 @@ fun rememberArtworkPalette(
      * out of the cache or off the network.
      */
     artPx: Int = CARD_ART_PX,
+    keyColors: ArtworkKeyColors? = null,
 ): ArtworkPalette {
     val scheme = MaterialTheme.colorScheme
     val reduceAnimation by PlayerPlatform.host.settings.reduceAnimation.collectAsStateWithLifecycle()
-    val seed = rememberArtworkSeed(imageUrl, artPx)
+    // Always asked, so the composable call is unconditional; handed nothing to
+    // read when the colours are already in hand.
+    val decoded = rememberArtworkSeed(if (keyColors == null) imageUrl else null, artPx)
+    val seed = keyColors?.toSeed() ?: decoded
     // Whether the colours were there from the first frame. If they were, there
     // is nothing to crossfade *from* and animating would only put a delay in
     // front of a surface that could already be right.
-    val knownUpFront = remember(imageUrl) { seed != null }
+    val knownUpFront = remember(imageUrl) { decoded != null }
 
     val target = seed?.toPalette(dark) ?: ArtworkPalette(
         background = scheme.background,
@@ -220,6 +233,17 @@ private fun seedOf(bitmap: ImageBitmap): Seed? {
         topBandLuminance = bitmap.topBandRelativeLuminance(),
     )
 }
+
+/**
+ * A seed with every note taken from the supplied colours: the page is the
+ * background from top to edge, and the accent is the supplied one.
+ */
+private fun ArtworkKeyColors.toSeed() = Seed(
+    dominant = background,
+    vibrant = accent,
+    edge = background,
+    topBandLuminance = relativeLuminance(background.toArgb()),
+)
 
 private const val SWATCH_COUNT = 24
 

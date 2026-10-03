@@ -510,6 +510,10 @@
     <string name="hour_pm">%1$d โมงเย็น</string>
     <string name="hours_minutes_short">%1$dชม. %2$dนาที</string>
     <string name="listen_most_around">คุณฟังเพลงมากที่สุดช่วง %1$s</string>
+    <string name="lyrics_share_title">แชร์เนื้อเพลง</string>
+    <string name="lyrics_share_description">บรรทัดที่คุณเลือก เรียงเป็นการ์ดพร้อมปก</string>
+    <string name="lyrics_share_story">แปลงเป็นสตอรี่</string>
+    <string name="lyrics_share_story_revert">กลับเป็นการ์ด</string>
     <string name="listening_shape">รูปแบบการฟังของคุณ</string>
     <string name="member_since">สมาชิกตั้งแต่</string>
     <string name="member_since_value">เป็นสมาชิกตั้งแต่ %1$s</string>
@@ -541,6 +545,9 @@
     <string name="replay_minutes_end"> กับดนตรี</string>
     <string name="replay_minutes_start">คุณใช้เวลา </string>
     <string name="replay_minutes_value">%1$s</string>
+    <plurals name="replay_minutes_unit">
+        <item quantity="other">%1$s นาที</item>
+    </plurals>
     <string name="replay_mostly_around"> ส่วนใหญ่ในช่วง %1$s</string>
     <string name="replay_private_counting">สร้างขึ้นแบบส่วนตัวจากประวัติการฟังบนอุปกรณ์นี้</string>
     <string name="replay_share_card_description">การ์ดสวยงามพร้อมไฮไลต์การฟังหลักของคุณ</string>
@@ -549,16 +556,19 @@
     <string name="replay_songs_start">รวมทั้งหมด </string>
     <string name="replay_summary_start">การฟังของคุณมี</string>
     <string name="saved">บันทึกแล้ว</string>
+    <string name="saved_bang">บันทึกแล้ว!</string>
     <string name="share_my_replay">แชร์ Replay ของฉัน</string>
+    <string name="share_your_lyrics">ส่งการ์ดเนื้อเพลงของคุณ</string>
     <string name="share_your_replay">แชร์ Replay ของคุณ</string>
     <string name="tap_share_for_picture">แตะแชร์เพื่อสร้างภาพ</string>
     <string name="top_album">อัลบั้มยอดนิยม</string>
     <string name="top_artist">ศิลปินยอดนิยม</string>
     <string name="top_genre">แนวเพลงยอดนิยม</string>
     <string name="top_song">เพลงยอดนิยม</string>
-    <string name="when_you_listen_most">ช่วงเวลาที่คุณฟังมากที่สุด</string>
+    <string name="when_you_listen_the_most">ช่วงเวลาที่คุณฟังมากที่สุด</string>
     <string name="your_biggest_day">วันที่คุณฟังมากที่สุด: %1$s</string>
     <string name="your_listening_experience">ประสบการณ์การฟังของคุณ</string>
+    <string name="your_lyrics_card">การ์ดเนื้อเพลงของคุณ</string>
     <string name="your_replay">Replay ของคุณ</string>
     <plurals name="replay_artist_count">
         <item quantity="other">%1$s ศิลปิน</item>
@@ -627,6 +637,8 @@
     <string name="version_cut_aligned">จัดตำแหน่งแล้ว</string>
     <string name="automix_enabled_subtitle">กำหนดจังหวะและผสานทุกช่วงเปลี่ยนเพลงจากตัวแทร็กเอง ปิดหากเครื่องร้อนหรือการเล่นกระตุก</string>
     <string name="automix_disabled_subtitle">กำหนดจังหวะและผสานช่วงเปลี่ยนเพลงโดยอัตโนมัติ โดยไม่มีแถบเลื่อน ประสิทธิภาพอาจแตกต่างกันในอุปกรณ์ที่ช้ากว่า</string>
+    <string name="advanced_automix">Automix ขั้นสูง</string>
+    <string name="advanced_automix_subtitle">มิกซ์แบบดีเจ: รักษาจังหวะให้ตรงกัน เปลี่ยนเพลงตรงจังหวะ และตัดข้ามเพลงที่เข้ากันไม่ได้ ไม่มีการประมวลผลเพิ่ม</string>
     <string name="no_lyrics_sources_enabled">ไม่มี จะไม่มีการดึงเนื้อเพลง</string>
     <string name="song_cache_large_subtitle">เก็บเสียงที่ดาวน์โหลดไว้บนดิสก์สูงสุด %1$s ซึ่งอาจใช้พื้นที่ว่างของคุณไปมาก</string>
     <string name="song_cache_limit_subtitle">เก็บเสียงที่ดาวน์โหลดไว้บนดิสก์เพื่อการเลื่อนฟังและฟังซ้ำได้ทันที</string>
@@ -942,6 +954,15 @@
 
 
     <string name="audio_pipeline">Audio Pipeline</string>
+    <string name="cast_dialog_title">Cast</string>
+    <string name="cast_dialog_subtitle">Play on a Chromecast or Google Cast speaker</string>
+    <string name="cast_searching">Looking for devices…</string>
+    <string name="cast_searching_hint">Your phone and the receiver need to be on the same Wi-Fi network.</string>
+    <string name="cast_device_connecting">Connecting…</string>
+    <string name="cast_device_connected">Casting</string>
+    <string name="cast_stop">Stop casting</string>
+    <string name="cast_track_unsupported">This track can\'t be cast</string>
+    <string name="cast_connect_failed">Couldn\'t connect to the receiver</string>
     <string name="audio_pipeline_subtitle">เส้นทางสัญญาณแบบเรียลไทม์ จากตัวถอดรหัสถึงเอาต์พุต</string>
 
     <string name="pipeline_track_info">Track Info</string>
@@ -1042,6 +1063,7 @@
     <string name="prefer_usb_dac">Prefer USB DAC</string>
     <string name="loudness_normalization">ปรับระดับความดังให้เท่ากัน</string>
     <string name="loudness_normalization_subtitle">ปรับทุกแทร็กให้ดังเท่ากัน</string>
+    <string name="loudness_off_on_speaker">ปิดบนลำโพงโทรศัพท์</string>
     <string name="loudness_target">ความดังเป้าหมาย</string>
     <string name="loudness_target_subtitle">เบาลงเหมาะกับหูฟัง ดังขึ้นเหมาะกับในรถหรือลำโพงโทรศัพท์</string>
     <string name="loudness_target_value">%1$s LUFS</string>
@@ -1194,4 +1216,19 @@
     <string name="card_songs_format">%1$s songs</string>
 
 
+    <string name="source_needs_lossless_output">ต้องใช้เอาต์พุตแบบ lossless · ใช้อุปกรณ์ที่รองรับ lossless</string>
+    <string name="source_needs_lossless_bt_codec">ต้องใช้เอาต์พุตแบบ lossless · Bluetooth ใช้ %1$s อยู่ ใช้อุปกรณ์ที่รองรับ lossless</string>
+    <string name="source_needs_lossless_bt_unknown">ต้องใช้เอาต์พุตแบบ lossless · ไม่ทราบว่ากำลังใช้ตัวแปลงสัญญาณ Bluetooth ใด</string>
+    <string name="source_downloads_off">สตรีมมิงเท่านั้น</string>
+    <string name="lossless_output_permission">ตรวจสอบตัวแปลงสัญญาณ Bluetooth</string>
+    <string name="lossless_output_permission_detail">อนุญาตอุปกรณ์ใกล้เคียงเพื่อให้หูฟัง LDAC หรือ LHDC ปลดล็อกส่วนเสริมแบบ lossless</string>
+    <string name="cached_songs">เพลงในแคช</string>
+    <string name="cached_songs_subtitle">เพลงจาก YouTube และ JioSaavn ในแคชเพลง</string>
+    <string name="cached_songs_empty">ยังไม่มีเพลงในแคช เพลงที่คุณเล่นจาก YouTube หรือ JioSaavn จะแสดงที่นี่</string>
+    <string name="show_cache_folder">แสดงโฟลเดอร์เพลงในแคช</string>
+    <string name="show_cache_folder_subtitle">เพิ่มโฟลเดอร์ในคลังเพลงที่มีเพลงจาก YouTube และ JioSaavn ที่เก็บไว้ในแคช</string>
+    <string name="song_cache_unlimited">ไม่จำกัด</string>
+    <string name="song_cache_unlimited_subtitle">ไม่มีขีดจำกัด เสียงในแคชอาจเพิ่มขึ้นจนพื้นที่จัดเก็บเต็ม</string>
+    <string name="clear_song_cache_title">ล้างแคชเพลงใช่ไหม</string>
+    <string name="clear_song_cache_warning">เพลงในแคชทั้งหมดจะถูกลบและโฟลเดอร์เพลงในแคชจะว่างเปล่า เพลงจะสตรีมใหม่ในครั้งถัดไปที่เล่น</string>
 </resources>

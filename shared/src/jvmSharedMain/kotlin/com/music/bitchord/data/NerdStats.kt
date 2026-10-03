@@ -7,6 +7,16 @@ import kotlinx.coroutines.flow.update
 import java.util.concurrent.ConcurrentHashMap
 
 /**
+ * Architectural provenance of audio pipeline telemetry statistics.
+ */
+enum class TelemetryProvenance {
+    AUTHORITATIVE,
+    MEASURED,
+    DERIVED,
+    UNKNOWN,
+}
+
+/**
  * What the audio decoder is actually being fed, for "stats for nerds".
  *
  * Every figure here is measured rather than inferred, and every label derived
@@ -40,6 +50,15 @@ object NerdStats {
         val claimed: StreamFormat? = null,
         /** Authoritative source/provider that supplied this stream. */
         val sourceName: String? = null,
+        /**
+         * The file's container where it says something the codec doesn't —
+         * "DSF" or "DFF" for DSD, which reaches the decoder as plain PCM.
+         */
+        val container: String? = null,
+        /** Provenance of the displayed source/encoded bitrate. */
+        val bitrateProvenance: TelemetryProvenance = TelemetryProvenance.UNKNOWN,
+        /** True PCM throughput (sampleRate * bitDepth * channels / 1000). Never conflated with encoded bitrate. */
+        val pcmDataRateKbps: Int? = null,
     ) {
         /**
          * Whether what arrived is measurably worse than what was promised.
@@ -154,10 +173,23 @@ object NerdStats {
      * queue advance is the previous one.
      */
     fun isLosslessMime(mimeType: String?): Boolean =
-        mimeType != null && LOSSLESS_CODEC_SUFFIXES.any { mimeType.endsWith(it) }
+        mimeType != null && (LOSSLESS_CODEC_SUFFIXES.any { mimeType.endsWith(it) } || mimeType.startsWith("audio/dsd"))
+
+    /**
+     * A rate of a megahertz or more, as DSD's are named: 2822400 -> "2.8224 MHz".
+     * Null below that, where each caller keeps its own kHz wording. Exact
+     * digits rather than one decimal place, since the DSD rates are all
+     * multiples of 44.1 kHz and rounding them makes them unrecognisable.
+     */
+    fun megahertzLabel(hz: Int): String? =
+        if (hz < 1_000_000) null
+        else java.math.BigDecimal(hz).movePointLeft(6).stripTrailingZeros().toPlainString() + " MHz"
 
     fun isDolbyAtmosMime(mimeType: String?): Boolean =
         mimeType != null && (mimeType.endsWith("eac3-joc") || mimeType.endsWith("eac3"))
+
+    fun isRawPcm(mimeType: String?): Boolean =
+        mimeType != null && (mimeType == "audio/raw" || mimeType.endsWith("wav", ignoreCase = true) || mimeType == "audio/x-wav")
 
     /**
      * The upper bound in kbps for a low-bitrate / data-saver lossy stream.
@@ -182,6 +214,7 @@ object NerdStats {
             mimeType.endsWith("mpeg", ignoreCase = true) || mimeType.endsWith("mp3", ignoreCase = true) -> "MP3"
             mimeType.endsWith("alac", ignoreCase = true) -> "ALAC"
             mimeType.endsWith("raw", ignoreCase = true) -> "PCM"
+            mimeType.startsWith("audio/dsd", ignoreCase = true) -> mimeType.substringAfter('/').uppercase()
             mimeType.endsWith("vorbis", ignoreCase = true) -> "Vorbis"
             mimeType.endsWith("eac3-joc", ignoreCase = true) -> "E-AC-3 JOC"
             mimeType.endsWith("eac3", ignoreCase = true) -> "E-AC-3"
@@ -301,6 +334,10 @@ object NerdStats {
         val key = mediaId ?: return null
         return declared[key]
             ?: SourceTrackKeys.parse(key)?.second?.let { declared[it] }
+    }
+
+    fun onTrackTransition() {
+        current.value = null
     }
 
     /**
