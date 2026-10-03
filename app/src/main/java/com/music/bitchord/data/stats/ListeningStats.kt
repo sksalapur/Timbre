@@ -320,7 +320,7 @@ object ListeningStats {
                 months().filter { month ->
                     val start = month.atDay(1)
                     val end = month.atEndOfMonth()
-                    !(end < range.first || start > range.second)
+                    !(end < range.start || start > range.endInclusive)
                 }.forEach { month -> read(month.toString())?.let { bucket -> merged.add(bucket, range) } }
             }
             else -> {
@@ -553,7 +553,7 @@ object ListeningStats {
                 val candidate = "${bucket.month}-%02d".format(day)
                 val date = runCatching { LocalDate.parse(candidate.replace("-", "/")) }.getOrNull()
                     ?: return@forEach
-                if (date in range.first..range.second) {
+                if (date in range.start..range.endInclusive) {
                     days[candidate] = (days[candidate] ?: 0L) + ms
                 }
             }
@@ -571,7 +571,8 @@ object ListeningStats {
                     }
                     .sortedWith(compareByDescending<Pair<TrackEntry, Pair<Long, Int>>> { it.second.first }
                         .thenByDescending { it.second.second })
-                    .map { (entry, (ms, plays)) ->
+                    .map { (entry, msPlays) ->
+                        val (ms, plays) = msPlays
                         RankedSong(
                             song = Song(
                                 videoId = entry.id,
@@ -620,7 +621,8 @@ object ListeningStats {
                     }
                     .sortedWith(compareByDescending<Pair<NameEntry, Pair<Long, Int>>> { it.second.first }
                         .thenByDescending { it.second.second })
-                    .map { (entry, (ms, plays)) ->
+                    .map { (entry, msPlays) ->
+                        val (ms, plays) = msPlays
                         RankedEntry(
                             title = entry.name,
                             subtitle = entry.sub,
@@ -653,7 +655,8 @@ object ListeningStats {
                     }
                     .sortedWith(compareByDescending<Pair<NameEntry, Pair<Long, Int>>> { it.second.first }
                         .thenByDescending { it.second.second })
-                    .map { (entry, (ms, plays)) ->
+                    .map { (entry, msPlays) ->
+                        val (ms, plays) = msPlays
                         RankedEntry(entry.name, entry.sub, entry.art, entry.id, ms, plays)
                     }
             } else {
@@ -835,7 +838,7 @@ data class TrackEntry(
         var totalPlays = 0
         for ((dateStr, stats) in days) {
             val date = runCatching { LocalDate.parse(dateStr.replace("-", "/")) }.getOrNull() ?: continue
-            if (date in range.first..range.second) {
+            if (date in range.start..range.endInclusive) {
                 totalMs += stats.ms
                 totalPlays += stats.plays
             }
@@ -882,7 +885,7 @@ data class NameEntry(
         var totalPlays = 0
         for ((dateStr, stats) in days) {
             val date = runCatching { LocalDate.parse(dateStr.replace("-", "/")) }.getOrNull() ?: continue
-            if (date in range.first..range.second) {
+            if (date in range.start..range.endInclusive) {
                 totalMs += stats.ms
                 totalPlays += stats.plays
             }
@@ -951,7 +954,7 @@ enum class ReplayPeriod(val chip: String) {
             val range = month.atDay(1)..month.atEndOfMonth()
             val weekStart = today.with(java.time.DayOfWeek.MONDAY)
             val weekEnd = today
-            !(weekEnd < range.first || weekStart > range.second)
+            !(weekEnd < range.start || weekStart > range.endInclusive)
         }
         THIS_MONTH -> month == YearMonth.from(today)
         THIS_YEAR -> month.year == today.year
