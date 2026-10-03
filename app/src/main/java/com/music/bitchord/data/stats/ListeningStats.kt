@@ -320,7 +320,7 @@ object ListeningStats {
                 months().filter { month ->
                     val start = month.atDay(1)
                     val end = month.atEndOfMonth()
-                    !(end < range.start || start > range.endInclusive)
+                    !(end < range.first || start > range.second)
                 }.forEach { month -> read(month.toString())?.let { bucket -> merged.add(bucket, range) } }
             }
             else -> {
@@ -553,7 +553,7 @@ object ListeningStats {
                 val candidate = "${bucket.month}-%02d".format(day)
                 val date = runCatching { LocalDate.parse(candidate.replace("-", "/")) }.getOrNull()
                     ?: return@forEach
-                if (date in range.start..range.endInclusive) {
+                if (date >= range.first && date <= range.second) {
                     days[candidate] = (days[candidate] ?: 0L) + ms
                 }
             }
@@ -838,7 +838,7 @@ data class TrackEntry(
         var totalPlays = 0
         for ((dateStr, stats) in days) {
             val date = runCatching { LocalDate.parse(dateStr.replace("-", "/")) }.getOrNull() ?: continue
-            if (date in range.start..range.endInclusive) {
+            if (date >= range.first && date <= range.second) {
                 totalMs += stats.ms
                 totalPlays += stats.plays
             }
@@ -885,7 +885,7 @@ data class NameEntry(
         var totalPlays = 0
         for ((dateStr, stats) in days) {
             val date = runCatching { LocalDate.parse(dateStr.replace("-", "/")) }.getOrNull() ?: continue
-            if (date in range.start..range.endInclusive) {
+            if (date >= range.first && date <= range.second) {
                 totalMs += stats.ms
                 totalPlays += stats.plays
             }
