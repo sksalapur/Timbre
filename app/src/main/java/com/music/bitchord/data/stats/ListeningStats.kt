@@ -565,7 +565,19 @@ object ListeningStats {
 
         /** Add only the days that fall within [range], keyed as "YYYY-MM-DD". */
         fun add(bucket: StoredBucket, range: Pair<LocalDate, LocalDate>) {
-            // Merge day-level sub-buckets first, then filter in toSummary.
+            // Merge entity-level data (tracks/artists/albums) so weekRange() can read them.
+            bucket.tracks.forEach { entry ->
+                tracks.merge(entry.id, entry.copy()) { a, b -> a.also { it.absorb(b) } }
+            }
+            bucket.artists.forEach { entry ->
+                val lead = entry.copy(name = primaryArtist(entry.name) ?: entry.name)
+                artists.merge(lead.name.lowercase(Locale.ROOT), lead) { a, b -> a.also { it.absorb(b) } }
+            }
+            bucket.albums.forEach { entry ->
+                val key = albumKey(entry.name, entry.sub.orEmpty())
+                albums.merge(key, entry.copy()) { a, b -> a.also { it.absorb(b) } }
+            }
+            // Merge day-level sub-buckets for the flat days map and cross-month totals.
             addDaySubs(bucket)
             bucket.days.forEach { (day, ms) ->
                 val candidate = "${bucket.month}-%02d".format(day)
