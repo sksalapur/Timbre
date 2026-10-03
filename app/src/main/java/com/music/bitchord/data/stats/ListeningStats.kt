@@ -871,16 +871,21 @@ data class TrackEntry(
         }
     }
 
-    /** Sum ms/plays for days that fall within [range]. */
+    /** Sum ms/plays for days that fall within [range]. Falls back to full totals if .days is empty. */
     fun weekRange(range: Pair<LocalDate, LocalDate>): Pair<Long, Int> {
         var totalMs = 0L
         var totalPlays = 0
-        for ((dateStr, stats) in days) {
-            val date = runCatching { LocalDate.parse(dateStr) }.getOrNull() ?: continue
-            if (date >= range.first && date <= range.second) {
-                totalMs += stats.ms
-                totalPlays += stats.plays
+        if (days.isNotEmpty()) {
+            for ((dateStr, stats) in days) {
+                val date = runCatching { LocalDate.parse(dateStr) }.getOrNull() ?: continue
+                if (date >= range.first && date <= range.second) {
+                    totalMs += stats.ms
+                    totalPlays += stats.plays
+                }
             }
+        } else {
+            // Legacy data: .days was never populated — use overall totals.
+            return ms to plays
         }
         return totalMs to totalPlays
     }
@@ -927,16 +932,21 @@ data class NameEntry(
         }
     }
 
-    /** Sum ms/plays for days that fall within [range]. */
+    /** Sum ms/plays for days that fall within [range]. Falls back to full totals if .days is empty. */
     fun weekRange(range: Pair<LocalDate, LocalDate>): Pair<Long, Int> {
         var totalMs = 0L
         var totalPlays = 0
-        for ((dateStr, stats) in days) {
-            val date = runCatching { LocalDate.parse(dateStr) }.getOrNull() ?: continue
-            if (date >= range.first && date <= range.second) {
-                totalMs += stats.ms
-                totalPlays += stats.plays
+        if (days.isNotEmpty()) {
+            for ((dateStr, stats) in days) {
+                val date = runCatching { LocalDate.parse(dateStr) }.getOrNull() ?: continue
+                if (date >= range.first && date <= range.second) {
+                    totalMs += stats.ms
+                    totalPlays += stats.plays
+                }
             }
+        } else {
+            // Legacy data: .days was never populated — use overall totals.
+            return ms to plays
         }
         return totalMs to totalPlays
     }
