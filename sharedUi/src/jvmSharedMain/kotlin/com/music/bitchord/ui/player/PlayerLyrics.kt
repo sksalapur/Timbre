@@ -1899,7 +1899,7 @@ internal fun LyricsPanel(
             // not just whether it falls inside the broad active set. This keeps
             // past lines dim even when the user scrolls back to them.
             val isActive = isSynced && index in activeRows &&
-                positionMs in (line.timeMs..ends[index])
+                clock.longValue in (line.timeMs..ends[index])
             // Symmetric either side of the playing line, and shallow: the two
             // rows around it stay readable so you can follow back over what was
             // just sung as well as ahead, and everything past that recedes to
@@ -2047,7 +2047,7 @@ internal fun LyricsPanel(
                 // Whether this line has already finished playing, based on the
                 // actual playback timestamp rather than scroll position. This
                 // keeps past lines dim when the user scrolls back to read them.
-                val sung = isSynced && positionMs >= ends[index]
+                val sung = isSynced && clock.longValue >= ends[index]
                 // Rows behind the one being scrolled to are the ones that
                 // fan out; the ones it is moving away from arrive together.
                 val behind = if (run.delta >= 0f) index - focusLine else focusLine - index
