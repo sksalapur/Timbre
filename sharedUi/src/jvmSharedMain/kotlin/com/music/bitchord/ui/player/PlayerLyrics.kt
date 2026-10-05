@@ -1643,11 +1643,9 @@ internal fun LyricsPanel(
             if (!isSynced) emptyList() else activeLyricRows(lines, clock.longValue)
         }
     }
-    // Pre-compute effective end times so isActive and sung checks use them too.
-    val ends = remember(lines) { effectiveEndTimes(lines) }
     // The uppermost unfinished vocal owns the scroll anchor until its end,
     // even as later rows begin their own independent highlight animations.
-    val scrollLine = activeRows.firstOrNull() ?: lines.indexOfLast { it.timeMs <= clock.longValue }.coerceAtLeast(-1)
+    val scrollLine = activeRows.firstOrNull() ?: -1
     // Where the panel is heading, which is a beat ahead of where the singing
     // is. Movement that starts on the downbeat arrives after it — the line is
     // already being sung by the time it settles, and you read it late. Started
@@ -1895,11 +1893,7 @@ internal fun LyricsPanel(
             // read as dim while it was still being sung.
             val offset = if (scrollLine < 0) 0 else index - scrollLine
             val distance = abs(offset)
-            // Strictly check playback timestamp against this line's own range,
-            // not just whether it falls inside the broad active set. This keeps
-            // past lines dim even when the user scrolls back to them.
-            val isActive = isSynced && index in activeRows &&
-                clock.longValue in (line.timeMs..ends[index])
+            val isActive = isSynced && index in activeRows
             // Symmetric either side of the playing line, and shallow: the two
             // rows around it stay readable so you can follow back over what was
             // just sung as well as ahead, and everything past that recedes to
@@ -2044,10 +2038,7 @@ internal fun LyricsPanel(
                 // Behind the panel's focus, so the words close up to full
                 // brightness as it leaves rather than when the last syllable
                 // lands — the dim, the blur and the movement together.
-                // Whether this line has already finished playing, based on the
-                // actual playback timestamp rather than scroll position. This
-                // keeps past lines dim when the user scrolls back to read them.
-                val sung = isSynced && clock.longValue >= ends[index]
+                val sung = offset < 0
                 // Rows behind the one being scrolled to are the ones that
                 // fan out; the ones it is moving away from arrive together.
                 val behind = if (run.delta >= 0f) index - focusLine else focusLine - index
