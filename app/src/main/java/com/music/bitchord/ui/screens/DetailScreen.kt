@@ -4,7 +4,6 @@ import android.os.Build
 import com.music.bitchord.R
 
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -254,7 +253,6 @@ fun DetailScreen(
     modifier: Modifier = Modifier,
     listState: LazyListState = rememberLazyListState(),
     activeShelf: HomeShelf? = null,
-    gridVisible: Boolean = true,
     onActiveShelfChange: (HomeShelf?) -> Unit = {},
     /**
      * Holding one of the album cards on an artist page — the same menu the
@@ -714,22 +712,15 @@ fun DetailScreen(
 
     }
 } else {
-    AnimatedVisibility(
-        visible = gridVisible && targetShelf != null,
-        enter = fadeIn(animationSpec = tween(180)),
-        exit = fadeOut(animationSpec = tween(120)),
-    ) {
-        ArtistShelfGridPage(
-            shelf = targetShelf!!,
-            palette = palette,
-            onItemClick = { item ->
-                onActiveShelfChange(null)
-                onSectionItemClick(item)
-            },
-            onItemLongPress = onSectionItemLongPress,
-            contentPadding = contentPadding,
-        )
-    }
+    ArtistShelfGridPage(
+        shelf = targetShelf,
+        palette = palette,
+        onItemClick = { item ->
+            onSectionItemClick(item)
+        },
+        onItemLongPress = onSectionItemLongPress,
+        contentPadding = contentPadding,
+    )
 }
 }
 }
