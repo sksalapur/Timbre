@@ -113,6 +113,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -825,8 +826,6 @@ private fun SweptLyricLine(
         }
     }
 
-    val voiceRtl = remember(line.text) { isRtl(line.text) }
-
     val sweep = Modifier.drawWithContent {
         val position = drawnAt()
         when {
@@ -838,7 +837,7 @@ private fun SweptLyricLine(
             // Not started: nothing lit, the dim copy is the whole of it.
             position <= line.timeMs -> Unit
             else -> layout?.let {
-                sweepTo(it, line.revealedChars(position), line.sweepSpans, feather, voiceRtl)
+                sweepTo(it, line.revealedChars(position), line.sweepSpans, feather)
             }
         }
     }
@@ -1188,22 +1187,53 @@ private fun horizontalAt(
     spans: List<IntRange>,
 ): Float {
     val lineStart = layout.getLineStart(visualLine)
-    val lineEnd = layout.getLineEnd(visualLine, visibleEnd = true)
+    val lineEndVisible = layout.getLineEnd(visualLine, visibleEnd = true)
+    // Use the *all* end (including trailing whitespace/punctuation) for the
+    // boundary check — visibleEnd can exclude chars that sit at the physical
+    // edge of an RTL line and would cause xOn to resolve to the next visual
+    // line instead of the current one's far edge.
+    val lineEndAll = layout.getLineEnd(visualLine, visibleEnd = false)
     val word = spans.firstOrNull { chars >= it.first && chars < it.last + 1 }
-    if (word != null && word.first >= lineStart && word.last + 1 <= lineEnd) {
+    if (word != null && word.first >= lineStart && word.last + 1 <= lineEndVisible) {
         val from = layout.xOn(word.first, visualLine, 0f)
         val to = layout.xOn(word.last + 1, visualLine, 0f)
         return from + (to - from) * (chars - word.first) / (word.last + 1 - word.first)
     }
     // A word broken over a wrap, or the space between two words: letter by
     // letter, which is all a single space or a half-word needs.
-    val index = chars.toInt().coerceIn(lineStart, lineEnd)
+    val index = chars.toInt().coerceIn(lineStart, lineEndAll)
     // Row-aware at both ends: on the last character of a wrapped row the next
     // position belongs to the row below, and read straight it puts the edge
     // back at the left margin — the highlight jumped backwards a letter before
-    // every wrap.
+    // every wrap.  Guard against that by checking whether index+1 would land
+    // on the next visual line; if so, clamp to this line's far edge instead.
     val here = layout.xOn(index, visualLine, 0f)
-    val next = layout.xOn((index + 1).coerceAtMost(lineEnd), visualLine, 0f)
+    val rawNext = index + 1
+    val nextVisualLine = if (rawNext > lineEndAll) {
+        // rawNext is past this visual line's end — it belongs to the next row.
+        null
+    } else {
+        layout.getParagraphIndexFromCharacterOffset(rawNext).takeIf { it == visualLine }
+    }
+    val next = if (nextVisualLine != null) {
+        layout.xOn(rawNext, visualLine, 0f)
+    } else {
+        // Spilled to the next visual line: use this line's far edge as the
+        // interpolation target.  For RTL that is getLineLeft; for LTR it is
+        // getLineRight.  The fallback below (xOn with coerceAtMost(lineEnd))
+        // would return the wrong side for RTL.
+        if (rawNext > lineEndVisible) {
+            // At or past the visible end: use the all-end edge.
+            val farLeft = layout.getLineLeft(visualLine)
+            val farRight = layout.getLineRight(visualLine)
+            // For RTL, the "far" edge in character order is getLineLeft;
+            // for LTR it is getLineRight.  We detect by comparing the two:
+            // if farLeft > farRight the paragraph runs RTL.
+            if (farLeft > farRight) farLeft else farRight
+        } else {
+            layout.xOn(rawNext.coerceAtMost(lineEndVisible), visualLine, 0f)
+        }
+    }
     return here + (next - here) * (chars - index)
 }
 
@@ -1228,37 +1258,59 @@ private fun ContentDrawScope.sweepTo(
     revealedChars: Float,
     spans: List<IntRange>,
     feather: Boolean,
-    isRtlLine: Boolean = false,
 ) {
     if (revealedChars <= 0f) return
-    if (revealedChars >= layout.layoutInput.text.length) {
+    val textLen = layout.layoutInput.text.length
+    if (revealedChars >= textLen) {
         drawContent()
         return
     }
+    // Derive RTL from the layout's own resolved paragraph direction, not from
+    // text heuristics.  This keeps geometry in lock-step with how Compose
+    // actually laid out the glyphs — critical when a translation line (Hebrew)
+    // sits under an English lead and both get different text-analysis results.
+    val rtl = layout.paragraphStyles.firstOrNull()?.direction == androidx.compose.ui.text.style.TextDirection.Rtl
+
     for (visualLine in 0 until layout.lineCount) {
-        val start = layout.getLineStart(visualLine)
-        // Lines beyond the boundary have nothing lit on them, and neither has
-        // anything after them.
-        if (revealedChars <= start) return
-        val end = layout.getLineEnd(visualLine, visibleEnd = true)
-        val cut = revealedChars < end
+        val lineStart = layout.getLineStart(visualLine)
+        val lineEndVisible = layout.getLineEnd(visualLine, visibleEnd = true)
+        val lineEndAll = layout.getLineEnd(visualLine, visibleEnd = false)
+
+        // Lines whose character-range start is past the sweep boundary have
+        // nothing lit; lines after that too.  Use `>` (not `>=`) so a line
+        // whose *first* char is exactly at the boundary still gets drawn —
+        // it is the boundary line and must show the feather edge.
+        if (revealedChars <= lineStart) return
+
+        val cut = revealedChars < lineEndAll
         val charPos = if (cut) {
             horizontalAt(layout, revealedChars, visualLine, spans)
         } else {
-            if (isRtlLine) layout.getLineLeft(visualLine) else layout.getLineRight(visualLine)
+            // The sweep has passed this entire visual line.  Its boundary is
+            // the *far* edge: right edge for RTL (lineLeft), left edge for LTR.
+            if (rtl) layout.getLineLeft(visualLine) else layout.getLineRight(visualLine)
         }
+
+        val lineLeft = layout.getLineLeft(visualLine)
+        val lineRight = layout.getLineRight(visualLine)
+
         // Clamp the sweep boundary so the clip rect is always valid and never
         // inverted near the line ends.  For RTL the revealed prefix [0,k) must
         // occupy [x(k), lineRight], with x(k) clamped inside [lineLeft, lineRight].
-        val safeCharPos = charPos.coerceIn(layout.getLineLeft(visualLine), layout.getLineRight(visualLine))
+        val safeCharPos = charPos.coerceIn(lineLeft, lineRight)
+
         // For RTL lines the sweep fills right-to-left: clip from the line's
         // right edge down to the sweep boundary.  For LTR it fills left-to-
         // right as before.
-        val (clipLeft, clipRight) = if (isRtlLine) {
-            safeCharPos to layout.getLineRight(visualLine)
+        val (clipLeft, clipRight) = if (rtl) {
+            safeCharPos to lineRight
         } else {
-            layout.getLineLeft(visualLine) to safeCharPos
+            lineLeft to safeCharPos
         }
+
+        // Guard: an empty or inverted clip is a no-op; skip it cleanly.
+        if (clipLeft >= clipRight) continue
+
         val top = layout.getLineTop(visualLine)
         val bottom = layout.getLineBottom(visualLine)
         clipRect(
@@ -1269,9 +1321,11 @@ private fun ContentDrawScope.sweepTo(
         ) {
             this@sweepTo.drawContent()
         }
+
         // Only the visual line holding the boundary has an edge to soften; a
         // line revealed to its end runs into the wrap, which is not an edge.
         if (!feather || !cut) continue
+
         // Scoped to this line's band so the mask cannot reach the lines above
         // and below it: DstIn erases whatever the source does not cover, and
         // outside the clip there is no source at all, so they are left alone.
@@ -1284,14 +1338,14 @@ private fun ContentDrawScope.sweepTo(
                 brush = Brush.horizontalGradient(
                     0f to Color.White,
                     1f to Color.Transparent,
-                    startX = if (isRtlLine) {
+                    startX = if (rtl) {
                         (safeCharPos + WIPE_FEATHER.toPx())
-                            .coerceAtMost(layout.getLineRight(visualLine))
+                            .coerceAtMost(lineRight)
                     } else {
                         (safeCharPos - WIPE_FEATHER.toPx())
-                            .coerceAtLeast(layout.getLineLeft(visualLine))
+                            .coerceAtLeast(lineLeft)
                     },
-                    endX = if (isRtlLine) {
+                    endX = if (rtl) {
                         safeCharPos
                     } else {
                         safeCharPos
