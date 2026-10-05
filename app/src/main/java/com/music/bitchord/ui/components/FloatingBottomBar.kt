@@ -280,8 +280,7 @@ fun FloatingBottomBar(
                         onHorizontalDrag = { _, delta ->
                             totalDrag += delta
                             val rawPx = when {
-                                totalDrag > 0 && currentSelectedIndex == tabs.lastIndex ->
-                                    totalDrag * 0.25f
+                                totalDrag > 0 && currentSelectedIndex == tabs.lastIndex -> 0f
                                 totalDrag < 0 && currentSelectedIndex == 0 ->
                                     totalDrag * 0.25f
                                 else -> totalDrag
