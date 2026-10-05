@@ -286,7 +286,9 @@ fun FloatingBottomBar(
                                     totalDrag * 0.25f
                                 else -> totalDrag
                             }
-                            dragOffset = rawPx.coerceAtMost(tabStepPx)
+                            val minDrag = -1f * (currentSelectedIndex * tabStepPx)
+                            val maxDrag = (tabs.lastIndex - currentSelectedIndex) * tabStepPx
+                            dragOffset = rawPx.coerceIn(minDrag, maxDrag)
 
                             val approxTab =
                                 (currentSelectedIndex + dragOffset / tabStepPx)
