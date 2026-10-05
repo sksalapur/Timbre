@@ -65,8 +65,6 @@ import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.SharedFlow
-import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -558,9 +556,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
      */
     private val _detailStack = MutableStateFlow<List<DetailPage>>(emptyList())
     val detailStack: StateFlow<List<DetailPage>> = _detailStack.asStateFlow()
-    /** When popping a detail page that had an active shelf, this emits it once so the caller restores the grid. */
-    private val _shelfToRestore = MutableSharedFlow<HomeShelf?>(extraBufferCapacity = 1)
-    val shelfToRestore: SharedFlow<HomeShelf?> = _shelfToRestore.asSharedFlow()
 
     private val _releaseLibrary = MutableStateFlow<Map<String, LibraryState>>(emptyMap())
 
@@ -2422,7 +2417,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         subtitle: String = "",
         thumbnailUrl: String? = null,
         type: BrowseType = BrowseType.OTHER,
-        parentShelf: HomeShelf? = null,
     ) {
         // A fast double tap used to push two identical loading pages and launch
         // two identical browse requests. Besides wasting the connection, both
@@ -2445,7 +2439,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             thumbnailUrl = thumbnailUrl,
             songs = UiState.Loading,
             type = resolved,
-            parentShelf = parentShelf,
         )
         viewModelScope.launch {
             var sections = emptyList<HomeShelf>()
@@ -2903,11 +2896,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun closeDetail(): Boolean {
         val stack = _detailStack.value
         if (stack.isEmpty()) return false
-        val popped = stack.last()
         _detailStack.value = stack.dropLast(1)
-        // Restore the active shelf from the popped page so back from an album
-        // drilled via "Show All" reveals the grid overlay again.
-        popped.parentShelf?.let { _shelfToRestore.tryEmit(it) }
         return true
     }
 

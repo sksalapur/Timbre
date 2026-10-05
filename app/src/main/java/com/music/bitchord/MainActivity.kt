@@ -143,7 +143,6 @@ import com.music.bitchord.data.model.EntityType
 import com.music.bitchord.data.model.SearchHistoryEntity
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.flow.collect
 import com.music.bitchord.data.model.durationMillis
 import com.music.bitchord.data.scrobbling.LastFM
 import com.music.bitchord.data.settings.AppSettings
@@ -790,40 +789,11 @@ private fun BitChordApp(
     val playlists by viewModel.playlists.collectAsStateWithLifecycle()
     val playlistsLoading by viewModel.playlistsLoading.collectAsStateWithLifecycle()
 
-    // When popping a detail page that had an active shelf, restore it so the
-    // grid overlay reappears with its scroll position intact.
-    var shelfToRestore by remember { mutableStateOf<HomeShelf?>(null) }
-    LaunchedEffect(Unit) {
-        viewModel.shelfToRestore.collect { shelf ->
-            if (shelf != null) {
-                shelfToRestore = shelf
-            }
-        }
-    }
-    LaunchedEffect(shelfToRestore) {
-        if (shelfToRestore != null) {
-            detailActiveShelf = shelfToRestore
-        }
-    }
-
     // Settings has no tab of its own — it sits on top of whatever tab was
     // selected. A pushed album/artist page (from the player, search, etc.)
     // should surface above it rather than being hidden behind it.
-    val currentArtistBrowseId = detail?.takeIf { it.type == BrowseType.ARTIST }?.browseId
     LaunchedEffect(detail) { if (detail != null) showSettings = false }
-    LaunchedEffect(detail?.browseId) {
-        // Only reset the active shelf when leaving this artist page entirely —
-        // staying on the same artist while drilling into an album from "Show all"
-        // must keep the grid on the backstack so swipe-back returns to it.
-        if (detail != null && detailActiveShelf != null) {
-            val newIsArtist = detail.type == BrowseType.ARTIST
-            // Reset only when navigating to a different artist page; albums
-            // drilled from the "Show all" grid must preserve it.
-            if (newIsArtist && detail.browseId != currentArtistBrowseId) {
-                detailActiveShelf = null
-            }
-        }
-    }
+    LaunchedEffect(detail?.browseId) { detailActiveShelf = null }
     LaunchedEffect(showSettings) {
         if (!showSettings) {
             showAccountScrobbling = false
@@ -2955,18 +2925,13 @@ private fun BitChordApp(
                             },
                             onSectionItemClick = { item ->
                                 item.browseId?.let { id ->
-                                    // Save the active shelf as parent so back from
-                                    // this album/playlist restores the grid. Then
-                                    // clear it so the new page renders cleanly.
                                     viewModel.openDetail(
                                         browseId = id,
                                         title = item.title,
                                         subtitle = item.subtitle,
                                         thumbnailUrl = item.thumbnailUrl,
                                         type = BrowseType.ALBUM,
-                                        parentShelf = detailActiveShelf,
                                     )
-                                    detailActiveShelf = null
                                 }
                             },
                             onSectionItemLongPress = onBrowseLongPress,

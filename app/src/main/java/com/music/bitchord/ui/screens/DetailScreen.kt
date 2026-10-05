@@ -37,7 +37,6 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -715,9 +714,7 @@ fun DetailScreen(
     ArtistShelfGridPage(
         shelf = targetShelf,
         palette = palette,
-        onItemClick = { item ->
-            onSectionItemClick(item)
-        },
+        onItemClick = onSectionItemClick,
         onItemLongPress = onSectionItemLongPress,
         contentPadding = contentPadding,
     )
@@ -1929,7 +1926,7 @@ private fun ArtistShelfGridPage(
     contentPadding: PaddingValues,
     modifier: Modifier = Modifier,
 ) {
-    val gridState = rememberSaveable(saver = LazyGridState.Saver) { LazyGridState(0, 0) }
+    val gridState = rememberLazyGridState()
     BoxWithConstraints(modifier.fillMaxSize().background(palette.background)) {
         val grid = libraryGrid(maxWidth - PAGE_GUTTER * 2)
         LazyVerticalGrid(
