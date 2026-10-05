@@ -792,8 +792,21 @@ private fun BitChordApp(
     // Settings has no tab of its own — it sits on top of whatever tab was
     // selected. A pushed album/artist page (from the player, search, etc.)
     // should surface above it rather than being hidden behind it.
+    val currentArtistBrowseId = detail?.takeIf { it.type == BrowseType.ARTIST }?.browseId
     LaunchedEffect(detail) { if (detail != null) showSettings = false }
-    LaunchedEffect(detail?.browseId) { detailActiveShelf = null }
+    LaunchedEffect(detail?.browseId) {
+        // Only reset the active shelf when leaving this artist page entirely —
+        // staying on the same artist while drilling into an album from "Show all"
+        // must keep the grid on the backstack so swipe-back returns to it.
+        if (detail != null && detailActiveShelf != null) {
+            val newIsArtist = detail.type == BrowseType.ARTIST
+            // Reset only when navigating to a different artist page; albums
+            // drilled from the "Show all" grid must preserve it.
+            if (newIsArtist && detail.browseId != currentArtistBrowseId) {
+                detailActiveShelf = null
+            }
+        }
+    }
     LaunchedEffect(showSettings) {
         if (!showSettings) {
             showAccountScrobbling = false

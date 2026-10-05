@@ -1926,7 +1926,7 @@ private fun ArtistShelfGridPage(
     contentPadding: PaddingValues,
     modifier: Modifier = Modifier,
 ) {
-    val gridState = rememberLazyGridState()
+    val gridState = rememberSaveable(saver = LazyGridState.Saver) { LazyGridState() }
     BoxWithConstraints(modifier.fillMaxSize().background(palette.background)) {
         val grid = libraryGrid(maxWidth - PAGE_GUTTER * 2)
         LazyVerticalGrid(
