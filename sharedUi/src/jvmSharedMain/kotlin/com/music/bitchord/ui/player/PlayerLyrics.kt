@@ -30,6 +30,8 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.AbsoluteAlignment
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -99,6 +101,7 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.layout
+import androidx.compose.ui.platform.LayoutDirection
 import androidx.compose.ui.platform.LocalDensity
 import org.jetbrains.compose.resources.stringArrayResource
 import org.jetbrains.compose.resources.stringResource
@@ -168,6 +171,17 @@ private fun textDirectionFor(text: String): androidx.compose.ui.text.style.TextD
 /** Whether this text should align to the right end of its box. */
 private fun alignsRight(text: String, alignEnd: Boolean, laneLocked: Boolean): Boolean =
     if (laneLocked) alignEnd else isRtl(text)
+
+/** Compute per-voice text style with absolute physical alignment based on the voice's own text direction. */
+private fun voiceStyle(
+    base: TextStyle,
+    text: String,
+    alignEnd: Boolean,
+    laneLocked: Boolean,
+): TextStyle = base.copy(
+    textAlign = if (alignsRight(text, alignEnd, laneLocked)) TextAlign.Right else TextAlign.Left,
+    textDirection = if (isRtl(text)) androidx.compose.ui.text.style.TextDirection.Rtl else androidx.compose.ui.text.style.TextDirection.Ltr,
+)
 
 /**
  * How far back the part of the playing line that hasn't been sung yet is held.
@@ -810,6 +824,8 @@ private fun SweptLyricLine(
         }
     }
 
+    val voiceRtl = remember(line.text) { isRtl(line.text) }
+
     val sweep = Modifier.drawWithContent {
         val position = drawnAt()
         when {
@@ -821,22 +837,15 @@ private fun SweptLyricLine(
             // Not started: nothing lit, the dim copy is the whole of it.
             position <= line.timeMs -> Unit
             else -> layout?.let {
-                sweepTo(it, line.revealedChars(position), line.sweepSpans, feather, isRtl(line.text))
+                sweepTo(it, line.revealedChars(position), line.sweepSpans, feather, voiceRtl)
             }
         }
     }
 
-    // A right-hand duet line right-aligns twice over: the block within the row,
-    // for the case where it is one short line in a wide panel, and the lines
-    // within the block, for the case where it has wrapped. Neither alone is
-    // enough, and the three copies all take both, so they still land on top of
-    // each other.  When laneLocked (duet backing/featured), the alignment is
-    // driven by the lane itself rather than the text direction, preventing RTL
-    // detection from overriding a duet vocal's intended position.
-    val effectiveAlign = alignEnd || !laneLocked && isRtl(line.text)
+    val right = alignsRight(line.text, alignEnd, laneLocked)
     Box(
         modifier.lyricParticles(layout, translationProgress, glowRoom),
-        contentAlignment = if (effectiveAlign) Alignment.TopEnd else Alignment.TopStart,
+        contentAlignment = if (right) AbsoluteAlignment.TopRight else AbsoluteAlignment.TopLeft,
     ) {
         Text(
             text = line.text,
@@ -2006,25 +2015,19 @@ internal fun LyricsPanel(
                 }
             } else {
                 val alignEnd = duet && line.alignment == LyricAlignment.End
-                // Detect RTL content and set proper text direction + alignment.
-                // Use alignsRight helper so duet backing/featured lanes keep their
-                // lane-driven alignment instead of being overridden by RTL detection.
-                val rtlAlign = if (alignsRight(line.text, alignEnd, false)) TextAlign.End else TextAlign.Start
                 val style = if (isSynced) {
                     MaterialTheme.typography.headlineLarge.copy(
                         fontSize = 34.sp,
                         lineHeight = 41.sp,
                         fontWeight = FontWeight.ExtraBold,
-                        textAlign = rtlAlign,
-                        textDirection = textDirectionFor(line.text),
+                        textAlign = if (alignEnd) TextAlign.End else TextAlign.Start,
                     )
                 } else {
                     MaterialTheme.typography.headlineMedium.copy(
                         fontSize = 30.sp,
                         lineHeight = 38.sp,
                         fontWeight = FontWeight.ExtraBold,
-                        textAlign = rtlAlign,
-                        textDirection = textDirectionFor(line.text),
+                        textAlign = if (alignEnd) TextAlign.End else TextAlign.Start,
                     )
                 }
                 // The stack sits fractionally back and the playing line comes
@@ -2208,11 +2211,12 @@ internal fun LyricsPanel(
                         label = "backingOpen",
                     )
                 }
+                CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
                 Column(modifier = shape) {
                     PanelVoice(
                         line = line,
                         clock = clock,
-                        style = style,
+                        style = voiceStyle(style, line.text, alignEnd, duet),
                         isActive = isActive,
                         sung = sung,
                         synced = isSynced,
@@ -2229,7 +2233,7 @@ internal fun LyricsPanel(
                         PanelVoice(
                             line = subLine,
                             clock = clock,
-                            style = subStyle,
+                            style = voiceStyle(subStyle, subLine.text, alignEnd, duet),
                             isActive = isActive,
                             sung = sung,
                             synced = isSynced,
@@ -2264,10 +2268,10 @@ internal fun LyricsPanel(
                             PanelVoice(
                                 line = backing.withoutBracketPunctuation(),
                                 clock = clock,
-                                style = style.copy(
+                                style = voiceStyle(style.copy(
                                     fontSize = BACKING_FONT_SIZE,
                                     lineHeight = BACKING_LINE_HEIGHT,
-                                ),
+                                ), backing.text, alignEnd, duet),
                                 isActive = isActive,
                                 sung = sung,
                                 synced = isSynced,
@@ -2295,10 +2299,10 @@ internal fun LyricsPanel(
                                     PanelVoice(
                                         line = subBacking.withoutBracketPunctuation(),
                                         clock = clock,
-                                        style = subStyle.copy(
+                                        style = voiceStyle(subStyle.copy(
                                             fontSize = SUB_BACKING_FONT_SIZE,
                                             lineHeight = SUB_BACKING_LINE_HEIGHT,
-                                        ),
+                                        ), subBacking.text, alignEnd, duet),
                                         isActive = isActive,
                                         sung = sung,
                                         synced = isSynced,
@@ -2318,6 +2322,7 @@ internal fun LyricsPanel(
                                 }
                         }
                     }
+                }
                 }
             }
         }
