@@ -715,7 +715,10 @@ fun DetailScreen(
     ArtistShelfGridPage(
         shelf = targetShelf,
         palette = palette,
-        onItemClick = onSectionItemClick,
+        onItemClick = { item ->
+            activeShelf = null
+            onSectionItemClick(item)
+        },
         onItemLongPress = onSectionItemLongPress,
         contentPadding = contentPadding,
     )
