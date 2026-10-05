@@ -716,7 +716,7 @@ fun DetailScreen(
         shelf = targetShelf,
         palette = palette,
         onItemClick = { item ->
-            activeShelf = null
+            onActiveShelfChange(null)
             onSectionItemClick(item)
         },
         onItemLongPress = onSectionItemLongPress,
