@@ -568,6 +568,7 @@ private fun BitChordApp(
     // cards can be laid out again as a full-screen grid. See [LibraryGridPage].
     var libraryShowAll by remember { mutableStateOf<HomeShelf?>(null) }
     var detailActiveShelf by remember { mutableStateOf<HomeShelf?>(null) }
+    var detailGridVisible by remember { mutableStateOf(true) }
     var librarySortMenuOpen by remember { mutableStateOf(false) }
     var showLyricsSources by remember { mutableStateOf(false) }
     var showAppLanguage by remember { mutableStateOf(false) }
@@ -2915,7 +2916,11 @@ private fun BitChordApp(
                             isPlaying = player.isPlaying,
                             listState = pageDetailListState,
                             activeShelf = detailActiveShelf,
-                            onActiveShelfChange = { detailActiveShelf = it },
+                            gridVisible = detailGridVisible,
+                            onActiveShelfChange = { shelf ->
+                                detailActiveShelf = shelf
+                                if (shelf != null) detailGridVisible = true
+                            },
                             onSongClick = { songs, index ->
                                 playFrom(
                                     songs,
