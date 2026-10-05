@@ -491,6 +491,8 @@ data class DetailPage(
      * fetched with a session; see [SubscriptionState].
      */
     val subscription: SubscriptionState? = null,
+    /** Shelf that was active on the artist page before drilling into this detail. Restored on back. */
+    val parentShelf: HomeShelf? = null,
 )
 
 /**

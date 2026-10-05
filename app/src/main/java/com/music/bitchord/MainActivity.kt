@@ -789,6 +789,22 @@ private fun BitChordApp(
     val playlists by viewModel.playlists.collectAsStateWithLifecycle()
     val playlistsLoading by viewModel.playlistsLoading.collectAsStateWithLifecycle()
 
+    // When popping a detail page that had an active shelf, restore it so the
+    // grid overlay reappears with its scroll position intact.
+    var shelfToRestore by remember { mutableStateOf<HomeShelf?>(null) }
+    LaunchedEffect(Unit) {
+        viewModel.shelfToRestore.collect { shelf ->
+            if (shelf != null) {
+                shelfToRestore = shelf
+            }
+        }
+    }
+    LaunchedEffect(shelfToRestore) {
+        if (shelfToRestore != null) {
+            detailActiveShelf = shelfToRestore
+        }
+    }
+
     // Settings has no tab of its own — it sits on top of whatever tab was
     // selected. A pushed album/artist page (from the player, search, etc.)
     // should surface above it rather than being hidden behind it.
@@ -2938,13 +2954,18 @@ private fun BitChordApp(
                             },
                             onSectionItemClick = { item ->
                                 item.browseId?.let { id ->
+                                    // Save the active shelf as parent so back from
+                                    // this album/playlist restores the grid. Then
+                                    // clear it so the new page renders cleanly.
                                     viewModel.openDetail(
                                         browseId = id,
                                         title = item.title,
                                         subtitle = item.subtitle,
                                         thumbnailUrl = item.thumbnailUrl,
                                         type = BrowseType.ALBUM,
+                                        parentShelf = detailActiveShelf,
                                     )
+                                    detailActiveShelf = null
                                 }
                             },
                             onSectionItemLongPress = onBrowseLongPress,
