@@ -1246,13 +1246,17 @@ private fun ContentDrawScope.sweepTo(
         } else {
             if (isRtlLine) layout.getLineLeft(visualLine) else layout.getLineRight(visualLine)
         }
+        // Clamp the sweep boundary so the clip rect is always valid and never
+        // inverted near the line ends.  For RTL the revealed prefix [0,k) must
+        // occupy [x(k), lineRight], with x(k) clamped inside [lineLeft, lineRight].
+        val safeCharPos = charPos.coerceIn(layout.getLineLeft(visualLine), layout.getLineRight(visualLine))
         // For RTL lines the sweep fills right-to-left: clip from the line's
         // right edge down to the sweep boundary.  For LTR it fills left-to-
         // right as before.
         val (clipLeft, clipRight) = if (isRtlLine) {
-            charPos to layout.getLineRight(visualLine)
+            safeCharPos to layout.getLineRight(visualLine)
         } else {
-            layout.getLineLeft(visualLine) to charPos
+            layout.getLineLeft(visualLine) to safeCharPos
         }
         val top = layout.getLineTop(visualLine)
         val bottom = layout.getLineBottom(visualLine)
@@ -1280,16 +1284,16 @@ private fun ContentDrawScope.sweepTo(
                     0f to Color.White,
                     1f to Color.Transparent,
                     startX = if (isRtlLine) {
-                        (charPos + WIPE_FEATHER.toPx())
+                        (safeCharPos + WIPE_FEATHER.toPx())
                             .coerceAtMost(layout.getLineRight(visualLine))
                     } else {
-                        (charPos - WIPE_FEATHER.toPx())
+                        (safeCharPos - WIPE_FEATHER.toPx())
                             .coerceAtLeast(layout.getLineLeft(visualLine))
                     },
                     endX = if (isRtlLine) {
-                        charPos
+                        safeCharPos
                     } else {
-                        charPos
+                        safeCharPos
                     },
                 ),
                 blendMode = BlendMode.DstIn,
