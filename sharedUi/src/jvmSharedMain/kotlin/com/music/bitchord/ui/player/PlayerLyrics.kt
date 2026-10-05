@@ -114,6 +114,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextDirection
+import androidx.compose.ui.text.style.ResolvedTextDirection
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -1209,15 +1210,9 @@ private fun horizontalAt(
     // on the next visual line; if so, clamp to this line's far edge instead.
     val here = layout.xOn(index, visualLine, 0f)
     val rawNext = index + 1
-    val nextVisualLine = if (rawNext > lineEndAll) {
-        // rawNext is past this visual line's end — it belongs to the next row.
-        null
-    } else {
-        layout.getParagraphIndexFromCharacterOffset(rawNext).takeIf { it == visualLine }
-    }
-    val next = if (nextVisualLine != null) {
-        layout.xOn(rawNext, visualLine, 0f)
-    } else {
+    val textLen = layout.layoutInput.text.length
+    val spills: Boolean = layout.getLineForOffset(rawNext.coerceIn(0, textLen)) != visualLine
+    val next: Float = if (spills) {
         // Spilled to the next visual line: use this line's far edge as the
         // interpolation target.  For RTL that is getLineLeft; for LTR it is
         // getLineRight.  The fallback below (xOn with coerceAtMost(lineEnd))
@@ -1233,6 +1228,8 @@ private fun horizontalAt(
         } else {
             layout.xOn(rawNext.coerceAtMost(lineEndVisible), visualLine, 0f)
         }
+    } else {
+        layout.xOn(rawNext, visualLine, 0f)
     }
     return here + (next - here) * (chars - index)
 }
@@ -1269,7 +1266,8 @@ private fun ContentDrawScope.sweepTo(
     // text heuristics.  This keeps geometry in lock-step with how Compose
     // actually laid out the glyphs — critical when a translation line (Hebrew)
     // sits under an English lead and both get different text-analysis results.
-    val rtl = layout.paragraphStyles.firstOrNull()?.direction == androidx.compose.ui.text.style.TextDirection.Rtl
+    val offset = layout.getLineStart(0).coerceIn(0, (layout.layoutInput.text.length - 1).coerceAtLeast(0))
+    val rtl = layout.getParagraphDirection(offset) == androidx.compose.ui.text.style.ResolvedTextDirection.Rtl
 
     for (visualLine in 0 until layout.lineCount) {
         val lineStart = layout.getLineStart(visualLine)
