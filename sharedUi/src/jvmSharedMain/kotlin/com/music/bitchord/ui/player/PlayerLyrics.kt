@@ -1142,18 +1142,31 @@ private fun ContentDrawScope.growEach(
  * Whole rows disappeared that way, and Japanese lines disappeared most, because
  * Apple's word spans there are whole phrases and reach a wrap on their own where
  * an English word rarely does.
+/**
+ * Where a character offset sits across a visual line, in pixels.
  *
- * So both ends of a row are answered with the row's own edges, and anything in
- * between is held inside them.
+ * For RTL paragraphs the first character of a visual line is at the right
+ * edge and the last is at the left — this function respects that so callers
+ * (horizontalAt, sweepTo) get correct clip boundaries regardless of text
+ * direction.  Interior offsets delegate to Compose's own cursor-position
+ * calculation which already handles direction; only the two boundary cases
+ * need special handling because getLineLeft / getLineRight return physical
+ * bounding-box edges (always left ≤ right), not paragraph-direction edges.
  */
 private fun TextLayoutResult.xOn(offset: Int, visualLine: Int, inset: Float): Float {
-    val left = getLineLeft(visualLine) + inset
-    val right = getLineRight(visualLine) + inset
+    val lineStart = getLineStart(visualLine)
+    val lineEndVisible = getLineEnd(visualLine, visibleEnd = true)
+    val lineLeft = getLineLeft(visualLine) + inset
+    val lineRight = getLineRight(visualLine) + inset
+
+    val rtl = getParagraphDirection(lineStart.coerceIn(0, layoutInput.text.length - 1)) ==
+              androidx.compose.ui.text.style.ResolvedTextDirection.Rtl
+
     return when {
-        offset <= getLineStart(visualLine) -> left
-        offset >= getLineEnd(visualLine, visibleEnd = true) -> right
-        else -> (getHorizontalPosition(offset, usePrimaryDirection = true) + inset)
-            .coerceIn(left, right)
+        offset <= lineStart -> if (rtl) lineRight else lineLeft
+        offset >= lineEndVisible -> if (rtl) lineLeft else lineRight
+        else -> getHorizontalPosition(offset, usePrimaryDirection = true)
+            .coerceIn(lineLeft, lineRight)
     }
 }
 
@@ -1219,12 +1232,14 @@ private fun horizontalAt(
         // would return the wrong side for RTL.
         if (rawNext > lineEndVisible) {
             // At or past the visible end: use the all-end edge.
+            val rtl = layout.getParagraphDirection(
+                visualLine.coerceAtMost(lineEndAll).coerceIn(0, textLen - 1)
+            ) == androidx.compose.ui.text.style.ResolvedTextDirection.Rtl
             val farLeft = layout.getLineLeft(visualLine)
             val farRight = layout.getLineRight(visualLine)
             // For RTL, the "far" edge in character order is getLineLeft;
             // for LTR it is getLineRight.  We detect by comparing the two:
-            // if farLeft > farRight the paragraph runs RTL.
-            if (farLeft > farRight) farLeft else farRight
+            if (rtl) farLeft else farRight
         } else {
             layout.xOn(rawNext.coerceAtMost(lineEndVisible), visualLine, 0f)
         }
