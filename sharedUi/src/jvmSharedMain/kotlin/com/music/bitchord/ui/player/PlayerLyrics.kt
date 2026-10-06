@@ -1142,6 +1142,7 @@ private fun ContentDrawScope.growEach(
  * Whole rows disappeared that way, and Japanese lines disappeared most, because
  * Apple's word spans there are whole phrases and reach a wrap on their own where
  * an English word rarely does.
+ */
 /**
  * Where a character offset sits across a visual line, in pixels.
  *
