@@ -586,7 +586,7 @@ internal fun CurrentLyricStrip(
         stripRtl = isRtl(activeText)
     }
 
-    val align = if (stripRtl) Alignment.CenterEnd else Alignment.CenterHorizontally
+    val align: Alignment = if (stripRtl) Alignment.CenterEnd else Alignment.Center
 
     Box(
         modifier = Modifier
