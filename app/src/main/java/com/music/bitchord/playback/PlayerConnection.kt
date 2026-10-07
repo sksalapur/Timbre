@@ -328,6 +328,20 @@ fun rememberPlayerState(controller: MediaController?): PlayerState {
                     timeline.windowCount != queueSnapshot.size
                 ) {
                     queueChanged = true
+                } else if (timeline.windowCount > 0 && queueSnapshot.isNotEmpty()) {
+                    val window = Timeline.Window()
+                    for (i in 0 until timeline.windowCount) {
+                        timeline.getWindow(i, window)
+                        val item = window.mediaItem
+                        val entryId = item.mediaMetadata.extras?.getString(EXTRA_QUEUE_ENTRY_ID)
+                            ?: mediaItemEntryIds[item]
+                        if (item.mediaId != queueSnapshot[i].videoId ||
+                            (entryId != null && entryId != queueSnapshot[i].queueEntryId)
+                        ) {
+                            queueChanged = true
+                            break
+                        }
+                    }
                 }
             }
             // Every jump the player makes — a seek, a skip, a repeat starting

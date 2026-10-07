@@ -67,9 +67,15 @@ object QueueShuffle {
     fun getCanonicalIndex(item: MediaItem): Int? {
         val extraIndex = item.canonicalIndex
         if (extraIndex != null && extraIndex >= 0) return extraIndex
-        val key = item.queueEntryId ?: item.mediaId
-        return entryProvenance[key] ?: canonicalContext.indexOfFirst {
-            (it.queueEntryId ?: it.mediaId) == key
+        val entryId = item.queueEntryId
+        if (entryId != null) {
+            val fromProv = entryProvenance[entryId]
+            if (fromProv != null) return fromProv
+            val byEntryId = canonicalContext.indexOfFirst { it.queueEntryId == entryId }
+            if (byEntryId >= 0) return byEntryId
+        }
+        return entryProvenance[item.mediaId] ?: canonicalContext.indexOfFirst {
+            it.mediaId == item.mediaId
         }.takeIf { it >= 0 }
     }
 
@@ -281,12 +287,7 @@ object QueueShuffle {
             }
         }
 
-        val resolvedCurrentIndex = currentCanonicalIndex ?: run {
-            val currentKey = currentItem.queueEntryId ?: currentItem.mediaId
-            canonicalContext.indexOfFirst {
-                (it.queueEntryId ?: it.mediaId) == currentKey
-            }.takeIf { it >= 0 }
-        }
+        val resolvedCurrentIndex = currentCanonicalIndex ?: getCanonicalIndex(currentItem)
 
         if (resolvedCurrentIndex == null || canonicalContext.isEmpty()) {
             val from = currentIndex + 1

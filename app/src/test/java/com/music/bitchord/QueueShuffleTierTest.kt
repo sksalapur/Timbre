@@ -522,6 +522,41 @@ class QueueShuffleTierTest {
         assertEquals(0, state.currentIndex)
         assertEquals("track-1", state.items[state.currentIndex].mediaId)
     }
+
+    @Test
+    fun `getCanonicalIndex and restore fall back cleanly to mediaId when item has a distinct or fresh queueEntryId`() {
+        val songs = (1..5).map { testSong("track-$it", QueueTier.CONTEXT, "canonical-id-$it") }
+        val canonicalItems = songs.mapIndexed { idx, s ->
+            QueueShuffle.withQueueMetadata(s.toMediaItem(), newEntryId = s.queueEntryId, newCanonicalIndex = idx)
+        }
+        QueueShuffle.setCanonicalContext(canonicalItems)
+
+        // Simulating an active player item playing track-3 where queueEntryId was regenerated fresh or missing
+        val freshActiveItem = QueueShuffle.withQueueMetadata(
+            testSong("track-3", QueueTier.CONTEXT, "fresh-id-3").toMediaItem(),
+            newEntryId = "fresh-id-3",
+            newCanonicalIndex = null,
+        )
+
+        val resolvedIndex = QueueShuffle.getCanonicalIndex(freshActiveItem)
+        assertEquals(2, resolvedIndex)
+
+        // Set up player with fresh active item at current position
+        val otherItems = listOf(1, 2, 4, 5).map {
+            QueueShuffle.withQueueMetadata(testSong("track-$it", QueueTier.CONTEXT, "other-id-$it").toMediaItem(), newEntryId = "other-id-$it")
+        }
+        val playerList = mutableListOf(otherItems[0], otherItems[1], freshActiveItem, otherItems[2], otherItems[3])
+        val state = MockPlayerState(playerList, currentIndex = 2)
+        QueueShuffle.setEnabled(true)
+
+        // Turning shuffle OFF restores canonical collection around track-3
+        QueueShuffle.toggle(state.player)
+        assertEquals(false, QueueShuffle.enabled.value)
+        assertEquals(2, state.currentIndex)
+        assertEquals("track-3", state.items[2].mediaId)
+        assertEquals(listOf("track-1", "track-2"), state.items.take(2).map { it.mediaId })
+        assertEquals(listOf("track-4", "track-5"), state.items.drop(3).map { it.mediaId })
+    }
 }
 
 
