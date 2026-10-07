@@ -12,6 +12,7 @@ import com.music.bitchord.data.settings.AppSettings
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import java.util.UUID
 
 /**
  * Shuffle as an edit to the queue, not a playback mode.
@@ -47,6 +48,51 @@ object QueueShuffle {
     /** Entry IDs in their pre-shuffle order. Empty while shuffle is off. */
     private var original: List<String> = emptyList()
 
+    /** Canonical context MediaItems for the active album/playlist. */
+    internal var canonicalContext: List<MediaItem> = emptyList()
+
+    /** Provenance mapping: queueEntryId (or mediaId) -> canonicalIndex. */
+    private val entryProvenance = HashMap<String, Int>()
+
+    fun setCanonicalContext(items: List<MediaItem>) {
+        entryProvenance.clear()
+        canonicalContext = items.mapIndexed { idx, item ->
+            val entryId = item.queueEntryId ?: UUID.randomUUID().toString()
+            val stamped = withQueueMetadata(item, newEntryId = entryId, newCanonicalIndex = idx)
+            entryProvenance[entryId] = idx
+            stamped
+        }
+    }
+
+    fun getCanonicalIndex(item: MediaItem): Int? {
+        val extraIndex = item.canonicalIndex
+        if (extraIndex != null && extraIndex >= 0) return extraIndex
+        val key = item.queueEntryId ?: item.mediaId
+        return entryProvenance[key] ?: canonicalContext.indexOfFirst {
+            (it.queueEntryId ?: it.mediaId) == key
+        }.takeIf { it >= 0 }
+    }
+
+    fun withQueueMetadata(
+        item: MediaItem,
+        newEntryId: String? = item.queueEntryId,
+        newCanonicalIndex: Int? = item.canonicalIndex,
+        newTier: QueueTier = item.queueTier,
+    ): MediaItem {
+        val currentExtras = item.mediaMetadata.extras ?: Bundle()
+        val newExtras = Bundle(currentExtras).apply {
+            if (newEntryId != null) putString(EXTRA_QUEUE_ENTRY_ID, newEntryId)
+            if (newCanonicalIndex != null) putInt(EXTRA_CANONICAL_INDEX, newCanonicalIndex)
+            putString(EXTRA_QUEUE_TIER, newTier.name)
+        }
+        val newMetadata = item.mediaMetadata.buildUpon().setExtras(newExtras).build()
+        val newItem = item.buildUpon().setMediaMetadata(newMetadata).build()
+        if (newEntryId != null) mediaItemEntryIds[newItem] = newEntryId
+        if (newCanonicalIndex != null) mediaItemCanonicalIndices[newItem] = newCanonicalIndex
+        mediaItemTiers[newItem] = newTier
+        return newItem
+    }
+
     fun toggle(player: Player) {
         if (_enabled.value) restore(player) else shuffle(player)
         // Persist the new state so it survives app restarts.
@@ -71,48 +117,136 @@ object QueueShuffle {
      */
     fun startingOrder(songs: List<Song>, startIndex: Int): List<Song> {
         original = songs.map { it.queueEntryId ?: it.videoId }
+        val contextSongs = songs.filter { it.queueTier == QueueTier.CONTEXT }
+        if (contextSongs.isNotEmpty()) {
+            setCanonicalContext(contextSongs.mapIndexed { idx, s ->
+                val entryId = s.queueEntryId ?: UUID.randomUUID().toString()
+                withQueueMetadata(s.toMediaItem(), newEntryId = entryId, newCanonicalIndex = idx)
+            })
+        }
         val rest = songs.filterIndexed { i, _ -> i != startIndex }
         val userQueue = rest.filter { it.queueTier == QueueTier.USER_QUEUE }
-        val context = rest.filter { it.queueTier == QueueTier.CONTEXT }.shuffled()
+        val context = rest.filter { it.queueTier == QueueTier.CONTEXT }
+        val shuffledContext = if (context.size > 1) {
+            val s = context.shuffled()
+            if (s == context) s.drop(1) + s.first() else s
+        } else context
         val autoplay = rest.filter { it.queueTier == QueueTier.AUTOPLAY }.shuffled()
-        return listOf(songs[startIndex]) + userQueue + context + autoplay
+        return listOf(songs[startIndex]) + userQueue + shuffledContext + autoplay
     }
 
     /**
-     * Rearranges everything after the playing track. That track keeps playing,
-     * and whatever sits above it stays there — those have had their turn.
+     * Rearranges everything after the playing track into a fresh shuffle session.
      *
-     * Invariant: USER_QUEUE tracks are never shuffled. CONTEXT and AUTOPLAY are shuffled
-     * within their respective sections.
+     * Invariants:
+     * - The currently playing occurrence is fixed and excluded by its canonical occurrence.
+     * - Existing unconsumed upcoming context occurrences preserve their queueEntryId.
+     * - Previously consumed historical occurrences reintroduced into upcoming receive a
+     *   fresh queueEntryId so history occurrences remain intact.
+     * - USER_QUEUE tracks are never shuffled and stay pinned at the front.
+     * - AUTOPLAY tracks sit at the tail.
      */
     private fun shuffle(player: Player) {
         val items = player.queueItems()
-        original = items.map { it.queueEntryId ?: it.mediaId }
-        val from = player.currentMediaItemIndex + 1
-        val upcoming = items.drop(from)
-        if (upcoming.isEmpty()) {
+        val currentIndex = player.currentMediaItemIndex
+        val from = currentIndex + 1
+        if (currentIndex !in items.indices) {
             _enabled.value = true
             return
         }
 
-        val userQueueIndices = upcoming.indices.filter { upcoming[it].queueTier == QueueTier.USER_QUEUE }
-        val contextIndices = upcoming.indices.filter { upcoming[it].queueTier == QueueTier.CONTEXT }
-        val autoplayIndices = upcoming.indices.filter { upcoming[it].queueTier == QueueTier.AUTOPLAY }
+        val currentItem = items[currentIndex]
+        val currentCanonicalIndex = getCanonicalIndex(currentItem)
 
-        applyOrder(
-            player,
-            from,
-            userQueueIndices + shuffledSection(contextIndices) + shuffledSection(autoplayIndices),
-        )
+        // If canonicalContext is empty, discover it from the player's context tracks
+        if (canonicalContext.isEmpty()) {
+            val contextItems = items.filter { it.queueTier == QueueTier.CONTEXT }
+            if (contextItems.isNotEmpty()) {
+                setCanonicalContext(contextItems)
+            }
+        }
+
+        val upcoming = items.drop(from)
+        val userQueue = upcoming.filter { it.queueTier == QueueTier.USER_QUEUE }
+        val autoplay = upcoming.filter { it.queueTier == QueueTier.AUTOPLAY }
+        val unconsumedContext = upcoming.filter { it.queueTier == QueueTier.CONTEXT }
+
+        // Map unconsumed upcoming context occurrences by canonicalIndex
+        val unconsumedByCanonical = HashMap<Int, MediaItem>()
+        for (item in unconsumedContext) {
+            val idx = getCanonicalIndex(item)
+            if (idx != null) {
+                unconsumedByCanonical[idx] = item
+            }
+        }
+
+        // Build eligible pool from canonicalContext (all collection occurrences except current occurrence)
+        val eligiblePool = mutableListOf<MediaItem>()
+        val matchedUnconsumed = mutableSetOf<MediaItem>()
+
+        for (cIdx in canonicalContext.indices) {
+            // Check if current occurrence: check canonicalIndex, fallback to queueEntryId if missing/malformed
+            val isCurrent = if (currentCanonicalIndex != null) {
+                cIdx == currentCanonicalIndex
+            } else {
+                val currentKey = currentItem.queueEntryId ?: currentItem.mediaId
+                val canonicalKey = canonicalContext[cIdx].queueEntryId ?: canonicalContext[cIdx].mediaId
+                currentKey == canonicalKey
+            }
+            if (isCurrent) continue
+
+            val unconsumed = unconsumedByCanonical[cIdx]
+            if (unconsumed != null) {
+                // Existing unplayed occurrence: preserve its existing queueEntryId and metadata
+                eligiblePool.add(unconsumed)
+                matchedUnconsumed.add(unconsumed)
+            } else {
+                // Previously consumed occurrence from history:
+                // Reintroduce into upcoming with a brand-new queueEntryId
+                val canonicalItem = canonicalContext[cIdx]
+                val freshId = UUID.randomUUID().toString()
+                val freshItem = withQueueMetadata(
+                    item = canonicalItem,
+                    newEntryId = freshId,
+                    newCanonicalIndex = cIdx,
+                )
+                entryProvenance[freshId] = cIdx
+                eligiblePool.add(freshItem)
+            }
+        }
+
+        // Include any unconsumed context items not in canonicalContext (safety fallback)
+        for (item in unconsumedContext) {
+            if (item !in matchedUnconsumed) {
+                eligiblePool.add(item)
+            }
+        }
+
+        // Randomize eligible context tracks
+        val shuffledContext = if (eligiblePool.isNotEmpty()) {
+            avoidIdentityShuffleMediaItems(eligiblePool, eligiblePool.shuffled())
+        } else {
+            avoidIdentityShuffleMediaItems(unconsumedContext, unconsumedContext.shuffled())
+        }
+
+        val newUpcoming = userQueue + shuffledContext + autoplay
+        player.replaceMediaItems(from, player.mediaItemCount, newUpcoming)
         _enabled.value = true
+        AppSettings.setShuffleEnabled(true)
     }
 
     /**
      * Randomises one queue section but never returns its unchanged order when
-     * at least two tracks can move. A mathematically valid identity shuffle is
-     * surprisingly common in short queues (one chance in two for two tracks),
-     * and reads exactly like the first tap was ignored.
+     * at least two tracks can move.
      */
+    internal fun avoidIdentityShuffleMediaItems(
+        original: List<MediaItem>,
+        shuffled: List<MediaItem>,
+    ): List<MediaItem> {
+        if (original.size <= 1 || shuffled != original) return shuffled
+        return shuffled.drop(1) + shuffled.first()
+    }
+
     private fun shuffledSection(indices: List<Int>): List<Int> =
         avoidIdentityShuffle(indices, indices.shuffled())
 
@@ -121,20 +255,69 @@ object QueueShuffle {
         return shuffled.drop(1) + shuffled.first()
     }
 
-    /** Puts the tracks still to come back into the order they were queued in. */
+    /**
+     * Restores upcoming tracks to their strictly forward positional order from canonicalContext.
+     * Does not wrap around to the beginning, and does not resurrect played history.
+     */
     private fun restore(player: Player) {
         val items = player.queueItems()
-        val from = player.currentMediaItemIndex + 1
-        val upcoming = items.drop(from)
-        if (upcoming.isEmpty()) {
-            original = emptyList()
+        val currentIndex = player.currentMediaItemIndex
+        val from = currentIndex + 1
+        if (currentIndex !in items.indices) {
             _enabled.value = false
             return
         }
-        val restored = restoreOrder(upcoming.map { it.queueEntryId ?: it.mediaId }, original)
-        applyOrder(player, from, sections(restored, upcoming))
-        original = emptyList()
+
+        val currentItem = items[currentIndex]
+        val currentCanonicalIndex = getCanonicalIndex(currentItem)
+
+        val upcoming = items.drop(from)
+        val userQueue = upcoming.filter { it.queueTier == QueueTier.USER_QUEUE }
+        val autoplay = upcoming.filter { it.queueTier == QueueTier.AUTOPLAY }
+        val unconsumedContext = upcoming.filter { it.queueTier == QueueTier.CONTEXT }
+
+        val unconsumedByCanonical = HashMap<Int, MediaItem>()
+        for (item in unconsumedContext) {
+            val idx = getCanonicalIndex(item)
+            if (idx != null) {
+                unconsumedByCanonical[idx] = item
+            }
+        }
+
+        val resolvedCurrentIndex = currentCanonicalIndex ?: run {
+            val currentKey = currentItem.queueEntryId ?: currentItem.mediaId
+            canonicalContext.indexOfFirst {
+                (it.queueEntryId ?: it.mediaId) == currentKey
+            }.takeIf { it >= 0 }
+        }
+
+        // Rebuild strictly forward context tracks from canonicalContext
+        val forwardContext = mutableListOf<MediaItem>()
+        if (resolvedCurrentIndex != null && resolvedCurrentIndex in 0 until canonicalContext.size) {
+            val historyCanonicalIndices = (0 until currentIndex).mapNotNull { getCanonicalIndex(items[it]) }.toSet()
+            for (cIdx in (resolvedCurrentIndex + 1) until canonicalContext.size) {
+                if (cIdx in historyCanonicalIndices) continue
+                val item = unconsumedByCanonical[cIdx] ?: canonicalContext[cIdx]
+                forwardContext.add(item)
+            }
+        } else if (canonicalContext.isEmpty()) {
+            val currentId = currentItem.queueEntryId ?: currentItem.mediaId
+            val restored = restoreOrder(
+                upcoming = upcoming.map { it.queueEntryId ?: it.mediaId },
+                original = original,
+                currentId = currentId,
+            )
+            applyOrder(player, from, sections(restored, upcoming))
+            original = emptyList()
+            _enabled.value = false
+            AppSettings.setShuffleEnabled(false)
+            return
+        }
+
+        val restoredUpcoming = userQueue + forwardContext + autoplay
+        player.replaceMediaItems(from, player.mediaItemCount, restoredUpcoming)
         _enabled.value = false
+        AppSettings.setShuffleEnabled(false)
     }
 
     /**
@@ -146,21 +329,32 @@ object QueueShuffle {
      * that order, so it keeps its place at the end. A track named by [original]
      * that has since been removed is simply skipped.
      *
-     * Written against a map of the positions each id holds rather than by
-     * searching [upcoming] once per entry, because the queues this runs on are
-     * playlists: a linear search per track is a million comparisons over a
-     * thousand-track queue, and it happens on the frame that handles the tap.
-     * A queue holding the same track twice hands its copies out in the order
-     * they stand in, which is what keeps both of them.
+     * When [currentId] is provided and found in [original], the restoration
+     * begins strictly after the current track's position in [original] in
+     * original forward positional order without wrapping around to the
+     * beginning, preserving history and unplayed upcoming context items.
      */
-    internal fun restoreOrder(upcoming: List<String>, original: List<String>): List<Int> {
+    internal fun restoreOrder(
+        upcoming: List<String>,
+        original: List<String>,
+        currentId: String? = null,
+    ): List<Int> {
         val positions = HashMap<String, ArrayDeque<Int>>(upcoming.size)
         upcoming.forEachIndexed { index, id ->
             positions.getOrPut(id) { ArrayDeque() }.addLast(index)
         }
         val placed = BooleanArray(upcoming.size)
         val out = ArrayList<Int>(upcoming.size)
-        for (id in original) {
+
+        val currentIndex = if (currentId != null) original.indexOf(currentId) else -1
+        val searchOrder: Iterable<String> = if (currentIndex in 0 until original.size) {
+            // Restore strictly forward after current track; do not wrap around to the beginning
+            original.subList(currentIndex + 1, original.size)
+        } else {
+            original
+        }
+
+        for (id in searchOrder) {
             val index = positions[id]?.removeFirstOrNull() ?: continue
             placed[index] = true
             out += index

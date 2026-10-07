@@ -7,11 +7,14 @@ import com.music.bitchord.data.model.QueueTier
 import com.music.bitchord.data.model.Song
 import com.music.bitchord.playback.QueueCoordinator
 import com.music.bitchord.playback.QueueCoordinator.asQueueEntry
+import com.music.bitchord.playback.QueueShuffle
 import com.music.bitchord.playback.QueueSource
+import com.music.bitchord.playback.QueueTimeline
 import com.music.bitchord.playback.queueEntryId
 import com.music.bitchord.playback.queueTier
 import com.music.bitchord.playback.toMediaItem
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Test
 import java.lang.reflect.Proxy
@@ -520,6 +523,158 @@ class QueueCoordinatorTest {
         assertEquals(3, items.size)
         assertEquals(1, activeIndex)
         assertEquals(listOf("history0", "a1", "u1"), items.map { it.mediaId })
+    }
+
+    @Test
+    fun `buildContextQueue produces identical queue semantics for Album and Playlist`() {
+        val userQ = testSong("u1", tier = QueueTier.USER_QUEUE, entryId = "entry-u1")
+        val currentTimeline = listOf(testSong("current", tier = QueueTier.CONTEXT), userQ)
+
+        val trackSet = listOf(
+            testSong("track-1"),
+            testSong("track-2"),
+            testSong("track-3"),
+            testSong("track-4"),
+            testSong("track-5"),
+        )
+
+        val albumSource = QueueSource("Abbey Road", PlaybackSourceType.BROWSE, "album-123")
+        val playlistSource = QueueSource("Classic Rock", PlaybackSourceType.BROWSE, "playlist-456")
+
+        val albumResult = QueueCoordinator.buildContextQueue(
+            currentTimeline = currentTimeline,
+            currentIndex = 0,
+            newContextSongs = trackSet,
+            selectedIndex = 2, // Track 3 tapped
+            contextSource = albumSource,
+        )
+
+        val playlistResult = QueueCoordinator.buildContextQueue(
+            currentTimeline = currentTimeline,
+            currentIndex = 0,
+            newContextSongs = trackSet,
+            selectedIndex = 2, // Track 3 tapped
+            contextSource = playlistSource,
+        )
+
+        // Queue semantics must be identical
+        assertEquals(albumResult.startIndex, playlistResult.startIndex)
+        assertEquals(albumResult.timeline.size, playlistResult.timeline.size)
+        assertEquals(
+            albumResult.timeline.map { it.videoId },
+            playlistResult.timeline.map { it.videoId },
+        )
+        assertEquals(
+            albumResult.timeline.map { it.queueTier },
+            playlistResult.timeline.map { it.queueTier },
+        )
+
+        // Verify entry identity semantics
+        albumResult.timeline.forEach { assertNotNull(it.queueEntryId) }
+        playlistResult.timeline.forEach { assertNotNull(it.queueEntryId) }
+
+        // Source-specific fields reflect their respective collection sources
+        assertEquals(List(5) { "Abbey Road" }, albumResult.timeline.filter { it.queueTier == QueueTier.CONTEXT }.map { it.playbackSource })
+        assertEquals(List(5) { "Classic Rock" }, playlistResult.timeline.filter { it.queueTier == QueueTier.CONTEXT }.map { it.playbackSource })
+    }
+
+    @Test
+    fun `shuffledStartingOrder produces identical queue semantics for Album and Playlist`() {
+        val tracks = listOf(
+            testSong("t1", tier = QueueTier.CONTEXT),
+            testSong("t2", tier = QueueTier.CONTEXT),
+            testSong("t3", tier = QueueTier.CONTEXT),
+            testSong("u1", tier = QueueTier.USER_QUEUE),
+            testSong("a1", tier = QueueTier.AUTOPLAY),
+        )
+
+        val albumTimeline = tracks.map { it.copy(playbackSource = "Album A", playbackSourceId = "alb-1") }
+        val playlistTimeline = tracks.map { it.copy(playbackSource = "Playlist B", playbackSourceId = "pl-2") }
+
+        val albumShuffled = QueueTimeline.shuffledStartingOrder(albumTimeline, startIndex = 1)
+        val playlistShuffled = QueueTimeline.shuffledStartingOrder(playlistTimeline, startIndex = 1)
+
+        // Selected track (t2) leads at index 0 for both
+        assertEquals("t2", albumShuffled[0].videoId)
+        assertEquals("t2", playlistShuffled[0].videoId)
+
+        // User queue item pinned at index 1 for both
+        assertEquals("u1", albumShuffled[1].videoId)
+        assertEquals("u1", playlistShuffled[1].videoId)
+
+        // Context items present in indices 2..3 for both
+        assertEquals(setOf("t1", "t3"), albumShuffled.subList(2, 4).map { it.videoId }.toSet())
+        assertEquals(setOf("t1", "t3"), playlistShuffled.subList(2, 4).map { it.videoId }.toSet())
+
+        // Autoplay at index 4 for both
+        assertEquals("a1", albumShuffled[4].videoId)
+        assertEquals("a1", playlistShuffled[4].videoId)
+
+        // Size and tiers match identically
+        assertEquals(albumShuffled.map { it.queueTier }, playlistShuffled.map { it.queueTier })
+    }
+
+    @Test
+    fun `mid-playback shuffle restoration behaves identically for Album and Playlist`() {
+        val originalIds = listOf("track-1", "track-2", "track-3", "track-4", "track-5")
+        // Playing at track-2, remaining upcoming unplayed tracks are track-3, track-4, track-5
+        // Shuffled order of upcoming:
+        val upcomingShuffled = listOf("track-5", "track-3", "track-4")
+
+        val albumRestoredIndices = QueueShuffle.restoreOrder(upcomingShuffled, originalIds, "track-2")
+        val playlistRestoredIndices = QueueShuffle.restoreOrder(upcomingShuffled, originalIds, "track-2")
+
+        // Both restore to the exact same relative indices [1, 2, 0] corresponding to track-3, track-4, track-5
+        assertEquals(albumRestoredIndices, playlistRestoredIndices)
+        val restoredIds = albumRestoredIndices.map { upcomingShuffled[it] }
+        assertEquals(listOf("track-3", "track-4", "track-5"), restoredIds)
+    }
+
+    @Test
+    fun `duplicate track restore resolves identically regardless of collection source`() {
+        // Deluxe album with reprise or playlist with duplicate track
+        val originalWithDuplicates = listOf("song-A", "song-B", "song-A", "song-C")
+        val upcomingShuffled = listOf("song-C", "song-A", "song-B", "song-A")
+
+        val restored = QueueShuffle.restoreOrder(upcomingShuffled, originalWithDuplicates)
+        val restoredIds = restored.map { upcomingShuffled[it] }
+
+        // FIFO resolution restores first song-A, then song-B, second song-A, then song-C
+        assertEquals(listOf("song-A", "song-B", "song-A", "song-C"), restoredIds)
+    }
+
+    @Test
+    fun `album and playlist context queues maintain identical shuffle session invariants`() {
+        val tracks = listOf(
+            testSong("song-A", tier = QueueTier.CONTEXT, entryId = "e-A1"),
+            testSong("song-B", tier = QueueTier.CONTEXT, entryId = "e-B"),
+            testSong("song-A", tier = QueueTier.CONTEXT, entryId = "e-A2"), // duplicate
+            testSong("song-C", tier = QueueTier.CONTEXT, entryId = "e-C"),
+        )
+        val albumResult = QueueCoordinator.buildContextQueue(
+            currentTimeline = emptyList(),
+            currentIndex = 0,
+            newContextSongs = tracks,
+            selectedIndex = 0,
+            contextSource = QueueSource("Album Deluxe", PlaybackSourceType.BROWSE, "alb-1"),
+        )
+        val playlistResult = QueueCoordinator.buildContextQueue(
+            currentTimeline = emptyList(),
+            currentIndex = 0,
+            newContextSongs = tracks,
+            selectedIndex = 0,
+            contextSource = QueueSource("My Playlist", PlaybackSourceType.QUEUE, "pl-1"),
+        )
+
+        // Structure matches identically
+        assertEquals(albumResult.startIndex, playlistResult.startIndex)
+        assertEquals(albumResult.timeline.size, playlistResult.timeline.size)
+        assertEquals(albumResult.timeline.map { it.videoId }, playlistResult.timeline.map { it.videoId })
+        assertEquals(albumResult.timeline.map { it.queueTier }, playlistResult.timeline.map { it.queueTier })
+
+        // Both duplicate occurrences retain distinct queueEntryIds
+        assertNotEquals(albumResult.timeline[0].queueEntryId, albumResult.timeline[2].queueEntryId)
+        assertNotEquals(playlistResult.timeline[0].queueEntryId, playlistResult.timeline[2].queueEntryId)
     }
 
     /** Tiers looked up by song, since MediaItem metadata extras don't survive on the JVM. */

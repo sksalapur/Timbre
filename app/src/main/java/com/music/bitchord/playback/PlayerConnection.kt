@@ -407,6 +407,10 @@ fun MediaItem.toSong() = Song(
     localPath = mediaMetadata.extras?.getString(EXTRA_LOCAL_PATH),
 )
 
+internal val mediaItemTiers = java.util.Collections.synchronizedMap(java.util.WeakHashMap<MediaItem, QueueTier>())
+internal val mediaItemEntryIds = java.util.Collections.synchronizedMap(java.util.WeakHashMap<MediaItem, String>())
+internal val mediaItemCanonicalIndices = java.util.Collections.synchronizedMap(java.util.WeakHashMap<MediaItem, Int>())
+
 /** @see Song.fromAutoplay */
 val MediaItem.fromAutoplay: Boolean
     get() = queueTier == QueueTier.AUTOPLAY
@@ -414,25 +418,38 @@ val MediaItem.fromAutoplay: Boolean
 /** @see Song.queueTier */
 val MediaItem.queueTier: QueueTier
     get() {
-        return when (mediaMetadata.extras?.getString(EXTRA_QUEUE_TIER)) {
+        val tierFromExtras = when (mediaMetadata.extras?.getString(EXTRA_QUEUE_TIER)) {
             "USER_QUEUE" -> QueueTier.USER_QUEUE
             "CONTEXT" -> QueueTier.CONTEXT
             "AUTOPLAY" -> QueueTier.AUTOPLAY
             else -> if (mediaMetadata.extras?.getBoolean(EXTRA_FROM_AUTOPLAY) == true) {
                 QueueTier.AUTOPLAY
             } else {
-                QueueTier.CONTEXT
+                null
             }
         }
+        return tierFromExtras ?: mediaItemTiers[this] ?: QueueTier.CONTEXT
     }
 
 /** @see Song.queueEntryId */
 val MediaItem.queueEntryId: String?
-    get() = mediaMetadata.extras?.getString(EXTRA_QUEUE_ENTRY_ID)
+    get() = mediaMetadata.extras?.getString(EXTRA_QUEUE_ENTRY_ID) ?: mediaItemEntryIds[this]
 
 /** Public metadata keys for queue categorization and immutable queue entry identity. */
 const val EXTRA_QUEUE_TIER = "bitchord.queueTier"
 const val EXTRA_QUEUE_ENTRY_ID = "bitchord.queueEntryId"
+const val EXTRA_CANONICAL_INDEX = "bitchord.canonicalIndex"
+
+/** Provenance index within the canonical collection (0-based). */
+val MediaItem.canonicalIndex: Int?
+    get() {
+        val extras = mediaMetadata.extras
+        if (extras != null && extras.containsKey(EXTRA_CANONICAL_INDEX)) {
+            val idx = extras.getInt(EXTRA_CANONICAL_INDEX, -1)
+            if (idx >= 0) return idx
+        }
+        return mediaItemCanonicalIndices[this]
+    }
 
 /**
  * Marks a queue entry as AutoPlay's rather than the user's. Carried on the
@@ -674,6 +691,10 @@ fun Song.toMediaItem(): MediaItem {
             .build(),
     )
     .build()
+    .also { item ->
+        queueEntryId?.let { mediaItemEntryIds[item] = it }
+        mediaItemTiers[item] = queueTier
+    }
 }
 
 /**
@@ -769,12 +790,31 @@ suspend fun MediaController.playSongs(songs: List<Song>, startIndex: Int) {
     // leads, so it ends up at the top instead of at [startIndex].
     val shuffled = QueueShuffle.enabled.value
     val items = withContext(Dispatchers.Default) {
-        val queue = if (shuffled) {
-            QueueShuffle.startingOrder(songs, startIndex.coerceIn(songs.indices))
-        } else {
-            songs
+        val songsWithIds = songs.map { song ->
+            if (song.queueEntryId == null) song.copy(queueEntryId = java.util.UUID.randomUUID().toString()) else song
         }
-        queue.map { it.toMediaItem() }
+        val contextEntries = songsWithIds.filter { it.queueTier == QueueTier.CONTEXT }
+        val canonicalIndexMap = contextEntries.mapIndexed { idx, s -> s.queueEntryId!! to idx }.toMap()
+
+        val queue = if (shuffled) {
+            QueueShuffle.startingOrder(songsWithIds, startIndex.coerceIn(songsWithIds.indices))
+        } else {
+            songsWithIds
+        }
+        val mediaItems = queue.map { song ->
+            val item = song.toMediaItem()
+            val cIndex = if (song.queueTier == QueueTier.CONTEXT) {
+                canonicalIndexMap[song.queueEntryId]
+            } else null
+            if (cIndex != null) QueueShuffle.withQueueMetadata(item, newCanonicalIndex = cIndex) else item
+        }
+
+        val canonicalMediaItems = contextEntries.mapIndexed { idx, s ->
+            QueueShuffle.withQueueMetadata(s.toMediaItem(), newCanonicalIndex = idx)
+        }
+        QueueShuffle.setCanonicalContext(canonicalMediaItems)
+
+        mediaItems
     }
     setMediaItems(items, queueStartIndex(startIndex, items.size, shuffled), 0L)
     prepare()

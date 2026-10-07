@@ -2901,20 +2901,20 @@ private fun BitChordApp(
                             onActiveShelfChange = { detailActiveShelf = it },
                             onSongClick = { songs, index ->
                                 playFrom(
-                                    songs,
+                                    songs.map(withAlbum),
                                     index,
                                     QueueSource(page.title, PlaybackSourceType.BROWSE, page.browseId),
                                 )
                             },
                             onSongLongPress = { openSongMenu(withAlbum(it)) },
-                            onSongSwipe = onSongSwipe,
+                            onSongSwipe = { onSongSwipe(withAlbum(it)) },
                             onShuffle = { songs ->
                                 // Shuffle goes on first so the queue is built shuffled
                                 // as it is set — the random pick here only decides
                                 // which track leads it.
                                 QueueShuffle.enableForNextQueue()
                                 playFrom(
-                                    songs,
+                                    songs.map(withAlbum),
                                     songs.indices.random(),
                                     QueueSource(page.title, PlaybackSourceType.BROWSE, page.browseId),
                                 )

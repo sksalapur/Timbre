@@ -1,11 +1,19 @@
 package com.music.bitchord
 
+import androidx.media3.common.MediaItem
+import androidx.media3.common.Player
+import com.music.bitchord.data.model.PlaybackSourceType
 import com.music.bitchord.data.model.QueueTier
 import com.music.bitchord.data.model.Song
 import com.music.bitchord.playback.QueueShuffle
+import com.music.bitchord.playback.canonicalIndex
 import com.music.bitchord.playback.queueEntryId
 import com.music.bitchord.playback.toMediaItem
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Test
 
 class QueueShuffleTierTest {
@@ -22,6 +30,61 @@ class QueueShuffleTierTest {
         queueTier = tier,
         queueEntryId = entryId,
     )
+
+    private class MockPlayerState(
+        val items: MutableList<MediaItem>,
+        var currentIndex: Int = 0,
+    ) {
+        val player: Player = java.lang.reflect.Proxy.newProxyInstance(
+            Player::class.java.classLoader,
+            arrayOf(Player::class.java),
+        ) { _, method, args ->
+            when (method.name) {
+                "getMediaItemCount" -> items.size
+                "getMediaItemAt" -> items[args[0] as Int]
+                "getCurrentMediaItemIndex" -> currentIndex
+                "getCurrentMediaItem" -> items.getOrNull(currentIndex)
+                "replaceMediaItems" -> {
+                    val from = args[0] as Int
+                    val to = args[1] as Int
+                    @Suppress("UNCHECKED_CAST")
+                    val newItems = args[2] as List<MediaItem>
+                    for (i in (to - 1) downTo from) {
+                        items.removeAt(i)
+                    }
+                    items.addAll(from, newItems)
+                    null
+                }
+                "seekToNextMediaItem" -> {
+                    if (currentIndex < items.size - 1) currentIndex++
+                    null
+                }
+                else -> null
+            }
+        } as Player
+    }
+
+    @Before
+    fun setUp() {
+        val editor = java.lang.reflect.Proxy.newProxyInstance(
+            android.content.SharedPreferences.Editor::class.java.classLoader,
+            arrayOf(android.content.SharedPreferences.Editor::class.java),
+        ) { proxy, method, _ ->
+            if (method.returnType == android.content.SharedPreferences.Editor::class.java) proxy else null
+        }
+        val prefs = java.lang.reflect.Proxy.newProxyInstance(
+            android.content.SharedPreferences::class.java.classLoader,
+            arrayOf(android.content.SharedPreferences::class.java),
+        ) { _, method, _ ->
+            if (method.name == "edit") editor else null
+        } as android.content.SharedPreferences
+        val field = com.music.bitchord.data.settings.AppSettings::class.java.getDeclaredField("prefs")
+        field.isAccessible = true
+        field.set(com.music.bitchord.data.settings.AppSettings, prefs)
+
+        QueueShuffle.setEnabled(false)
+        QueueShuffle.canonicalContext = emptyList()
+    }
 
     @Test
     fun `startingOrder preserves USER_QUEUE items at front and shuffles context`() {
@@ -62,73 +125,326 @@ class QueueShuffleTierTest {
     }
 
     @Test
-    fun `reproduce album alternating skip and shuffle toggle`() {
-        val editor = java.lang.reflect.Proxy.newProxyInstance(
-            android.content.SharedPreferences.Editor::class.java.classLoader,
-            arrayOf(android.content.SharedPreferences.Editor::class.java),
-        ) { proxy, method, args ->
-            if (method.returnType == android.content.SharedPreferences.Editor::class.java) proxy else null
-        }
-        val prefs = java.lang.reflect.Proxy.newProxyInstance(
-            android.content.SharedPreferences::class.java.classLoader,
-            arrayOf(android.content.SharedPreferences::class.java),
-        ) { _, method, _ ->
-            if (method.name == "edit") editor else null
-        } as android.content.SharedPreferences
-        val field = com.music.bitchord.data.settings.AppSettings::class.java.getDeclaredField("prefs")
-        field.isAccessible = true
-        field.set(com.music.bitchord.data.settings.AppSettings, prefs)
+    fun `restoreOrder restores canonical sequence immediately after current track without resurrecting history`() {
+        val collection = (1..10).map { "track-$it" }
+        // Current track is track-7. History holds track-1..track-6 (not in upcoming).
+        // Upcoming contains shuffled remaining unplayed context tracks:
+        val upcomingShuffled = listOf("track-9", "track-8", "track-10")
 
+        val restoredIndices = QueueShuffle.restoreOrder(
+            upcoming = upcomingShuffled,
+            original = collection,
+            currentId = "track-7",
+        )
+        val restored = restoredIndices.map { upcomingShuffled[it] }
+
+        // Must restore to 8, 9, 10 immediately after 7. Played history (1..6) must NOT be resurrected.
+        assertEquals(listOf("track-8", "track-9", "track-10"), restored)
+    }
+
+    @Test
+    fun `restoreOrder restores strictly forward after current track and does not wrap around to beginning`() {
+        val collection = (1..10).map { "track-$it" }
+        // Current track is track-7. History holds track-1..track-6.
+        // Upcoming contains shuffled forward tracks:
+        val upcomingShuffled = listOf("track-10", "track-8", "track-9")
+
+        val restoredIndices = QueueShuffle.restoreOrder(
+            upcoming = upcomingShuffled,
+            original = collection,
+            currentId = "track-7",
+        )
+        val restored = restoredIndices.map { upcomingShuffled[it] }
+
+        // Must restore strictly forward starting after track-7 to [8, 9, 10].
+        // Does NOT wrap around to the beginning (tracks 1..6 are never visited).
+        assertEquals(listOf("track-8", "track-9", "track-10"), restored)
+    }
+
+    @Test
+    fun `restoreOrder falls back predictably when currentId is null or not in original`() {
+        val collection = (1..10).map { "track-$it" }
+        val upcomingShuffled = listOf("track-9", "track-8", "track-10")
+
+        val restoredIndicesUnknown = QueueShuffle.restoreOrder(
+            upcoming = upcomingShuffled,
+            original = collection,
+            currentId = "unknown-seed",
+        )
+        val restoredUnknown = restoredIndicesUnknown.map { upcomingShuffled[it] }
+        assertEquals(listOf("track-8", "track-9", "track-10"), restoredUnknown)
+
+        val restoredIndicesNull = QueueShuffle.restoreOrder(
+            upcoming = upcomingShuffled,
+            original = collection,
+            currentId = null,
+        )
+        val restoredNull = restoredIndicesNull.map { upcomingShuffled[it] }
+        assertEquals(listOf("track-8", "track-9", "track-10"), restoredNull)
+    }
+
+    @Test
+    fun `new shuffle session preserves unconsumed IDs and gives fresh IDs to reintroduced consumed occurrences`() {
+        val songs = (1..5).map { testSong("track-$it", QueueTier.CONTEXT, "id-$it") }
+        val items = songs.mapIndexed { idx, s ->
+            QueueShuffle.withQueueMetadata(s.toMediaItem(), newEntryId = "id-${idx + 1}", newCanonicalIndex = idx)
+        }.toMutableList()
+        QueueShuffle.setCanonicalContext(items.toList())
+
+        // Start playback at index 2 (track-3). History = [track-1 (id-1), track-2 (id-2)].
+        // Upcoming = [track-4 (id-4), track-5 (id-5)].
+        val state = MockPlayerState(items, currentIndex = 2)
+        QueueShuffle.setEnabled(false)
+
+        // Turn Shuffle ON
+        QueueShuffle.toggle(state.player)
+        assertTrue(QueueShuffle.enabled.value)
+
+        // History items 0 and 1 must retain their exact original IDs
+        assertEquals("id-1", state.items[0].queueEntryId)
+        assertEquals("id-2", state.items[1].queueEntryId)
+
+        // Current item (track-3) is excluded from upcoming and stays current
+        assertEquals("id-3", state.items[2].queueEntryId)
+        assertEquals(2, state.items[2].canonicalIndex)
+
+        // Upcoming now has 4 tracks: 2 unconsumed (track-4, track-5) and 2 reintroduced (track-1, track-2)
+        assertEquals(2 + 1 + 4, state.items.size)
+        val upcoming = state.items.drop(3)
+        assertEquals(4, upcoming.size)
+
+        // Canonical indices present in upcoming must be 0, 1, 3, 4 (excluding 2)
+        val upcomingCanonicalIndices = upcoming.map { it.canonicalIndex }.toSet()
+        assertEquals(setOf(0, 1, 3, 4), upcomingCanonicalIndices)
+
+        // Unconsumed items (cIdx 3 and 4) must preserve their existing IDs
+        val unconsumed4 = upcoming.first { it.canonicalIndex == 3 }
+        val unconsumed5 = upcoming.first { it.canonicalIndex == 4 }
+        assertEquals("id-4", unconsumed4.queueEntryId)
+        assertEquals("id-5", unconsumed5.queueEntryId)
+
+        // Reintroduced consumed items (cIdx 0 and 1) must receive brand-new fresh IDs
+        val reintroduced1 = upcoming.first { it.canonicalIndex == 0 }
+        val reintroduced2 = upcoming.first { it.canonicalIndex == 1 }
+        assertNotNull(reintroduced1.queueEntryId)
+        assertNotNull(reintroduced2.queueEntryId)
+        assertNotEquals("id-1", reintroduced1.queueEntryId)
+        assertNotEquals("id-2", reintroduced2.queueEntryId)
+
+        // All IDs across the entire queue are completely unique
+        val allIds = state.items.map { it.queueEntryId }
+        assertEquals(state.items.size, allIds.toSet().size)
+    }
+
+    @Test
+    fun `duplicate song occurrences have distinct canonical indices and only current occurrence is excluded`() {
+        val songA1 = testSong("song-A", QueueTier.CONTEXT, "id-A1")
+        val songB = testSong("song-B", QueueTier.CONTEXT, "id-B")
+        val songA2 = testSong("song-A", QueueTier.CONTEXT, "id-A2")
+        val songC = testSong("song-C", QueueTier.CONTEXT, "id-C")
+
+        val rawList = listOf(songA1, songB, songA2, songC)
+        val items = rawList.mapIndexed { idx, s ->
+            QueueShuffle.withQueueMetadata(s.toMediaItem(), newEntryId = s.queueEntryId, newCanonicalIndex = idx)
+        }.toMutableList()
+        QueueShuffle.setCanonicalContext(items.toList())
+
+        // Playback starts at index 0 (song-A occurrence 1, canonicalIndex 0)
+        val state = MockPlayerState(items, currentIndex = 0)
+        QueueShuffle.setEnabled(false)
+
+        QueueShuffle.toggle(state.player)
+        assertTrue(QueueShuffle.enabled.value)
+
+        // Current item is song-A (id-A1, canonicalIndex 0)
+        assertEquals("id-A1", state.items[0].queueEntryId)
+        assertEquals(0, state.items[0].canonicalIndex)
+
+        // Upcoming has 3 items: song-B (cIdx 1), song-A occurrence 2 (cIdx 2), song-C (cIdx 3)
+        val upcoming = state.items.drop(1)
+        assertEquals(3, upcoming.size)
+
+        val upcomingCanonicalIndices = upcoming.map { it.canonicalIndex }
+        assertTrue(upcomingCanonicalIndices.contains(1))
+        assertTrue(upcomingCanonicalIndices.contains(2))
+        assertTrue(upcomingCanonicalIndices.contains(3))
+
+        // Occurrence 2 of song-A was unconsumed, so it retained its original ID "id-A2"
+        val occurrence2 = upcoming.first { it.canonicalIndex == 2 }
+        assertEquals("id-A2", occurrence2.queueEntryId)
+        assertEquals("song-A", occurrence2.mediaId)
+    }
+
+    @Test
+    fun `shuffle OFF restores strictly forward canonical tracks without wrap-around and without resurrecting history`() {
+        val songs = (1..10).map { testSong("track-$it", QueueTier.CONTEXT, "id-$it") }
+        val items = songs.mapIndexed { idx, s ->
+            QueueShuffle.withQueueMetadata(s.toMediaItem(), newEntryId = "id-${idx + 1}", newCanonicalIndex = idx)
+        }.toMutableList()
+        QueueShuffle.setCanonicalContext(items.toList())
+
+        // Current track is track-7 (index 6, canonicalIndex 6).
+        // History: tracks 1..6 (cIdx 0..5).
+        // Upcoming: tracks 8..10 (cIdx 7..9).
+        val state = MockPlayerState(items, currentIndex = 6)
+        QueueShuffle.setEnabled(false)
+
+        // Turn Shuffle ON
+        QueueShuffle.toggle(state.player)
+        assertTrue(QueueShuffle.enabled.value)
+        assertEquals(6 + 1 + 9, state.items.size) // 6 history + 1 current + 9 upcoming
+
+        // Turn Shuffle OFF
+        QueueShuffle.toggle(state.player)
+        assertTrue(!QueueShuffle.enabled.value)
+
+        // Current track remains track-7
+        assertEquals("id-7", state.items[6].queueEntryId)
+        assertEquals(6, state.items[6].canonicalIndex)
+
+        // History remains untouched: tracks 1..6
+        for (i in 0..5) {
+            assertEquals("id-${i + 1}", state.items[i].queueEntryId)
+            assertEquals(i, state.items[i].canonicalIndex)
+        }
+
+        // Upcoming must be restored strictly forward: [track-8, track-9, track-10]
+        val upcoming = state.items.drop(7)
+        assertEquals(3, upcoming.size)
+        assertEquals(listOf(7, 8, 9), upcoming.map { it.canonicalIndex })
+        assertEquals(listOf("id-8", "id-9", "id-10"), upcoming.map { it.queueEntryId })
+    }
+
+    @Test
+    fun `end of collection shuffle ON populates upcoming with earlier collection tracks`() {
+        val songs = (1..5).map { testSong("track-$it", QueueTier.CONTEXT, "id-$it") }
+        val items = songs.mapIndexed { idx, s ->
+            QueueShuffle.withQueueMetadata(s.toMediaItem(), newEntryId = "id-${idx + 1}", newCanonicalIndex = idx)
+        }.toMutableList()
+        QueueShuffle.setCanonicalContext(items.toList())
+
+        // Playing at track-5 (final track, index 4). Upcoming is empty.
+        val state = MockPlayerState(items, currentIndex = 4)
+        QueueShuffle.setEnabled(false)
+
+        // Turn Shuffle ON
+        QueueShuffle.toggle(state.player)
+        assertTrue(QueueShuffle.enabled.value)
+
+        // Current track remains track-5
+        assertEquals("id-5", state.items[4].queueEntryId)
+        assertEquals(4, state.items[4].canonicalIndex)
+
+        // Upcoming is now populated with earlier tracks (1..4)
+        val upcoming = state.items.drop(5)
+        assertEquals(4, upcoming.size)
+        assertEquals(setOf(0, 1, 2, 3), upcoming.map { it.canonicalIndex }.toSet())
+
+        // Reintroduced tracks all have fresh IDs
+        for (item in upcoming) {
+            assertNotEquals("id-${(item.canonicalIndex ?: 0) + 1}", item.queueEntryId)
+        }
+
+        // Toggling Shuffle OFF restores to strictly forward (which is empty after track-5)
+        QueueShuffle.toggle(state.player)
+        assertTrue(!QueueShuffle.enabled.value)
+        assertEquals(5, state.items.size)
+        assertEquals(0, state.items.drop(5).size)
+    }
+
+    @Test
+    fun `album and playlist parity with identical provenance and lifecycle`() {
+        fun runLifecycle(sourceType: PlaybackSourceType, sourceName: String): List<String> {
+            val songs = (1..6).map {
+                testSong("track-$it", QueueTier.CONTEXT, "id-$it").copy(
+                    playbackSource = sourceName,
+                    playbackSourceType = sourceType,
+                )
+            }
+            val items = songs.mapIndexed { idx, s ->
+                QueueShuffle.withQueueMetadata(s.toMediaItem(), newEntryId = "id-${idx + 1}", newCanonicalIndex = idx)
+            }.toMutableList()
+            QueueShuffle.setCanonicalContext(items.toList())
+            val state = MockPlayerState(items, currentIndex = 2) // playing track-3
+            QueueShuffle.setEnabled(false)
+
+            // Turn ON
+            QueueShuffle.toggle(state.player)
+            val onCanonicalIndices = state.items.drop(3).mapNotNull { it.canonicalIndex }.sorted().joinToString()
+
+            // Turn OFF
+            QueueShuffle.toggle(state.player)
+            val offCanonicalIndices = state.items.drop(3).mapNotNull { it.canonicalIndex }.joinToString()
+
+            return listOf(onCanonicalIndices, offCanonicalIndices)
+        }
+
+        val albumResult = runLifecycle(PlaybackSourceType.BROWSE, "Album Master")
+        val playlistResult = runLifecycle(PlaybackSourceType.QUEUE, "Playlist Favorites")
+
+        // Both Album and Playlist produce identical canonical index sets on Shuffle ON and identical sequences on Shuffle OFF
+        assertEquals(albumResult[0], playlistResult[0])
+        assertEquals(albumResult[1], playlistResult[1])
+        assertEquals("3, 4, 5", albumResult[1])
+    }
+
+    @Test
+    fun `identifying current track falls back to queueEntryId if canonicalIndex extra is missing`() {
+        val songs = (1..4).map { testSong("track-$it", QueueTier.CONTEXT, "id-$it") }
+        val canonicalItems = songs.mapIndexed { idx, s ->
+            QueueShuffle.withQueueMetadata(s.toMediaItem(), newEntryId = "id-${idx + 1}", newCanonicalIndex = idx)
+        }
+        QueueShuffle.setCanonicalContext(canonicalItems)
+
+        // Create player items where current track has NO canonical index extra, only queueEntryId
+        val playerItems = songs.mapIndexed { idx, s ->
+            if (idx == 1) {
+                // track-2 with missing canonicalIndex
+                QueueShuffle.withQueueMetadata(s.toMediaItem(), newEntryId = "id-2", newCanonicalIndex = null)
+            } else {
+                QueueShuffle.withQueueMetadata(s.toMediaItem(), newEntryId = "id-${idx + 1}", newCanonicalIndex = idx)
+            }
+        }.toMutableList()
+
+        val state = MockPlayerState(playerItems, currentIndex = 1) // playing track-2
+        QueueShuffle.setEnabled(false)
+
+        // Turn Shuffle ON: current track must be correctly identified via queueEntryId fallback
+        QueueShuffle.toggle(state.player)
+        assertTrue(QueueShuffle.enabled.value)
+
+        // Current track remains track-2
+        assertEquals("id-2", state.items[1].queueEntryId)
+
+        // Upcoming has 3 tracks (tracks 1, 3, 4), and track-2 is excluded
+        val upcoming = state.items.drop(2)
+        assertEquals(3, upcoming.size)
+        val upcomingCanonicalIndices = upcoming.map { it.canonicalIndex }.toSet()
+        assertEquals(setOf(0, 2, 3), upcomingCanonicalIndices)
+    }
+
+    @Test
+    fun `reproduce album alternating skip and shuffle toggle`() {
         val albumSongs = (1..10).map { testSong("track-$it", QueueTier.CONTEXT, "entry-$it") }
         val items = albumSongs.map { it.toMediaItem() }.toMutableList()
-        var currentIndex = 0
-
-        val player = java.lang.reflect.Proxy.newProxyInstance(
-            androidx.media3.common.Player::class.java.classLoader,
-            arrayOf(androidx.media3.common.Player::class.java),
-        ) { _, method, args ->
-            when (method.name) {
-                "getMediaItemCount" -> items.size
-                "getMediaItemAt" -> items[args[0] as Int]
-                "getCurrentMediaItemIndex" -> currentIndex
-                "getCurrentMediaItem" -> items.getOrNull(currentIndex)
-                "replaceMediaItems" -> {
-                    val from = args[0] as Int
-                    val to = args[1] as Int
-                    val newItems = args[2] as List<androidx.media3.common.MediaItem>
-                    for (i in (to - 1) downTo from) {
-                        items.removeAt(i)
-                    }
-                    items.addAll(from, newItems)
-                    null
-                }
-                "seekToNextMediaItem" -> {
-                    if (currentIndex < items.size - 1) {
-                        currentIndex++
-                    }
-                    null
-                }
-                else -> null
-            }
-        } as androidx.media3.common.Player
+        val state = MockPlayerState(items, currentIndex = 0)
 
         // Start with shuffle off
         QueueShuffle.setEnabled(false)
 
         repeat(20) { step ->
-            println("Step $step: currentIndex=$currentIndex, count=${items.size}, shuffle=${QueueShuffle.enabled.value}")
-            player.seekToNextMediaItem()
+            state.player.seekToNextMediaItem()
             // When reaching near the end of album (e.g. index 8), simulate AutoPlay appending tracks with stable unique IDs
-            if (currentIndex >= 8 && items.size == 10) {
+            if (state.currentIndex >= 8 && state.items.size == 10) {
                 val autoplay = (1..5).map { testSong("autoplay-$it", QueueTier.AUTOPLAY, "entry-auto-$it").toMediaItem() }
-                items.addAll(autoplay)
+                state.items.addAll(autoplay)
             }
-            QueueShuffle.toggle(player)
+            QueueShuffle.toggle(state.player)
 
             // Invariants:
             // 1. All queueEntryIds remain distinct across the queue
-            val entryIds = items.map { it.queueEntryId ?: it.mediaId }
-            assertEquals("All queue entry IDs must remain unique at step $step", items.size, entryIds.toSet().size)
+            val entryIds = state.items.map { it.queueEntryId ?: it.mediaId }
+            assertEquals("All queue entry IDs must remain unique at step $step", state.items.size, entryIds.toSet().size)
         }
     }
 }
