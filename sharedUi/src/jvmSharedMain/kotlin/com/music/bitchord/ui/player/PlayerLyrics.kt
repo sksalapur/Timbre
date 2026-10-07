@@ -2710,74 +2710,95 @@ private fun CurrentLyricLine(
 
     val reduceAnimation by PlayerSettings.reduceAnimation.collectAsStateWithLifecycle()
 
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = modifier
-            .clip(RoundedCornerShape(8.dp))
-            .clickable(onClick = onClick)
-            .padding(vertical = 4.dp),
-    ) {
-        if (instrumental) {
-            Icon(
-                imageVector = BitChordIcons.MusicNote,
-                contentDescription = null,
-                tint = Color.White,
-                modifier = Modifier.size(16.dp),
-            )
-            Spacer(Modifier.width(6.dp))
-        }
-        AnimatedContent(
-            targetState = Triple(index, current, text),
-            transitionSpec = {
-                val duration = if (reduceAnimation) 0 else 340
-                if (reduceAnimation) {
-                    (fadeIn(snap()) togetherWith fadeOut(snap())).using(
-                        SizeTransform(clip = false, sizeAnimationSpec = { _, _ -> snap() })
+    // Content-based RTL: drive the row's layout direction from the active lyric's
+    // own text direction so alignment and sweep geometry match what Compose would
+    // produce for that paragraph.  LTR rows keep the chevron on the right; RTL
+    // rows put it on the left (mirrored) and right-align the text.
+    val stripRtl = isRtl(text)
+    CompositionLocalProvider(LocalLayoutDirection provides if (stripRtl) LayoutDirection.Rtl else LayoutDirection.Ltr) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = if (stripRtl) Arrangement.End else Arrangement.Start,
+            modifier = modifier
+                .clip(RoundedCornerShape(8.dp))
+                .clickable(onClick = onClick)
+                .padding(vertical = 4.dp),
+        ) {
+            // For RTL the chevron goes first (on the left); for LTR it goes last.
+            if (stripRtl) {
+                Spacer(Modifier.width(6.dp))
+                Icon(
+                    imageVector = BitChordIcons.ChevronRight,
+                    contentDescription = null,
+                    tint = Color.White.copy(alpha = 0.5f),
+                    modifier = Modifier
+                        .size(14.dp)
+                        .graphicsLayer { rotationZ = 180f },
+                )
+            }
+
+            AnimatedContent(
+                targetState = Triple(index, current, text),
+                transitionSpec = {
+                    val duration = if (reduceAnimation) 0 else 340
+                    if (reduceAnimation) {
+                        (fadeIn(snap()) togetherWith fadeOut(snap())).using(
+                            SizeTransform(clip = false, sizeAnimationSpec = { _, _ -> snap() })
+                        )
+                    } else {
+                        (fadeIn(animationSpec = tween(duration, easing = FastOutSlowInEasing)) +
+                            slideInVertically(animationSpec = tween(duration, easing = FastOutSlowInEasing)) { height -> (height * 0.35f).toInt() })
+                            .togetherWith(
+                                fadeOut(animationSpec = tween(duration, easing = FastOutSlowInEasing)) +
+                                    slideOutVertically(animationSpec = tween(duration, easing = FastOutSlowInEasing)) { height -> -(height * 0.35f).toInt() }
+                            ).using(
+                                SizeTransform(clip = false, sizeAnimationSpec = { _, _ -> tween(duration, easing = FastOutSlowInEasing) })
+                            )
+                    }
+                },
+                label = "currentLyricTransition",
+                modifier = Modifier.weight(1f, fill = false),
+            ) { (_, lineItem, lineText) ->
+                val itemInstrumental = lineItem == null || lineItem.isGap
+                val swept = lineItem?.takeIf { !itemInstrumental && it.isWordSynced }
+                if (swept != null) {
+                    SweptLyricLine(
+                        line = swept,
+                        clock = clock,
+                        style = voiceStyle(MaterialTheme.typography.titleMedium, text, alignEnd = false, laneLocked = false),
+                        dimAlpha = UNSUNG_ALPHA_STRIP,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        rise = false,
                     )
                 } else {
-                    (fadeIn(animationSpec = tween(duration, easing = FastOutSlowInEasing)) +
-                        slideInVertically(animationSpec = tween(duration, easing = FastOutSlowInEasing)) { height -> (height * 0.35f).toInt() })
-                        .togetherWith(
-                            fadeOut(animationSpec = tween(duration, easing = FastOutSlowInEasing)) +
-                                slideOutVertically(animationSpec = tween(duration, easing = FastOutSlowInEasing)) { height -> -(height * 0.35f).toInt() }
-                        ).using(
-                            SizeTransform(clip = false, sizeAnimationSpec = { _, _ -> tween(duration, easing = FastOutSlowInEasing) })
-                        )
+                    Text(
+                        text = lineText,
+                        style = voiceStyle(
+                            MaterialTheme.typography.titleMedium.copy(
+                                color = if (itemInstrumental) Color.White.copy(alpha = 0.5f) else Color.White
+                            ),
+                            lineText,
+                            alignEnd = false,
+                            laneLocked = false,
+                        ),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
                 }
-            },
-            label = "currentLyricTransition",
-            modifier = Modifier.weight(1f, fill = false),
-        ) { (_, lineItem, lineText) ->
-            val itemInstrumental = lineItem == null || lineItem.isGap
-            val swept = lineItem?.takeIf { !itemInstrumental && it.isWordSynced }
-            if (swept != null) {
-                SweptLyricLine(
-                    line = swept,
-                    clock = clock,
-                    style = MaterialTheme.typography.titleMedium,
-                    dimAlpha = UNSUNG_ALPHA_STRIP,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    rise = false,
-                )
-            } else {
-                Text(
-                    text = lineText,
-                    style = MaterialTheme.typography.titleMedium,
-                    color = if (itemInstrumental) Color.White.copy(alpha = 0.5f) else Color.White,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
+            }
+
+            if (!stripRtl) {
+                Spacer(Modifier.width(6.dp))
+                // Disclosure hint: this strip opens the full lyrics screen.
+                Icon(
+                    imageVector = BitChordIcons.ChevronRight,
+                    contentDescription = null,
+                    tint = Color.White.copy(alpha = 0.5f),
+                    modifier = Modifier.size(14.dp),
                 )
             }
         }
-        Spacer(Modifier.width(6.dp))
-        // Disclosure hint: this strip opens the full lyrics screen.
-        Icon(
-            imageVector = BitChordIcons.ChevronRight,
-            contentDescription = null,
-            tint = Color.White.copy(alpha = 0.5f),
-            modifier = Modifier.size(14.dp),
-        )
     }
 }
 
