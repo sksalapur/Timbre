@@ -142,13 +142,12 @@ object QueueShuffle {
     }
 
     /**
-     * Rearranges everything after the playing track into a fresh shuffle session.
+     * Rearranges unconsumed upcoming tracks after the playing track into a shuffled session.
      *
      * Invariants:
-     * - The currently playing occurrence is fixed and excluded by its canonical occurrence.
-     * - Existing unconsumed upcoming context occurrences preserve their queueEntryId.
-     * - Previously consumed historical occurrences reintroduced into upcoming receive a
-     *   fresh queueEntryId so history occurrences remain intact.
+     * - The currently playing occurrence and preceding history occurrences remain untouched.
+     * - Only unconsumed upcoming context tracks are shuffled among themselves.
+     * - History tracks are NEVER reintroduced into upcoming, preventing phantom duplicates in the context queue.
      * - USER_QUEUE tracks are never shuffled and stay pinned at the front.
      * - AUTOPLAY tracks sit at the tail.
      */
@@ -160,9 +159,6 @@ object QueueShuffle {
             _enabled.value = true
             return
         }
-
-        val currentItem = items[currentIndex]
-        val currentCanonicalIndex = getCanonicalIndex(currentItem)
 
         // If canonicalContext is empty, discover it from the player's context tracks
         if (canonicalContext.isEmpty()) {
@@ -177,62 +173,11 @@ object QueueShuffle {
         val autoplay = upcoming.filter { it.queueTier == QueueTier.AUTOPLAY }
         val unconsumedContext = upcoming.filter { it.queueTier == QueueTier.CONTEXT }
 
-        // Map unconsumed upcoming context occurrences by canonicalIndex
-        val unconsumedByCanonical = HashMap<Int, MediaItem>()
-        for (item in unconsumedContext) {
-            val idx = getCanonicalIndex(item)
-            if (idx != null) {
-                unconsumedByCanonical[idx] = item
-            }
-        }
-
-        // Build eligible pool from canonicalContext (all collection occurrences except current occurrence)
-        val eligiblePool = mutableListOf<MediaItem>()
-        val matchedUnconsumed = mutableSetOf<MediaItem>()
-
-        for (cIdx in canonicalContext.indices) {
-            // Check if current occurrence: check canonicalIndex, fallback to queueEntryId if missing/malformed
-            val isCurrent = if (currentCanonicalIndex != null) {
-                cIdx == currentCanonicalIndex
-            } else {
-                val currentKey = currentItem.queueEntryId ?: currentItem.mediaId
-                val canonicalKey = canonicalContext[cIdx].queueEntryId ?: canonicalContext[cIdx].mediaId
-                currentKey == canonicalKey
-            }
-            if (isCurrent) continue
-
-            val unconsumed = unconsumedByCanonical[cIdx]
-            if (unconsumed != null) {
-                // Existing unplayed occurrence: preserve its existing queueEntryId and metadata
-                eligiblePool.add(unconsumed)
-                matchedUnconsumed.add(unconsumed)
-            } else {
-                // Previously consumed occurrence from history:
-                // Reintroduce into upcoming with a brand-new queueEntryId
-                val canonicalItem = canonicalContext[cIdx]
-                val freshId = UUID.randomUUID().toString()
-                val freshItem = withQueueMetadata(
-                    item = canonicalItem,
-                    newEntryId = freshId,
-                    newCanonicalIndex = cIdx,
-                )
-                entryProvenance[freshId] = cIdx
-                eligiblePool.add(freshItem)
-            }
-        }
-
-        // Include any unconsumed context items not in canonicalContext (safety fallback)
-        for (item in unconsumedContext) {
-            if (item !in matchedUnconsumed) {
-                eligiblePool.add(item)
-            }
-        }
-
-        // Randomize eligible context tracks
-        val shuffledContext = if (eligiblePool.isNotEmpty()) {
-            avoidIdentityShuffleMediaItems(eligiblePool, eligiblePool.shuffled())
-        } else {
+        // Randomize unconsumed upcoming context tracks without duplicating history tracks
+        val shuffledContext = if (unconsumedContext.size > 1) {
             avoidIdentityShuffleMediaItems(unconsumedContext, unconsumedContext.shuffled())
+        } else {
+            unconsumedContext
         }
 
         val newUpcoming = userQueue + shuffledContext + autoplay

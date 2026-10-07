@@ -202,7 +202,7 @@ class QueueShuffleTierTest {
     }
 
     @Test
-    fun `new shuffle session preserves unconsumed IDs and gives fresh IDs to reintroduced consumed occurrences`() {
+    fun `new shuffle session preserves unconsumed IDs and does not duplicate history tracks into upcoming`() {
         val songs = (1..5).map { testSong("track-$it", QueueTier.CONTEXT, "id-$it") }
         val items = songs.mapIndexed { idx, s ->
             QueueShuffle.withQueueMetadata(s.toMediaItem(), newEntryId = "id-${idx + 1}", newCanonicalIndex = idx)
@@ -218,36 +218,28 @@ class QueueShuffleTierTest {
         QueueShuffle.toggle(state.player)
         assertTrue(QueueShuffle.enabled.value)
 
-        // History items 0 and 1 must retain their exact original IDs
+        // History items 0 and 1 must retain their exact original IDs and remain in history
         assertEquals("id-1", state.items[0].queueEntryId)
         assertEquals("id-2", state.items[1].queueEntryId)
 
-        // Current item (track-3) is excluded from upcoming and stays current
+        // Current item (track-3) stays current
         assertEquals("id-3", state.items[2].queueEntryId)
         assertEquals(2, state.items[2].canonicalIndex)
 
-        // Upcoming now has 4 tracks: 2 unconsumed (track-4, track-5) and 2 reintroduced (track-1, track-2)
-        assertEquals(2 + 1 + 4, state.items.size)
+        // Total timeline size remains 5 (no duplicate songs injected into upcoming)
+        assertEquals(5, state.items.size)
         val upcoming = state.items.drop(3)
-        assertEquals(4, upcoming.size)
+        assertEquals(2, upcoming.size)
 
-        // Canonical indices present in upcoming must be 0, 1, 3, 4 (excluding 2)
+        // Canonical indices present in upcoming must be exactly unconsumed tracks 3 and 4
         val upcomingCanonicalIndices = upcoming.map { it.canonicalIndex }.toSet()
-        assertEquals(setOf(0, 1, 3, 4), upcomingCanonicalIndices)
+        assertEquals(setOf(3, 4), upcomingCanonicalIndices)
 
         // Unconsumed items (cIdx 3 and 4) must preserve their existing IDs
         val unconsumed4 = upcoming.first { it.canonicalIndex == 3 }
         val unconsumed5 = upcoming.first { it.canonicalIndex == 4 }
         assertEquals("id-4", unconsumed4.queueEntryId)
         assertEquals("id-5", unconsumed5.queueEntryId)
-
-        // Reintroduced consumed items (cIdx 0 and 1) must receive brand-new fresh IDs
-        val reintroduced1 = upcoming.first { it.canonicalIndex == 0 }
-        val reintroduced2 = upcoming.first { it.canonicalIndex == 1 }
-        assertNotNull(reintroduced1.queueEntryId)
-        assertNotNull(reintroduced2.queueEntryId)
-        assertNotEquals("id-1", reintroduced1.queueEntryId)
-        assertNotEquals("id-2", reintroduced2.queueEntryId)
 
         // All IDs across the entire queue are completely unique
         val allIds = state.items.map { it.queueEntryId }
@@ -310,7 +302,7 @@ class QueueShuffleTierTest {
         // Turn Shuffle ON
         QueueShuffle.toggle(state.player)
         assertTrue(QueueShuffle.enabled.value)
-        assertEquals(6 + 1 + 9, state.items.size) // 6 history + 1 current + 9 upcoming
+        assertEquals(6 + 1 + 3, state.items.size) // 6 history + 1 current + 3 upcoming = 10 (no duplicates!)
 
         // Turn Shuffle OFF
         QueueShuffle.toggle(state.player)
@@ -334,7 +326,7 @@ class QueueShuffleTierTest {
     }
 
     @Test
-    fun `end of collection shuffle ON populates upcoming with earlier collection tracks`() {
+    fun `end of collection shuffle ON does not duplicate history tracks into upcoming`() {
         val songs = (1..5).map { testSong("track-$it", QueueTier.CONTEXT, "id-$it") }
         val items = songs.mapIndexed { idx, s ->
             QueueShuffle.withQueueMetadata(s.toMediaItem(), newEntryId = "id-${idx + 1}", newCanonicalIndex = idx)
@@ -353,15 +345,10 @@ class QueueShuffleTierTest {
         assertEquals("id-5", state.items[4].queueEntryId)
         assertEquals(4, state.items[4].canonicalIndex)
 
-        // Upcoming is now populated with earlier tracks (1..4)
+        // Upcoming remains empty (history tracks 1..4 are NOT duplicated into upcoming)
         val upcoming = state.items.drop(5)
-        assertEquals(4, upcoming.size)
-        assertEquals(setOf(0, 1, 2, 3), upcoming.map { it.canonicalIndex }.toSet())
-
-        // Reintroduced tracks all have fresh IDs
-        for (item in upcoming) {
-            assertNotEquals("id-${(item.canonicalIndex ?: 0) + 1}", item.queueEntryId)
-        }
+        assertEquals(0, upcoming.size)
+        assertEquals(5, state.items.size)
 
         // Toggling Shuffle OFF restores to strictly forward (which is empty after track-5)
         QueueShuffle.toggle(state.player)
@@ -403,6 +390,7 @@ class QueueShuffleTierTest {
         // Both Album and Playlist produce identical canonical index sets on Shuffle ON and identical sequences on Shuffle OFF
         assertEquals(albumResult[0], playlistResult[0])
         assertEquals(albumResult[1], playlistResult[1])
+        assertEquals("3, 4, 5", albumResult[0])
         assertEquals("3, 4, 5", albumResult[1])
     }
 
@@ -434,11 +422,11 @@ class QueueShuffleTierTest {
         // Current track remains track-2
         assertEquals("id-2", state.items[1].queueEntryId)
 
-        // Upcoming has 3 tracks (tracks 1, 3, 4), and track-2 is excluded
+        // Upcoming has unconsumed tracks (tracks 3, 4 with canonical indices 2, 3), and history track-1 is not duplicated
         val upcoming = state.items.drop(2)
-        assertEquals(3, upcoming.size)
+        assertEquals(2, upcoming.size)
         val upcomingCanonicalIndices = upcoming.map { it.canonicalIndex }.toSet()
-        assertEquals(setOf(0, 2, 3), upcomingCanonicalIndices)
+        assertEquals(setOf(2, 3), upcomingCanonicalIndices)
     }
 
     @Test

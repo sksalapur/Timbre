@@ -7124,16 +7124,23 @@ class PlaybackService : MediaLibraryService() {
             }
 
             // A direct choice of a later queue row bypasses items between current and target.
-            // Invariant: A queue jump may consume/delete USER_QUEUE items only when jumping within
-            // USER_QUEUE. Jumps to any other tier (CONTEXT or AUTOPLAY) must NEVER delete USER_QUEUE items.
+            // Invariant: CONTEXT tracks belong to the album/playlist collection and must NEVER
+            // be pruned or moved on a seek, preserving complete collection history for backward navigation.
+            // Only unplayed USER_QUEUE items bypassed during an in-tier jump within USER_QUEUE
+            // are consumed/removed.
             val targetTier = wrappedPlayer.getMediaItemAt(mediaItemIndex).queueTier
+            if (targetTier == QueueTier.CONTEXT) {
+                wrappedPlayer.seekTo(mediaItemIndex, positionMs)
+                return
+            }
+
             val removableIndices = mutableListOf<Int>()
             for (i in skipped) {
                 val tier = wrappedPlayer.getMediaItemAt(i).queueTier
                 val isRemovable = if (targetTier == QueueTier.USER_QUEUE) {
                     tier == QueueTier.USER_QUEUE
                 } else {
-                    tier != QueueTier.USER_QUEUE
+                    false
                 }
                 if (isRemovable) {
                     removableIndices.add(i)
@@ -7145,15 +7152,12 @@ class PlaybackService : MediaLibraryService() {
                 wrappedPlayer.removeMediaItem(i)
             }
             var newTargetIndex = mediaItemIndex - removableIndices.count { it < mediaItemIndex }
-            // Whatever was kept still sits between here and the target. Seeking
-            // past it would leave it behind the playhead, where
-            // [QueueCoordinator.consumePlayedUserQueue] deletes it on the next
-            // transition — so the target moves up to play next instead, with
-            // the kept rows following it, the same order an in-app tap gives.
-            val nextIndex = wrappedPlayer.currentMediaItemIndex + 1
-            if (newTargetIndex > nextIndex) {
-                wrappedPlayer.moveMediaItem(newTargetIndex, nextIndex)
-                newTargetIndex = nextIndex
+            if (targetTier == QueueTier.USER_QUEUE) {
+                val nextIndex = wrappedPlayer.currentMediaItemIndex + 1
+                if (newTargetIndex > nextIndex) {
+                    wrappedPlayer.moveMediaItem(newTargetIndex, nextIndex)
+                    newTargetIndex = nextIndex
+                }
             }
             wrappedPlayer.seekTo(newTargetIndex, positionMs)
         }

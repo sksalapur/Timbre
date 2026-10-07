@@ -1078,7 +1078,7 @@ class QueueCoordinatorTest {
     }
 
     @Test
-    fun `jumpToQueueItem followed by Shuffle ON reconsiders preceding historical tracks with fresh queueEntryIds`() {
+    fun `jumpToQueueItem followed by Shuffle ON shuffles remaining context tracks without duplicating history`() {
         val songs = (0..4).map { testSong("c$it", tier = QueueTier.CONTEXT, entryId = "entry-c$it") }
         val items = songs.mapIndexed { idx, s ->
             QueueShuffle.withQueueMetadata(s.toMediaItem(), newEntryId = s.queueEntryId, newCanonicalIndex = idx, newTier = QueueTier.CONTEXT)
@@ -1087,22 +1087,18 @@ class QueueCoordinatorTest {
         QueueShuffle.setEnabled(false)
 
         val testPlayer = TestPlayer(items, activeIndex = 0)
-        QueueCoordinator.jumpToQueueItem(testPlayer.player, targetIndex = 4, cachedTimeline = songs)
-        assertEquals(4, testPlayer.activeIndex)
+        QueueCoordinator.jumpToQueueItem(testPlayer.player, targetIndex = 2, cachedTimeline = songs)
+        assertEquals(2, testPlayer.activeIndex)
 
         QueueShuffle.toggle(testPlayer.player)
         assertEquals(true, QueueShuffle.enabled.value)
 
         val upcoming = testPlayer.items.drop(testPlayer.activeIndex + 1)
-        assertEquals(4, upcoming.size)
-        assertEquals(setOf(0, 1, 2, 3), upcoming.map { it.canonicalIndex }.toSet())
+        assertEquals(2, upcoming.size)
+        assertEquals(setOf(3, 4), upcoming.map { it.canonicalIndex }.toSet())
 
-        for (u in upcoming) {
-            val cIdx = u.canonicalIndex!!
-            val originalId = songs[cIdx].queueEntryId
-            assertNotEquals(originalId, u.queueEntryId)
-            assertNotNull(u.queueEntryId)
-        }
+        // Timeline size is preserved (exactly 5 collection songs, zero duplicates)
+        assertEquals(5, testPlayer.items.size)
     }
 
     @Test
