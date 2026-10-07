@@ -447,5 +447,47 @@ class QueueShuffleTierTest {
             assertEquals("All queue entry IDs must remain unique at step $step", state.items.size, entryIds.toSet().size)
         }
     }
+
+    @Test
+    fun `header shuffle button flow establishes canonical context and restores strictly forward on shuffle OFF`() {
+        val songs = (1..6).map { testSong("track-$it", QueueTier.CONTEXT, "entry-$it") }
+        // Simulate tapping header Shuffle button:
+        QueueShuffle.enableForNextQueue()
+        assertTrue(QueueShuffle.enabled.value)
+
+        // Random pick selects index 2 (track-3)
+        val selectedIndex = 2
+        val startingOrder = QueueShuffle.startingOrder(songs, selectedIndex)
+
+        // 1. Lead track is track-3 at index 0
+        assertEquals("track-3", startingOrder[0].videoId)
+
+        // 2. Remaining 5 context tracks are shuffled
+        val restIds = startingOrder.drop(1).map { it.videoId }.toSet()
+        assertEquals(setOf("track-1", "track-2", "track-4", "track-5", "track-6"), restIds)
+
+        // Set up player as if playSongs loaded this queue
+        val items = startingOrder.mapIndexed { idx, s ->
+            val originalCanonicalIndex = songs.indexOfFirst { it.videoId == s.videoId }
+            QueueShuffle.withQueueMetadata(s.toMediaItem(), newEntryId = "live-$idx", newCanonicalIndex = originalCanonicalIndex)
+        }.toMutableList()
+
+        val state = MockPlayerState(items, currentIndex = 0) // playing track-3 (canonicalIndex 2)
+
+        // 3. User turns Shuffle OFF while playing track-3
+        QueueShuffle.toggle(state.player)
+        assertTrue(!QueueShuffle.enabled.value)
+
+        // Current track remains track-3 (canonicalIndex 2)
+        assertEquals("track-3", state.items[0].mediaId)
+        assertEquals(2, state.items[0].canonicalIndex)
+
+        // Upcoming must restore strictly forward after track-3 (canonical indices 3, 4, 5 -> track-4, track-5, track-6)
+        // No wrap-around to track-1 or track-2!
+        val upcoming = state.items.drop(1)
+        assertEquals(listOf("track-4", "track-5", "track-6"), upcoming.map { it.mediaId })
+        assertEquals(listOf(3, 4, 5), upcoming.map { it.canonicalIndex })
+    }
 }
+
 

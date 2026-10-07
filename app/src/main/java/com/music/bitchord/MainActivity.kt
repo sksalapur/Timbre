@@ -2843,12 +2843,14 @@ private fun BitChordApp(
                             onSongLongPress = openSongMenu,
                             onSongSwipe = onSongSwipe,
                             onShuffle = { songs ->
-                                QueueShuffle.enableForNextQueue()
-                                playFrom(
-                                    songs,
-                                    songs.indices.random(),
-                                    QueueSource(page.title, PlaybackSourceType.BROWSE, page.browseId),
-                                )
+                                if (songs.isNotEmpty()) {
+                                    QueueShuffle.enableForNextQueue()
+                                    playFrom(
+                                        songs,
+                                        songs.indices.random(),
+                                        QueueSource(page.title, PlaybackSourceType.BROWSE, page.browseId),
+                                    )
+                                }
                             },
                             emptyMessage = (localState as? com.music.bitchord.data.model.UiState.Error)
                                 ?.message,
@@ -2909,15 +2911,17 @@ private fun BitChordApp(
                             onSongLongPress = { openSongMenu(withAlbum(it)) },
                             onSongSwipe = { onSongSwipe(withAlbum(it)) },
                             onShuffle = { songs ->
-                                // Shuffle goes on first so the queue is built shuffled
-                                // as it is set — the random pick here only decides
-                                // which track leads it.
-                                QueueShuffle.enableForNextQueue()
-                                playFrom(
-                                    songs.map(withAlbum),
-                                    songs.indices.random(),
-                                    QueueSource(page.title, PlaybackSourceType.BROWSE, page.browseId),
-                                )
+                                if (songs.isNotEmpty()) {
+                                    // Shuffle goes on first so the queue is built shuffled
+                                    // as it is set — the random pick here only decides
+                                    // which track leads it.
+                                    QueueShuffle.enableForNextQueue()
+                                    playFrom(
+                                        songs.map(withAlbum),
+                                        songs.indices.random(),
+                                        QueueSource(page.title, PlaybackSourceType.BROWSE, page.browseId),
+                                    )
+                                }
                             },
                             onSectionItemClick = { item ->
                                 item.browseId?.let { id ->
