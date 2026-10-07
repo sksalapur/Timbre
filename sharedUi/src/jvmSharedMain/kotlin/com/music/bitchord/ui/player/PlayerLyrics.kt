@@ -561,6 +561,33 @@ internal fun CurrentLyricStrip(
     loadingText: String,
     onClick: () -> Unit,
 ) {
+    // Compute the active lyric text so we can determine RTL direction at the
+    // strip level.  This lets us override the parent Column's forced
+    // CenterHorizontally alignment and flush RTL lines to the right edge.
+    val isSynced = remember(lines) { lines.any { it.timeMs > 0L } }
+    var stripRtl = false
+    var activeText = ""
+    if (isSynced) {
+        val clock = rememberLyricClock(trackKey, playhead, isPlaying)
+        val index by remember(lines) {
+            derivedStateOf { lines.indexOfLast { it.timeMs <= clock.longValue } }
+        }
+        val current = lines.getOrNull(index)
+        val instrumental = current == null || current.isGap
+        val firstSung = remember(lines) { lines.indexOfFirst { !it.isGap } }
+        val intro = instrumental && firstSung >= 0 && index < firstSung
+        val introLines = stringArrayResource(Res.array.lyrics_intro_lines)
+        val introLine = remember(trackKey) { introLines.random() }
+        activeText = when {
+            intro -> introLine
+            instrumental -> stringResource(Res.string.instrumental)
+            else -> current.text
+        }
+        stripRtl = isRtl(activeText)
+    }
+
+    val align = if (stripRtl) Alignment.CenterEnd else Alignment.CenterHorizontally
+
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -578,17 +605,23 @@ internal fun CurrentLyricStrip(
                 isPlaying = isPlaying,
                 durationMs = durationMs,
                 onClick = onClick,
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .align(align),
             )
         } else if (lyricsUnavailable) {
             LyricsUnavailableLine(
                 trackKey = trackKey,
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .align(align),
             )
         } else {
             LyricsLoadingLine(
                 text = loadingText,
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .align(align),
             )
         }
     }
