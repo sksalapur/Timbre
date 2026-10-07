@@ -126,29 +126,33 @@ object QueueCoordinator {
         player: Player,
         targetIndex: Int,
         cachedTimeline: List<Song>? = null,
+        tierAt: (Int) -> QueueTier = player::queueTierAt,
     ) {
         val currentIndex = player.currentMediaItemIndex
         val count = player.mediaItemCount
         if (targetIndex !in 0 until count) return
 
-        if (targetIndex <= currentIndex) {
-            // Backward jump or same track: seek in history without modifying playlist
-            player.seekTo(targetIndex, 0L)
+        val tiers = cachedTimeline?.takeIf { it.size == count }?.map { it.queueTier }
+            ?: (0 until count).map { tierAt(it) }
+        val plan = QueueTimeline.computeJumpOrder(tiers, currentIndex, targetIndex) ?: return
+
+        if (plan.isPureSeek) {
+            player.seekTo(plan.newTargetIndex, 0L)
             player.play()
             return
         }
 
-        val currentTimeline = cachedTimeline?.takeIf { it.size == count }
-            ?: (0 until count).map { player.getMediaItemAt(it).toSong() }
-        val newUpcoming = buildJumpQueue(currentTimeline, currentIndex, targetIndex) ?: return
+        val existingItems = (0 until count).map { player.getMediaItemAt(it) }
+        val newItems = plan.newOrderIndices.map { idx ->
+            val item = existingItems[idx]
+            if (idx == targetIndex && plan.promoteTargetToContext) {
+                QueueShuffle.withQueueMetadata(item, newTier = QueueTier.CONTEXT)
+            } else {
+                item
+            }
+        }
 
-        // Retain played history up to and including currentIndex so backward navigation works
-        val history = (0..currentIndex).map { player.getMediaItemAt(it) }
-        val upcomingMediaItems = newUpcoming.map { it.toMediaItem() }
-
-        val newPlaylist = history + upcomingMediaItems
-        val newTargetIndex = history.size // First track of newUpcoming
-        player.setMediaItems(newPlaylist, newTargetIndex, 0L)
+        player.setMediaItems(newItems, plan.newTargetIndex, 0L)
         if (runCatching { player.playbackState }.getOrNull() == Player.STATE_IDLE) {
             player.prepare()
         }

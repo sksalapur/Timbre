@@ -13,9 +13,12 @@ import com.music.bitchord.playback.QueueTimeline
 import com.music.bitchord.playback.queueEntryId
 import com.music.bitchord.playback.queueTier
 import com.music.bitchord.playback.toMediaItem
+import com.music.bitchord.playback.canonicalIndex
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Test
 import java.lang.reflect.Proxy
 
@@ -675,6 +678,726 @@ class QueueCoordinatorTest {
         // Both duplicate occurrences retain distinct queueEntryIds
         assertNotEquals(albumResult.timeline[0].queueEntryId, albumResult.timeline[2].queueEntryId)
         assertNotEquals(playlistResult.timeline[0].queueEntryId, playlistResult.timeline[2].queueEntryId)
+    }
+
+    @Before
+    fun setUp() {
+        val editor = Proxy.newProxyInstance(
+            android.content.SharedPreferences.Editor::class.java.classLoader,
+            arrayOf(android.content.SharedPreferences.Editor::class.java),
+        ) { proxy, method, _ ->
+            if (method.returnType == android.content.SharedPreferences.Editor::class.java) proxy else null
+        }
+        val prefs = Proxy.newProxyInstance(
+            android.content.SharedPreferences::class.java.classLoader,
+            arrayOf(android.content.SharedPreferences::class.java),
+        ) { _, method, _ ->
+            if (method.name == "edit") editor else null
+        } as android.content.SharedPreferences
+        val field = com.music.bitchord.data.settings.AppSettings::class.java.getDeclaredField("prefs")
+        field.isAccessible = true
+        field.set(com.music.bitchord.data.settings.AppSettings, prefs)
+
+        QueueShuffle.setEnabled(false)
+        QueueShuffle.canonicalContext = emptyList()
+    }
+
+    private class TestPlayer(
+        val items: MutableList<MediaItem>,
+        var activeIndex: Int = 0,
+        var repeatMode: Int = Player.REPEAT_MODE_OFF,
+    ) {
+        var seekCallCount = 0
+        var setMediaItemsCallCount = 0
+
+        val player: Player = Proxy.newProxyInstance(
+            Player::class.java.classLoader,
+            arrayOf(Player::class.java),
+        ) { _, method, args ->
+            when (method.name) {
+                "getCurrentMediaItemIndex" -> activeIndex
+                "getMediaItemCount" -> items.size
+                "getMediaItemAt" -> items[args[0] as Int]
+                "getCurrentMediaItem" -> items.getOrNull(activeIndex)
+                "getCurrentPosition" -> 0L
+                "isPlaying" -> false
+                "getPlaybackState" -> Player.STATE_READY
+                "hasPreviousMediaItem" -> activeIndex > 0
+                "hasNextMediaItem" -> activeIndex < items.size - 1 || repeatMode == Player.REPEAT_MODE_ALL
+                "seekToPreviousMediaItem" -> {
+                    if (activeIndex > 0) activeIndex--
+                    null
+                }
+                "seekToNextMediaItem" -> {
+                    if (activeIndex < items.size - 1) {
+                        activeIndex++
+                    } else if (repeatMode == Player.REPEAT_MODE_ALL && items.isNotEmpty()) {
+                        activeIndex = 0
+                    }
+                    null
+                }
+                "getRepeatMode" -> repeatMode
+                "setRepeatMode" -> {
+                    repeatMode = args[0] as Int
+                    null
+                }
+                "replaceMediaItems" -> {
+                    val from = args[0] as Int
+                    val to = args[1] as Int
+                    @Suppress("UNCHECKED_CAST")
+                    val newItems = args[2] as List<MediaItem>
+                    for (i in (to - 1) downTo from) {
+                        items.removeAt(i)
+                    }
+                    items.addAll(from, newItems)
+                    null
+                }
+                "setMediaItems" -> {
+                    @Suppress("UNCHECKED_CAST")
+                    val newItems = args[0] as List<MediaItem>
+                    val startIndex = args[1] as Int
+                    setMediaItemsCallCount++
+                    items.clear()
+                    items.addAll(newItems)
+                    activeIndex = startIndex
+                    null
+                }
+                "seekTo" -> {
+                    seekCallCount++
+                    activeIndex = args[0] as Int
+                    null
+                }
+                "removeMediaItem" -> {
+                    val index = args[0] as Int
+                    items.removeAt(index)
+                    if (activeIndex > index) activeIndex--
+                    null
+                }
+                "prepare" -> null
+                "play" -> null
+                else -> null
+            }
+        } as Player
+    }
+
+    @Test
+    fun `jumpToQueueItem to final context track seeks directly preserving complete collection in timeline`() {
+        val songs = (0..4).map { testSong("c$it", tier = QueueTier.CONTEXT, entryId = "entry-c$it") }
+        val items = songs.mapIndexed { idx, s ->
+            QueueShuffle.withQueueMetadata(s.toMediaItem(), newEntryId = s.queueEntryId, newCanonicalIndex = idx, newTier = QueueTier.CONTEXT)
+        }.toMutableList()
+        val testPlayer = TestPlayer(items, activeIndex = 0)
+
+        QueueCoordinator.jumpToQueueItem(testPlayer.player, targetIndex = 4, cachedTimeline = songs)
+
+        assertEquals(1, testPlayer.seekCallCount)
+        assertEquals(0, testPlayer.setMediaItemsCallCount)
+        assertEquals(4, testPlayer.activeIndex)
+        assertEquals(5, testPlayer.items.size)
+        assertEquals(listOf("c0", "c1", "c2", "c3", "c4"), testPlayer.items.map { it.mediaId })
+        val history = (0 until testPlayer.activeIndex).map { testPlayer.items[it].mediaId }
+        val upcoming = (testPlayer.activeIndex + 1 until testPlayer.items.size).map { testPlayer.items[it].mediaId }
+        assertEquals(listOf("c0", "c1", "c2", "c3"), history)
+        assertEquals(emptyList<String>(), upcoming)
+    }
+
+    @Test
+    fun `jumpToQueueItem to middle context track seeks directly preserving history and upcoming context`() {
+        val songs = (0..4).map { testSong("c$it", tier = QueueTier.CONTEXT, entryId = "entry-c$it") }
+        val items = songs.mapIndexed { idx, s ->
+            QueueShuffle.withQueueMetadata(s.toMediaItem(), newEntryId = s.queueEntryId, newCanonicalIndex = idx, newTier = QueueTier.CONTEXT)
+        }.toMutableList()
+        val testPlayer = TestPlayer(items, activeIndex = 0)
+
+        QueueCoordinator.jumpToQueueItem(testPlayer.player, targetIndex = 2, cachedTimeline = songs)
+
+        assertEquals(1, testPlayer.seekCallCount)
+        assertEquals(0, testPlayer.setMediaItemsCallCount)
+        assertEquals(2, testPlayer.activeIndex)
+        assertEquals(5, testPlayer.items.size)
+        assertEquals(listOf("c0", "c1", "c2", "c3", "c4"), testPlayer.items.map { it.mediaId })
+        val history = (0 until testPlayer.activeIndex).map { testPlayer.items[it].mediaId }
+        val upcoming = (testPlayer.activeIndex + 1 until testPlayer.items.size).map { testPlayer.items[it].mediaId }
+        assertEquals(listOf("c0", "c1"), history)
+        assertEquals(listOf("c3", "c4"), upcoming)
+    }
+
+    @Test
+    fun `jumpToQueueItem backward seeks directly within history without modifying timeline`() {
+        val songs = (0..4).map { testSong("c$it", tier = QueueTier.CONTEXT, entryId = "entry-c$it") }
+        val items = songs.mapIndexed { idx, s ->
+            QueueShuffle.withQueueMetadata(s.toMediaItem(), newEntryId = s.queueEntryId, newCanonicalIndex = idx, newTier = QueueTier.CONTEXT)
+        }.toMutableList()
+        val testPlayer = TestPlayer(items, activeIndex = 3)
+
+        QueueCoordinator.jumpToQueueItem(testPlayer.player, targetIndex = 1, cachedTimeline = songs)
+
+        assertEquals(1, testPlayer.seekCallCount)
+        assertEquals(0, testPlayer.setMediaItemsCallCount)
+        assertEquals(1, testPlayer.activeIndex)
+        assertEquals(5, testPlayer.items.size)
+        assertEquals(listOf("c0", "c1", "c2", "c3", "c4"), testPlayer.items.map { it.mediaId })
+    }
+
+    @Test
+    fun `jumpToQueueItem to context track crossing user queue reorders user queue after target and preserves preceding context in history (Timelines A, B, C, D)`() {
+        fun makeItem(song: Song, cIdx: Int?): MediaItem =
+            QueueShuffle.withQueueMetadata(song.toMediaItem(), newEntryId = song.queueEntryId, newCanonicalIndex = cIdx, newTier = song.queueTier)
+
+        // Timeline A: [C0, U1, C1, U2, C2] -> tap C2
+        run {
+            val songs = listOf(
+                testSong("c0", QueueTier.CONTEXT, "e-c0"),
+                testSong("u1", QueueTier.USER_QUEUE, "e-u1"),
+                testSong("c1", QueueTier.CONTEXT, "e-c1"),
+                testSong("u2", QueueTier.USER_QUEUE, "e-u2"),
+                testSong("c2", QueueTier.CONTEXT, "e-c2"),
+            )
+            val items = mutableListOf(
+                makeItem(songs[0], 0),
+                makeItem(songs[1], null),
+                makeItem(songs[2], 1),
+                makeItem(songs[3], null),
+                makeItem(songs[4], 2),
+            )
+            val p = TestPlayer(items, activeIndex = 0)
+            QueueCoordinator.jumpToQueueItem(p.player, targetIndex = 4, cachedTimeline = songs)
+
+            assertEquals(1, p.setMediaItemsCallCount)
+            assertEquals(2, p.activeIndex)
+            assertEquals(listOf("c0", "c1", "c2", "u1", "u2"), p.items.map { it.mediaId })
+            assertEquals("e-u1", p.items[3].queueEntryId)
+            assertEquals(QueueTier.USER_QUEUE, p.items[3].queueTier)
+            assertEquals("e-u2", p.items[4].queueEntryId)
+            assertEquals(QueueTier.USER_QUEUE, p.items[4].queueTier)
+        }
+
+        // Timeline B: [C0, U1, U2, C1, C2] -> tap C2
+        run {
+            val songs = listOf(
+                testSong("c0", QueueTier.CONTEXT, "e-c0"),
+                testSong("u1", QueueTier.USER_QUEUE, "e-u1"),
+                testSong("u2", QueueTier.USER_QUEUE, "e-u2"),
+                testSong("c1", QueueTier.CONTEXT, "e-c1"),
+                testSong("c2", QueueTier.CONTEXT, "e-c2"),
+            )
+            val items = mutableListOf(
+                makeItem(songs[0], 0),
+                makeItem(songs[1], null),
+                makeItem(songs[2], null),
+                makeItem(songs[3], 1),
+                makeItem(songs[4], 2),
+            )
+            val p = TestPlayer(items, activeIndex = 0)
+            QueueCoordinator.jumpToQueueItem(p.player, targetIndex = 4, cachedTimeline = songs)
+
+            assertEquals(1, p.setMediaItemsCallCount)
+            assertEquals(2, p.activeIndex)
+            assertEquals(listOf("c0", "c1", "c2", "u1", "u2"), p.items.map { it.mediaId })
+            assertEquals("e-u1", p.items[3].queueEntryId)
+            assertEquals(QueueTier.USER_QUEUE, p.items[3].queueTier)
+            assertEquals("e-u2", p.items[4].queueEntryId)
+            assertEquals(QueueTier.USER_QUEUE, p.items[4].queueTier)
+        }
+
+        // Timeline C: [C0, C1, U1, U2, C2, C3] -> tap C2
+        run {
+            val songs = listOf(
+                testSong("c0", QueueTier.CONTEXT, "e-c0"),
+                testSong("c1", QueueTier.CONTEXT, "e-c1"),
+                testSong("u1", QueueTier.USER_QUEUE, "e-u1"),
+                testSong("u2", QueueTier.USER_QUEUE, "e-u2"),
+                testSong("c2", QueueTier.CONTEXT, "e-c2"),
+                testSong("c3", QueueTier.CONTEXT, "e-c3"),
+            )
+            val items = mutableListOf(
+                makeItem(songs[0], 0),
+                makeItem(songs[1], 1),
+                makeItem(songs[2], null),
+                makeItem(songs[3], null),
+                makeItem(songs[4], 2),
+                makeItem(songs[5], 3),
+            )
+            val p = TestPlayer(items, activeIndex = 0)
+            QueueCoordinator.jumpToQueueItem(p.player, targetIndex = 4, cachedTimeline = songs)
+
+            assertEquals(1, p.setMediaItemsCallCount)
+            assertEquals(2, p.activeIndex)
+            assertEquals(listOf("c0", "c1", "c2", "u1", "u2", "c3"), p.items.map { it.mediaId })
+            assertEquals("e-u1", p.items[3].queueEntryId)
+            assertEquals(QueueTier.USER_QUEUE, p.items[3].queueTier)
+            assertEquals("e-u2", p.items[4].queueEntryId)
+            assertEquals(QueueTier.USER_QUEUE, p.items[4].queueTier)
+            assertEquals(QueueTier.CONTEXT, p.items[5].queueTier)
+        }
+
+        // Timeline D: [C0, U1, C1, C2, U2, C3] -> tap C1
+        run {
+            val songs = listOf(
+                testSong("c0", QueueTier.CONTEXT, "e-c0"),
+                testSong("u1", QueueTier.USER_QUEUE, "e-u1"),
+                testSong("c1", QueueTier.CONTEXT, "e-c1"),
+                testSong("c2", QueueTier.CONTEXT, "e-c2"),
+                testSong("u2", QueueTier.USER_QUEUE, "e-u2"),
+                testSong("c3", QueueTier.CONTEXT, "e-c3"),
+            )
+            val items = mutableListOf(
+                makeItem(songs[0], 0),
+                makeItem(songs[1], null),
+                makeItem(songs[2], 1),
+                makeItem(songs[3], 2),
+                makeItem(songs[4], null),
+                makeItem(songs[5], 3),
+            )
+            val p = TestPlayer(items, activeIndex = 0)
+            QueueCoordinator.jumpToQueueItem(p.player, targetIndex = 2, cachedTimeline = songs)
+
+            assertEquals(1, p.setMediaItemsCallCount)
+            assertEquals(1, p.activeIndex)
+            assertEquals(listOf("c0", "c1", "u1", "u2", "c2", "c3"), p.items.map { it.mediaId })
+            assertEquals("e-u1", p.items[2].queueEntryId)
+            assertEquals(QueueTier.USER_QUEUE, p.items[2].queueTier)
+            assertEquals("e-u2", p.items[3].queueEntryId)
+            assertEquals(QueueTier.USER_QUEUE, p.items[3].queueTier)
+            assertEquals(listOf("c2", "c3"), p.items.drop(4).map { it.mediaId })
+        }
+    }
+
+    @Test
+    fun `jumpToQueueItem to user queue track consumes bypassed user queue items and preserves following context`() {
+        val songs = listOf(
+            testSong("c0", QueueTier.CONTEXT, "e-c0"),
+            testSong("u1", QueueTier.USER_QUEUE, "e-u1"),
+            testSong("u2", QueueTier.USER_QUEUE, "e-u2"),
+            testSong("u3", QueueTier.USER_QUEUE, "e-u3"),
+            testSong("c1", QueueTier.CONTEXT, "e-c1"),
+        )
+        val items = songs.mapIndexed { idx, s ->
+            QueueShuffle.withQueueMetadata(s.toMediaItem(), newEntryId = s.queueEntryId, newCanonicalIndex = if (s.queueTier == QueueTier.CONTEXT) idx else null, newTier = s.queueTier)
+        }.toMutableList()
+        val testPlayer = TestPlayer(items, activeIndex = 0)
+
+        // Tap U2 (index 2)
+        QueueCoordinator.jumpToQueueItem(testPlayer.player, targetIndex = 2, cachedTimeline = songs)
+
+        assertEquals(1, testPlayer.setMediaItemsCallCount)
+        assertEquals(1, testPlayer.activeIndex)
+        assertEquals(listOf("c0", "u2", "u3", "c1"), testPlayer.items.map { it.mediaId })
+        assertEquals("e-u2", testPlayer.items[1].queueEntryId)
+        assertEquals("e-u3", testPlayer.items[2].queueEntryId)
+        assertEquals(QueueTier.USER_QUEUE, testPlayer.items[1].queueTier)
+        assertEquals(QueueTier.USER_QUEUE, testPlayer.items[2].queueTier)
+        assertEquals(QueueTier.CONTEXT, testPlayer.items[3].queueTier)
+    }
+
+    @Test
+    fun `jumpToQueueItem to autoplay track promotes target to context, drops old context, and preserves user queue`() {
+        val songs = listOf(
+            testSong("c0", QueueTier.CONTEXT, "e-c0"),
+            testSong("u1", QueueTier.USER_QUEUE, "e-u1"),
+            testSong("c1", QueueTier.CONTEXT, "e-c1"),
+            testSong("a1", QueueTier.AUTOPLAY, "e-a1"),
+            testSong("a2", QueueTier.AUTOPLAY, "e-a2"),
+        )
+        val items = songs.mapIndexed { idx, s ->
+            QueueShuffle.withQueueMetadata(s.toMediaItem(), newEntryId = s.queueEntryId, newCanonicalIndex = if (s.queueTier == QueueTier.CONTEXT) idx else null, newTier = s.queueTier)
+        }.toMutableList()
+        val testPlayer = TestPlayer(items, activeIndex = 0)
+
+        // Tap A2 (index 4)
+        QueueCoordinator.jumpToQueueItem(testPlayer.player, targetIndex = 4, cachedTimeline = songs)
+
+        assertEquals(1, testPlayer.setMediaItemsCallCount)
+        assertEquals(1, testPlayer.activeIndex)
+        assertEquals(listOf("c0", "a2", "u1"), testPlayer.items.map { it.mediaId })
+        assertEquals(QueueTier.CONTEXT, testPlayer.items[1].queueTier)
+        assertEquals("e-a2", testPlayer.items[1].queueEntryId)
+        assertEquals(QueueTier.USER_QUEUE, testPlayer.items[2].queueTier)
+        assertEquals("e-u1", testPlayer.items[2].queueEntryId)
+    }
+
+    @Test
+    fun `jumpToQueueItem to final context track allows backward navigation through all preceding tracks`() {
+        val songs = (0..4).map { testSong("c$it", tier = QueueTier.CONTEXT, entryId = "entry-c$it") }
+        val items = songs.mapIndexed { idx, s ->
+            QueueShuffle.withQueueMetadata(s.toMediaItem(), newEntryId = s.queueEntryId, newCanonicalIndex = idx, newTier = QueueTier.CONTEXT)
+        }.toMutableList()
+        val testPlayer = TestPlayer(items, activeIndex = 0)
+
+        QueueCoordinator.jumpToQueueItem(testPlayer.player, targetIndex = 4, cachedTimeline = songs)
+        assertEquals(4, testPlayer.activeIndex)
+
+        assertTrue(testPlayer.player.hasPreviousMediaItem())
+        testPlayer.player.seekToPreviousMediaItem()
+        assertEquals(3, testPlayer.activeIndex)
+        testPlayer.player.seekToPreviousMediaItem()
+        assertEquals(2, testPlayer.activeIndex)
+        testPlayer.player.seekToPreviousMediaItem()
+        assertEquals(1, testPlayer.activeIndex)
+        testPlayer.player.seekToPreviousMediaItem()
+        assertEquals(0, testPlayer.activeIndex)
+        assertEquals("c0", testPlayer.items[testPlayer.activeIndex].mediaId)
+    }
+
+    @Test
+    fun `jumpToQueueItem to final context track enables REPEAT_MODE_ALL to loop complete collection`() {
+        val songs = (0..4).map { testSong("c$it", tier = QueueTier.CONTEXT, entryId = "entry-c$it") }
+        val items = songs.mapIndexed { idx, s ->
+            QueueShuffle.withQueueMetadata(s.toMediaItem(), newEntryId = s.queueEntryId, newCanonicalIndex = idx, newTier = QueueTier.CONTEXT)
+        }.toMutableList()
+        val testPlayer = TestPlayer(items, activeIndex = 0, repeatMode = Player.REPEAT_MODE_ALL)
+
+        QueueCoordinator.jumpToQueueItem(testPlayer.player, targetIndex = 4, cachedTimeline = songs)
+        assertEquals(4, testPlayer.activeIndex)
+
+        assertTrue(testPlayer.player.hasNextMediaItem())
+        testPlayer.player.seekToNextMediaItem()
+        assertEquals(0, testPlayer.activeIndex)
+        assertEquals("c0", testPlayer.items[testPlayer.activeIndex].mediaId)
+    }
+
+    @Test
+    fun `jumpToQueueItem followed by Shuffle OFF restores strictly forward canonical tracks`() {
+        val songs = (0..4).map { testSong("c$it", tier = QueueTier.CONTEXT, entryId = "entry-c$it") }
+        val items = songs.mapIndexed { idx, s ->
+            QueueShuffle.withQueueMetadata(s.toMediaItem(), newEntryId = s.queueEntryId, newCanonicalIndex = idx, newTier = QueueTier.CONTEXT)
+        }.toMutableList()
+        QueueShuffle.setCanonicalContext(items.toList())
+        QueueShuffle.setEnabled(true)
+
+        val testPlayer = TestPlayer(items, activeIndex = 0)
+        QueueCoordinator.jumpToQueueItem(testPlayer.player, targetIndex = 4, cachedTimeline = songs)
+        assertEquals(4, testPlayer.activeIndex)
+
+        QueueShuffle.toggle(testPlayer.player)
+        assertEquals(false, QueueShuffle.enabled.value)
+
+        val upcoming = testPlayer.items.drop(testPlayer.activeIndex + 1)
+        assertEquals(emptyList<MediaItem>(), upcoming)
+        assertEquals("c4", testPlayer.items[testPlayer.activeIndex].mediaId)
+    }
+
+    @Test
+    fun `jumpToQueueItem followed by Shuffle ON reconsiders preceding historical tracks with fresh queueEntryIds`() {
+        val songs = (0..4).map { testSong("c$it", tier = QueueTier.CONTEXT, entryId = "entry-c$it") }
+        val items = songs.mapIndexed { idx, s ->
+            QueueShuffle.withQueueMetadata(s.toMediaItem(), newEntryId = s.queueEntryId, newCanonicalIndex = idx, newTier = QueueTier.CONTEXT)
+        }.toMutableList()
+        QueueShuffle.setCanonicalContext(items.toList())
+        QueueShuffle.setEnabled(false)
+
+        val testPlayer = TestPlayer(items, activeIndex = 0)
+        QueueCoordinator.jumpToQueueItem(testPlayer.player, targetIndex = 4, cachedTimeline = songs)
+        assertEquals(4, testPlayer.activeIndex)
+
+        QueueShuffle.toggle(testPlayer.player)
+        assertEquals(true, QueueShuffle.enabled.value)
+
+        val upcoming = testPlayer.items.drop(testPlayer.activeIndex + 1)
+        assertEquals(4, upcoming.size)
+        assertEquals(setOf(0, 1, 2, 3), upcoming.map { it.canonicalIndex }.toSet())
+
+        for (u in upcoming) {
+            val cIdx = u.canonicalIndex!!
+            val originalId = songs[cIdx].queueEntryId
+            assertNotEquals(originalId, u.queueEntryId)
+            assertNotNull(u.queueEntryId)
+        }
+    }
+
+    @Test
+    fun `jumpToQueueItem with duplicate context tracks preserves respective canonical occurrences`() {
+        val songs = listOf(
+            testSong("song-A", QueueTier.CONTEXT, "id-1"),
+            testSong("song-B", QueueTier.CONTEXT, "id-2"),
+            testSong("song-A", QueueTier.CONTEXT, "id-3"),
+        )
+        val items = songs.mapIndexed { idx, s ->
+            QueueShuffle.withQueueMetadata(s.toMediaItem(), newEntryId = s.queueEntryId, newCanonicalIndex = idx, newTier = QueueTier.CONTEXT)
+        }.toMutableList()
+
+        val testPlayer = TestPlayer(items, activeIndex = 0)
+        QueueCoordinator.jumpToQueueItem(testPlayer.player, targetIndex = 2, cachedTimeline = songs)
+
+        assertEquals(2, testPlayer.activeIndex)
+        val active = testPlayer.items[testPlayer.activeIndex]
+        assertEquals("id-3", active.queueEntryId)
+        assertEquals(2, active.canonicalIndex)
+        assertEquals("song-A", active.mediaId)
+
+        val historyOccurrence = testPlayer.items[0]
+        assertEquals("id-1", historyOccurrence.queueEntryId)
+        assertEquals(0, historyOccurrence.canonicalIndex)
+        assertEquals("song-A", historyOccurrence.mediaId)
+    }
+
+    @Test
+    fun `jumpToQueueItem preserves canonicalIndex on all retained context items`() {
+        val songs = listOf(
+            testSong("c0", QueueTier.CONTEXT, "e-c0"),
+            testSong("u1", QueueTier.USER_QUEUE, "e-u1"),
+            testSong("c1", QueueTier.CONTEXT, "e-c1"),
+            testSong("c2", QueueTier.CONTEXT, "e-c2"),
+        )
+        val items = songs.mapIndexed { idx, s ->
+            QueueShuffle.withQueueMetadata(s.toMediaItem(), newEntryId = s.queueEntryId, newCanonicalIndex = if (s.queueTier == QueueTier.CONTEXT) idx else null, newTier = s.queueTier)
+        }.toMutableList()
+
+        val testPlayer = TestPlayer(items, activeIndex = 0)
+        QueueCoordinator.jumpToQueueItem(testPlayer.player, targetIndex = 3, cachedTimeline = songs)
+
+        val c0 = testPlayer.items.first { it.mediaId == "c0" }
+        val c1 = testPlayer.items.first { it.mediaId == "c1" }
+        val c2 = testPlayer.items.first { it.mediaId == "c2" }
+
+        assertEquals(0, c0.canonicalIndex)
+        assertEquals(2, c1.canonicalIndex)
+        assertEquals(3, c2.canonicalIndex)
+    }
+
+    @Test
+    fun `jumpToQueueItem preserves queueEntryId on all retained items`() {
+        val songs = listOf(
+            testSong("c0", QueueTier.CONTEXT, "id-c0"),
+            testSong("u1", QueueTier.USER_QUEUE, "id-u1"),
+            testSong("c1", QueueTier.CONTEXT, "id-c1"),
+            testSong("u2", QueueTier.USER_QUEUE, "id-u2"),
+            testSong("c2", QueueTier.CONTEXT, "id-c2"),
+        )
+        val items = songs.mapIndexed { idx, s ->
+            QueueShuffle.withQueueMetadata(s.toMediaItem(), newEntryId = s.queueEntryId, newCanonicalIndex = idx, newTier = s.queueTier)
+        }.toMutableList()
+
+        val testPlayer = TestPlayer(items, activeIndex = 0)
+        QueueCoordinator.jumpToQueueItem(testPlayer.player, targetIndex = 4, cachedTimeline = songs)
+
+        for (item in testPlayer.items) {
+            val originalSong = songs.first { it.videoId == item.mediaId }
+            assertEquals(originalSong.queueEntryId, item.queueEntryId)
+        }
+    }
+
+    @Test
+    fun `jumpToQueueItem preserves queueTier on all retained items`() {
+        val songs = listOf(
+            testSong("c0", QueueTier.CONTEXT, "id-c0"),
+            testSong("u1", QueueTier.USER_QUEUE, "id-u1"),
+            testSong("c1", QueueTier.CONTEXT, "id-c1"),
+            testSong("u2", QueueTier.USER_QUEUE, "id-u2"),
+            testSong("c2", QueueTier.CONTEXT, "id-c2"),
+        )
+        val items = songs.mapIndexed { idx, s ->
+            QueueShuffle.withQueueMetadata(s.toMediaItem(), newEntryId = s.queueEntryId, newCanonicalIndex = idx, newTier = s.queueTier)
+        }.toMutableList()
+
+        val testPlayer = TestPlayer(items, activeIndex = 0)
+        QueueCoordinator.jumpToQueueItem(testPlayer.player, targetIndex = 4, cachedTimeline = songs)
+
+        assertEquals(QueueTier.CONTEXT, testPlayer.items[0].queueTier)
+        assertEquals(QueueTier.CONTEXT, testPlayer.items[1].queueTier)
+        assertEquals(QueueTier.CONTEXT, testPlayer.items[2].queueTier)
+        assertEquals(QueueTier.USER_QUEUE, testPlayer.items[3].queueTier)
+        assertEquals(QueueTier.USER_QUEUE, testPlayer.items[4].queueTier)
+    }
+
+    @Test
+    fun `Album and Playlist produce identical jump semantics`() {
+        val albumTracks = (0..4).map {
+            testSong("track-$it", QueueTier.CONTEXT, "alb-$it", source = "Album A")
+        }
+        val playlistTracks = (0..4).map {
+            testSong("track-$it", QueueTier.CONTEXT, "pl-$it", source = "Playlist P")
+        }
+
+        val albumItems = albumTracks.mapIndexed { idx, s ->
+            QueueShuffle.withQueueMetadata(s.toMediaItem(), newEntryId = s.queueEntryId, newCanonicalIndex = idx, newTier = QueueTier.CONTEXT)
+        }.toMutableList()
+        val playlistItems = playlistTracks.mapIndexed { idx, s ->
+            QueueShuffle.withQueueMetadata(s.toMediaItem(), newEntryId = s.queueEntryId, newCanonicalIndex = idx, newTier = QueueTier.CONTEXT)
+        }.toMutableList()
+
+        val albumPlayer = TestPlayer(albumItems, activeIndex = 0)
+        val playlistPlayer = TestPlayer(playlistItems, activeIndex = 0)
+
+        QueueCoordinator.jumpToQueueItem(albumPlayer.player, targetIndex = 4, cachedTimeline = albumTracks)
+        QueueCoordinator.jumpToQueueItem(playlistPlayer.player, targetIndex = 4, cachedTimeline = playlistTracks)
+
+        assertEquals(albumPlayer.seekCallCount, playlistPlayer.seekCallCount)
+        assertEquals(albumPlayer.setMediaItemsCallCount, playlistPlayer.setMediaItemsCallCount)
+        assertEquals(albumPlayer.activeIndex, playlistPlayer.activeIndex)
+        assertEquals(albumPlayer.items.map { it.mediaId }, playlistPlayer.items.map { it.mediaId })
+    }
+
+    @Test
+    fun `start with shuffle and loop all on in album then toggle OFF restores preceding tracks and allows previous without wrapping to album end`() {
+        val albumTracks = (0..9).map { testSong("track-$it", QueueTier.CONTEXT, "id-$it", source = "Album A") }
+        val canonicalItems = albumTracks.mapIndexed { idx, s ->
+            QueueShuffle.withQueueMetadata(s.toMediaItem(), newEntryId = s.queueEntryId, newCanonicalIndex = idx)
+        }
+        QueueShuffle.setCanonicalContext(canonicalItems)
+
+        // Simulate starting with shuffle ON picking track-4 (index 4)
+        val selectedIndex = 4
+        val startingOrder = QueueShuffle.startingOrder(albumTracks, selectedIndex)
+        assertEquals("track-4", startingOrder[0].videoId)
+
+        val playerItems = startingOrder.map { s ->
+            val cIdx = albumTracks.indexOfFirst { it.videoId == s.videoId }
+            QueueShuffle.withQueueMetadata(s.toMediaItem(), newEntryId = s.queueEntryId, newCanonicalIndex = cIdx)
+        }.toMutableList()
+
+        val testPlayer = TestPlayer(playerItems, activeIndex = 0, repeatMode = Player.REPEAT_MODE_ALL)
+        QueueShuffle.setEnabled(true)
+
+        // Turn Shuffle OFF while playing track-4
+        QueueShuffle.toggle(testPlayer.player)
+        assertEquals(false, QueueShuffle.enabled.value)
+
+        // The entire album must be restored: 10 items
+        assertEquals(10, testPlayer.items.size)
+        // Current index must be 4 (track-4)
+        assertEquals(4, testPlayer.activeIndex)
+        assertEquals("track-4", testPlayer.items[testPlayer.activeIndex].mediaId)
+
+        // History contains track-0..3 in canonical order
+        assertEquals(listOf("track-0", "track-1", "track-2", "track-3"), testPlayer.items.take(4).map { it.mediaId })
+        // Upcoming contains track-5..9 in canonical order
+        assertEquals(listOf("track-5", "track-6", "track-7", "track-8", "track-9"), testPlayer.items.drop(5).map { it.mediaId })
+
+        // Hitting Prev steps backwards through preceding tracks: 3 -> 2 -> 1 -> 0
+        testPlayer.player.seekToPreviousMediaItem()
+        assertEquals(3, testPlayer.activeIndex)
+        assertEquals("track-3", testPlayer.items[testPlayer.activeIndex].mediaId)
+
+        testPlayer.player.seekToPreviousMediaItem()
+        assertEquals(2, testPlayer.activeIndex)
+        assertEquals("track-2", testPlayer.items[testPlayer.activeIndex].mediaId)
+
+        testPlayer.player.seekToPreviousMediaItem()
+        assertEquals(1, testPlayer.activeIndex)
+        assertEquals("track-1", testPlayer.items[testPlayer.activeIndex].mediaId)
+
+        testPlayer.player.seekToPreviousMediaItem()
+        assertEquals(0, testPlayer.activeIndex)
+        assertEquals("track-0", testPlayer.items[testPlayer.activeIndex].mediaId)
+    }
+
+    @Test
+    fun `start with shuffle and loop all on in playlist then toggle OFF restores preceding tracks and allows previous without wrapping to playlist end`() {
+        val playlistTracks = (0..9).map { testSong("pl-$it", QueueTier.CONTEXT, "id-$it", source = "Playlist P") }
+        val canonicalItems = playlistTracks.mapIndexed { idx, s ->
+            QueueShuffle.withQueueMetadata(s.toMediaItem(), newEntryId = s.queueEntryId, newCanonicalIndex = idx)
+        }
+        QueueShuffle.setCanonicalContext(canonicalItems)
+
+        // Starting with shuffle ON picking pl-6 (index 6)
+        val selectedIndex = 6
+        val startingOrder = QueueShuffle.startingOrder(playlistTracks, selectedIndex)
+        assertEquals("pl-6", startingOrder[0].videoId)
+
+        val playerItems = startingOrder.map { s ->
+            val cIdx = playlistTracks.indexOfFirst { it.videoId == s.videoId }
+            QueueShuffle.withQueueMetadata(s.toMediaItem(), newEntryId = s.queueEntryId, newCanonicalIndex = cIdx)
+        }.toMutableList()
+
+        val testPlayer = TestPlayer(playerItems, activeIndex = 0, repeatMode = Player.REPEAT_MODE_ALL)
+        QueueShuffle.setEnabled(true)
+
+        // Turn Shuffle OFF
+        QueueShuffle.toggle(testPlayer.player)
+        assertEquals(false, QueueShuffle.enabled.value)
+
+        assertEquals(10, testPlayer.items.size)
+        assertEquals(6, testPlayer.activeIndex)
+        assertEquals("pl-6", testPlayer.items[testPlayer.activeIndex].mediaId)
+
+        // History: pl-0..5
+        assertEquals((0..5).map { "pl-$it" }, testPlayer.items.take(6).map { it.mediaId })
+        // Upcoming: pl-7..9
+        assertEquals((7..9).map { "pl-$it" }, testPlayer.items.drop(7).map { it.mediaId })
+
+        // Hitting Prev steps back to pl-5
+        testPlayer.player.seekToPreviousMediaItem()
+        assertEquals(5, testPlayer.activeIndex)
+        assertEquals("pl-5", testPlayer.items[testPlayer.activeIndex].mediaId)
+    }
+
+    @Test
+    fun `jumping forward in context queue after shuffle OFF preserves entire collection for backward navigation`() {
+        val songs = (0..9).map { testSong("c$it", QueueTier.CONTEXT, "id-$it") }
+        val canonicalItems = songs.mapIndexed { idx, s ->
+            QueueShuffle.withQueueMetadata(s.toMediaItem(), newEntryId = s.queueEntryId, newCanonicalIndex = idx)
+        }
+        QueueShuffle.setCanonicalContext(canonicalItems)
+
+        // Started shuffled at c3
+        val startingOrder = QueueShuffle.startingOrder(songs, 3)
+        val playerItems = startingOrder.map { s ->
+            val cIdx = songs.indexOfFirst { it.videoId == s.videoId }
+            QueueShuffle.withQueueMetadata(s.toMediaItem(), newEntryId = s.queueEntryId, newCanonicalIndex = cIdx)
+        }.toMutableList()
+
+        val testPlayer = TestPlayer(playerItems, activeIndex = 0)
+        QueueShuffle.setEnabled(true)
+
+        // Turn shuffle OFF: full album restored with c3 at index 3
+        QueueShuffle.toggle(testPlayer.player)
+        assertEquals(3, testPlayer.activeIndex)
+        assertEquals("c3", testPlayer.items[testPlayer.activeIndex].mediaId)
+
+        // Now user jumps forward in context queue to c7 (index 7)
+        QueueCoordinator.jumpToQueueItem(testPlayer.player, targetIndex = 7, cachedTimeline = songs)
+        assertEquals(7, testPlayer.activeIndex)
+        assertEquals("c7", testPlayer.items[testPlayer.activeIndex].mediaId)
+        assertEquals(10, testPlayer.items.size)
+
+        // All preceding tracks (c0..c6) remain intact in history!
+        assertEquals((0..6).map { "c$it" }, testPlayer.items.take(7).map { it.mediaId })
+
+        // Hitting Prev steps backward through history: 6 -> 5 -> 4 -> 3 -> 2 -> 1 -> 0
+        for (expectedIdx in 6 downTo 0) {
+            testPlayer.player.seekToPreviousMediaItem()
+            assertEquals(expectedIdx, testPlayer.activeIndex)
+            assertEquals("c$expectedIdx", testPlayer.items[testPlayer.activeIndex].mediaId)
+        }
+    }
+
+    @Test
+    fun `jumping forward in queue while shuffle ON then turning shuffle OFF restores full canonical collection around jumped track`() {
+        val songs = (0..9).map { testSong("c$it", QueueTier.CONTEXT, "id-$it") }
+        val canonicalItems = songs.mapIndexed { idx, s ->
+            QueueShuffle.withQueueMetadata(s.toMediaItem(), newEntryId = s.queueEntryId, newCanonicalIndex = idx)
+        }
+        QueueShuffle.setCanonicalContext(canonicalItems)
+
+        // Started shuffled at c2 (index 0 in player)
+        val startingOrder = QueueShuffle.startingOrder(songs, 2)
+        val playerItems = startingOrder.map { s ->
+            val cIdx = songs.indexOfFirst { it.videoId == s.videoId }
+            QueueShuffle.withQueueMetadata(s.toMediaItem(), newEntryId = s.queueEntryId, newCanonicalIndex = cIdx)
+        }.toMutableList()
+
+        val testPlayer = TestPlayer(playerItems, activeIndex = 0)
+        QueueShuffle.setEnabled(true)
+
+        // While shuffle is ON, user jumps forward to item at index 4 in the shuffled queue
+        val targetItem = testPlayer.items[4]
+        val targetCanonicalIdx = targetItem.canonicalIndex!!
+        QueueCoordinator.jumpToQueueItem(testPlayer.player, targetIndex = 4)
+        assertEquals(4, testPlayer.activeIndex)
+        assertEquals(targetItem.mediaId, testPlayer.items[testPlayer.activeIndex].mediaId)
+
+        // Now user turns shuffle OFF
+        QueueShuffle.toggle(testPlayer.player)
+        assertEquals(false, QueueShuffle.enabled.value)
+
+        // Entire collection is restored around targetCanonicalIdx!
+        assertEquals(10, testPlayer.items.size)
+        assertEquals(targetCanonicalIdx, testPlayer.activeIndex)
+        assertEquals(targetItem.mediaId, testPlayer.items[testPlayer.activeIndex].mediaId)
+
+        // All canonical tracks are in order 0..9
+        assertEquals((0..9).map { "c$it" }, testPlayer.items.map { it.mediaId })
     }
 
     /** Tiers looked up by song, since MediaItem metadata extras don't survive on the JVM. */

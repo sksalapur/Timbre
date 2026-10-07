@@ -44,6 +44,9 @@ class QueueShuffleTierTest {
                 "getMediaItemAt" -> items[args[0] as Int]
                 "getCurrentMediaItemIndex" -> currentIndex
                 "getCurrentMediaItem" -> items.getOrNull(currentIndex)
+                "getCurrentPosition" -> 0L
+                "isPlaying" -> false
+                "getPlaybackState" -> Player.STATE_READY
                 "replaceMediaItems" -> {
                     val from = args[0] as Int
                     val to = args[1] as Int
@@ -55,10 +58,25 @@ class QueueShuffleTierTest {
                     items.addAll(from, newItems)
                     null
                 }
+                "setMediaItems" -> {
+                    @Suppress("UNCHECKED_CAST")
+                    val newItems = args[0] as List<MediaItem>
+                    val startIndex = args[1] as Int
+                    items.clear()
+                    items.addAll(newItems)
+                    currentIndex = startIndex
+                    null
+                }
                 "seekToNextMediaItem" -> {
                     if (currentIndex < items.size - 1) currentIndex++
                     null
                 }
+                "seekToPreviousMediaItem" -> {
+                    if (currentIndex > 0) currentIndex--
+                    null
+                }
+                "prepare" -> null
+                "play" -> null
                 else -> null
             }
         } as Player
@@ -478,15 +496,31 @@ class QueueShuffleTierTest {
         QueueShuffle.toggle(state.player)
         assertTrue(!QueueShuffle.enabled.value)
 
-        // Current track remains track-3 (canonicalIndex 2)
-        assertEquals("track-3", state.items[0].mediaId)
-        assertEquals(2, state.items[0].canonicalIndex)
+        // Current track remains track-3 (canonicalIndex 2) at index 2
+        assertEquals(2, state.currentIndex)
+        assertEquals("track-3", state.items[2].mediaId)
+        assertEquals(2, state.items[2].canonicalIndex)
 
-        // Upcoming must restore strictly forward after track-3 (canonical indices 3, 4, 5 -> track-4, track-5, track-6)
-        // No wrap-around to track-1 or track-2!
-        val upcoming = state.items.drop(1)
+        // Preceding history is restored: [track-1, track-2]
+        assertEquals(listOf("track-1", "track-2"), state.items.take(2).map { it.mediaId })
+        assertEquals(listOf(0, 1), state.items.take(2).map { it.canonicalIndex })
+
+        // Upcoming is restored strictly forward: [track-4, track-5, track-6]
+        val upcoming = state.items.drop(3)
         assertEquals(listOf("track-4", "track-5", "track-6"), upcoming.map { it.mediaId })
         assertEquals(listOf(3, 4, 5), upcoming.map { it.canonicalIndex })
+
+        // Total collection has all 6 tracks preserved!
+        assertEquals(6, state.items.size)
+
+        // 4. Hitting Prev steps backwards through preceding tracks
+        state.player.seekToPreviousMediaItem()
+        assertEquals(1, state.currentIndex)
+        assertEquals("track-2", state.items[state.currentIndex].mediaId)
+
+        state.player.seekToPreviousMediaItem()
+        assertEquals(0, state.currentIndex)
+        assertEquals("track-1", state.items[state.currentIndex].mediaId)
     }
 }
 
