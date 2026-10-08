@@ -1653,6 +1653,7 @@ class PlaybackService : MediaLibraryService() {
 
         val controller = createCrossfadeController()
         crossfade = controller
+        QueueShuffle.isCrossfadeTransitioning = { crossfade?.isTransitioning() == true }
         controller.start()
 
         mediaSession = MediaLibrarySession.Builder(
@@ -6548,6 +6549,7 @@ class PlaybackService : MediaLibraryService() {
             }
         }
         scope.cancel()
+        QueueShuffle.isCrossfadeTransitioning = null
         crossfade?.release()
         crossfade = null
         mediaSession?.release()

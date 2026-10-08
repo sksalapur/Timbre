@@ -720,6 +720,7 @@ class QueueCoordinatorTest {
                 "getMediaItemAt" -> items[args[0] as Int]
                 "getCurrentMediaItem" -> items.getOrNull(activeIndex)
                 "getCurrentPosition" -> 0L
+                "getDuration" -> 180000L
                 "isPlaying" -> false
                 "getPlaybackState" -> Player.STATE_READY
                 "hasPreviousMediaItem" -> activeIndex > 0

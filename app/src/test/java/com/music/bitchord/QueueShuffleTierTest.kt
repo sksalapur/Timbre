@@ -39,6 +39,7 @@ class QueueShuffleTierTest {
         var isPlaying: Boolean = false,
         var playWhenReady: Boolean = false,
         var currentPosition: Long = 0L,
+        var duration: Long = 180000L,
     ) {
         var setMediaItemsCalled: Boolean = false
         val replaceCalls = mutableListOf<Triple<Int, Int, List<MediaItem>>>()
@@ -53,6 +54,7 @@ class QueueShuffleTierTest {
                 "getCurrentMediaItemIndex" -> currentIndex
                 "getCurrentMediaItem" -> items.getOrNull(currentIndex)
                 "getCurrentPosition" -> currentPosition
+                "getDuration" -> duration
                 "isPlaying" -> isPlaying
                 "getPlayWhenReady" -> playWhenReady
                 "getPlaybackState" -> Player.STATE_READY
@@ -125,6 +127,7 @@ class QueueShuffleTierTest {
 
         QueueShuffle.setEnabled(false)
         QueueShuffle.clearCanonicalContext()
+        QueueShuffle.isCrossfadeTransitioning = null
     }
 
     @Test
@@ -944,6 +947,160 @@ class QueueShuffleTierTest {
         val noOp = QueueShuffle.replaceChanged(state.player, from = 1, to = 6, new = target)
         assertFalse(noOp)
         assertEquals(0, state.replaceCalls.size)
+    }
+
+    @Test
+    fun `replaceChanged key distinguishes items with identical ids but differing queueTier`() {
+        val cItem = testSong("song-1", QueueTier.CONTEXT, "entry-1").toMediaItem()
+        val uqItem = testSong("song-1", QueueTier.USER_QUEUE, "entry-1").toMediaItem()
+
+        val items = mutableListOf(cItem)
+        val state = MockPlayerState(items, currentIndex = 0)
+
+        // Target replaces cItem with uqItem (tier changed from CONTEXT to USER_QUEUE)
+        val replaced = QueueShuffle.replaceChanged(state.player, from = 0, to = 1, new = listOf(uqItem))
+        assertTrue("replaceChanged should detect difference because key includes queueTier", replaced)
+        assertEquals(1, state.replaceCalls.size)
+        assertEquals(QueueTier.USER_QUEUE, state.items[0].queueTier)
+    }
+
+    @Test
+    fun `original snapshot updates unconditionally on shuffle and clears on every restore`() {
+        val s0 = testSong("s0", QueueTier.CONTEXT, "e0").toMediaItem()
+        val s1 = testSong("s1", QueueTier.CONTEXT, "e1").toMediaItem()
+        val s2 = testSong("s2", QueueTier.CONTEXT, "e2").toMediaItem()
+        val s3 = testSong("s3", QueueTier.CONTEXT, "e3").toMediaItem()
+        val canonicalItems = listOf(s0, s1, s2, s3)
+        QueueShuffle.setCanonicalContext(canonicalItems)
+
+        val items = mutableListOf(s0, s1, s2, s3)
+        val state = MockPlayerState(items, currentIndex = 0)
+
+        // 1. First shuffle on
+        QueueShuffle.toggle(state.player)
+        assertTrue(QueueShuffle.enabled.value)
+        assertEquals(4, QueueShuffle.originalOrder.size)
+        val firstSnapshot = QueueShuffle.originalOrder
+
+        // 2. Canonical restore
+        QueueShuffle.toggle(state.player)
+        assertFalse(QueueShuffle.enabled.value)
+        assertTrue("original must be cleared after canonical restore", QueueShuffle.originalOrder.isEmpty())
+
+        // 3. User modifies queue (e.g. appends s4)
+        val s4 = testSong("s4", QueueTier.CONTEXT, "e4").toMediaItem()
+        state.items.add(s4)
+
+        // 4. Second shuffle on
+        QueueShuffle.toggle(state.player)
+        assertTrue(QueueShuffle.enabled.value)
+        assertEquals("original must be updated unconditionally with fresh queue snapshot", 5, QueueShuffle.originalOrder.size)
+        assertNotEquals(firstSnapshot, QueueShuffle.originalOrder)
+
+        // 5. Clear context to force fallback restore
+        QueueShuffle.clearCanonicalContext()
+        QueueShuffle.toggle(state.player)
+        assertFalse(QueueShuffle.enabled.value)
+        assertTrue("original must be cleared after fallback restore", QueueShuffle.originalOrder.isEmpty())
+    }
+
+    @Test
+    fun `isCanonicalContextValid does not clear context when playing USER_QUEUE or player is empty`() {
+        val s0 = testSong("s0", QueueTier.CONTEXT, "e0").toMediaItem()
+        val s1 = testSong("s1", QueueTier.CONTEXT, "e1").toMediaItem()
+        QueueShuffle.setCanonicalContext(listOf(s0, s1))
+
+        // Empty player (before setMediaItems reaches service)
+        val emptyState = MockPlayerState(mutableListOf(), currentIndex = -1)
+        assertTrue("Context must not be wiped when player is empty", QueueShuffle.isCanonicalContextValid(emptyState.player))
+
+        // Player is playing a USER_QUEUE track
+        val uq0 = testSong("uq0", QueueTier.USER_QUEUE, "uq-e0").toMediaItem()
+        val userQueueState = MockPlayerState(mutableListOf(uq0, s0, s1), currentIndex = 0)
+        assertTrue("Context must not be wiped when active track is USER_QUEUE", QueueShuffle.isCanonicalContextValid(userQueueState.player))
+
+        // Player is playing an alien CONTEXT track
+        val alienCtx = testSong("alien", QueueTier.CONTEXT, "alien-e").toMediaItem()
+        val alienState = MockPlayerState(mutableListOf(alienCtx), currentIndex = 0)
+        assertFalse("Context must be invalidated when active track is a foreign CONTEXT track", QueueShuffle.isCanonicalContextValid(alienState.player))
+    }
+
+    @Test
+    fun `imminent next track gate keeps cur + 1 in place and shuffles cur + 2 onward`() {
+        val c0 = testSong("c0", QueueTier.CONTEXT, "e0").toMediaItem()
+        val c1 = testSong("c1", QueueTier.CONTEXT, "e1").toMediaItem()
+        val c2 = testSong("c2", QueueTier.CONTEXT, "e2").toMediaItem()
+        val c3 = testSong("c3", QueueTier.CONTEXT, "e3").toMediaItem()
+        val c4 = testSong("c4", QueueTier.CONTEXT, "e4").toMediaItem()
+        val canonical = listOf(c0, c1, c2, c3, c4)
+        QueueShuffle.setCanonicalContext(canonical)
+
+        val items = mutableListOf(c0, c1, c2, c3, c4)
+        // Track 0 playing, duration = 180s, position = 177s -> 3s left (imminent <= 5s)
+        val state = MockPlayerState(items, currentIndex = 0, currentPosition = 177000L, duration = 180000L)
+
+        QueueShuffle.toggle(state.player)
+        assertTrue(QueueShuffle.enabled.value)
+
+        // Item at index 0 (playing) and index 1 (imminent next track) must be strictly untouched!
+        assertEquals("c0", state.items[0].mediaId)
+        assertEquals("c1", state.items[1].mediaId)
+
+        // Replace calls must only touch from index >= 2
+        assertTrue(state.replaceCalls.all { it.first >= 2 })
+    }
+
+    @Test
+    fun `imminent next track gate keeps cur + 1 in place during restore and restores remaining tracks`() {
+        val c0 = testSong("c0", QueueTier.CONTEXT, "e0").toMediaItem()
+        val c1 = testSong("c1", QueueTier.CONTEXT, "e1").toMediaItem()
+        val c2 = testSong("c2", QueueTier.CONTEXT, "e2").toMediaItem()
+        val c3 = testSong("c3", QueueTier.CONTEXT, "e3").toMediaItem()
+        val canonical = listOf(c0, c1, c2, c3)
+        QueueShuffle.setCanonicalContext(canonical)
+
+        // Shuffled queue where c3 was moved next (index 1), c1 is at index 2, c2 is at index 3
+        val items = mutableListOf(c0, c3, c1, c2)
+        // 4s left before track end (imminent <= 5s)
+        val state = MockPlayerState(items, currentIndex = 0, currentPosition = 176000L, duration = 180000L)
+        QueueShuffle.setEnabled(true)
+
+        QueueShuffle.toggle(state.player) // restore
+        assertFalse(QueueShuffle.enabled.value)
+
+        // Playing item (c0) and imminent next item (c3) must be untouched in place!
+        assertEquals("c0", state.items[0].mediaId)
+        assertEquals("c3", state.items[1].mediaId)
+
+        // The remaining tracks (c1, c2) are restored after c3
+        assertEquals("c1", state.items[2].mediaId)
+        assertEquals("c2", state.items[3].mediaId)
+
+        // Replace calls must not touch index 0 or index 1
+        assertTrue(state.replaceCalls.all { it.first >= 2 })
+    }
+
+    @Test
+    fun `isCrossfadeTransitioning callback triggers imminent protection even with long remaining duration`() {
+        val c0 = testSong("c0", QueueTier.CONTEXT, "e0").toMediaItem()
+        val c1 = testSong("c1", QueueTier.CONTEXT, "e1").toMediaItem()
+        val c2 = testSong("c2", QueueTier.CONTEXT, "e2").toMediaItem()
+        val c3 = testSong("c3", QueueTier.CONTEXT, "e3").toMediaItem()
+        QueueShuffle.setCanonicalContext(listOf(c0, c1, c2, c3))
+
+        val items = mutableListOf(c0, c1, c2, c3)
+        // 170 seconds remaining (not naturally imminent)
+        val state = MockPlayerState(items, currentIndex = 0, currentPosition = 10000L, duration = 180000L)
+
+        // Arming / transitioning in CrossfadeController
+        QueueShuffle.isCrossfadeTransitioning = { true }
+
+        QueueShuffle.toggle(state.player)
+        assertTrue(QueueShuffle.enabled.value)
+
+        // Index 1 (c1) must be preserved in place
+        assertEquals("c1", state.items[1].mediaId)
+        assertTrue(state.replaceCalls.all { it.first >= 2 })
     }
 }
 
