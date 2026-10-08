@@ -607,7 +607,6 @@ internal fun CurrentLyricStrip(
                     durationMs = durationMs,
                     onClick = onClick,
                     modifier = Modifier
-                        .fillMaxWidth()
                         .align(align),
                 )
             } else if (lyricsUnavailable) {
