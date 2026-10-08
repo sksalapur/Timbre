@@ -219,23 +219,6 @@ internal class ManualUpgradeThrottle(private val cooldownMs: Long) {
     }
 }
 
-/**
- * Session command carrying a rearrangement of the queue worked out by a
- * controller — see [QueueShuffle.reorderFromCommand].
- *
- * A command rather than the ordinary player call because the items a controller
- * can see have had their playback URIs stripped on the way out to it. The
- * permutation travels instead, and the session applies it to the items it holds.
- */
-const val ACTION_REORDER_QUEUE = "com.music.bitchord.action.REORDER_QUEUE"
-
-/** Where the rearrangement starts, and where each slot's new occupant stands now. */
-const val EXTRA_REORDER_FROM = "bitchord.reorder.from"
-const val EXTRA_REORDER_ORDER = "bitchord.reorder.order"
-const val EXTRA_EXPECTED_CURRENT_ENTRY_ID = "bitchord.reorder.expectedCurrentEntryId"
-const val EXTRA_EXPECTED_UPCOMING_HASH = "bitchord.reorder.expectedUpcomingHash"
-const val EXTRA_NEW_CURRENT_INDEX = "bitchord.reorder.newCurrentIndex"
-const val EXTRA_CURRENT_POSITION = "bitchord.reorder.currentPosition"
 
 /**
  * Session command marking the span of a queue drag in the UI — see
@@ -732,7 +715,6 @@ class PlaybackService : MediaLibraryService() {
     private val commitRadioQueueCommand = SessionCommand(ACTION_COMMIT_RADIO_QUEUE, Bundle.EMPTY)
     private val upgradeQualityCommand = SessionCommand(ACTION_UPGRADE_QUALITY, Bundle.EMPTY)
     private val swapVersionCommand = SessionCommand(ACTION_SWAP_VERSION, Bundle.EMPTY)
-    private val reorderQueueCommand = SessionCommand(ACTION_REORDER_QUEUE, Bundle.EMPTY)
     private val queueDragCommand = SessionCommand(ACTION_QUEUE_DRAG, Bundle.EMPTY)
 
     private var favoriteActionJob: Job? = null
@@ -7213,7 +7195,6 @@ class PlaybackService : MediaLibraryService() {
                 .add(commitRadioQueueCommand)
                 .add(upgradeQualityCommand)
                 .add(swapVersionCommand)
-                .add(reorderQueueCommand)
                 .add(queueDragCommand)
                 .build()
             return MediaSession.ConnectionResult.AcceptedResultBuilder(session)
@@ -7253,14 +7234,6 @@ class PlaybackService : MediaLibraryService() {
                     if (bundle != null) {
                         val targetSong = songFromBundle(bundle)
                         smoothSwapCurrentTrackVersion(targetSong.toMediaItem())
-                    }
-                }
-                ACTION_REORDER_QUEUE -> {
-                    val ok = player?.let { QueueShuffle.reorderFromCommand(it, args) } ?: false
-                    if (!ok) {
-                        return Futures.immediateFuture(
-                            SessionResult(SessionResult.RESULT_ERROR_BAD_VALUE),
-                        )
                     }
                 }
                 ACTION_QUEUE_DRAG -> {

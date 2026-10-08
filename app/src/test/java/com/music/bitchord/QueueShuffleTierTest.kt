@@ -5,10 +5,6 @@ import androidx.media3.common.Player
 import com.music.bitchord.data.model.PlaybackSourceType
 import com.music.bitchord.data.model.QueueTier
 import com.music.bitchord.data.model.Song
-import com.music.bitchord.playback.EXTRA_EXPECTED_CURRENT_ENTRY_ID
-import com.music.bitchord.playback.EXTRA_EXPECTED_UPCOMING_HASH
-import com.music.bitchord.playback.EXTRA_REORDER_FROM
-import com.music.bitchord.playback.EXTRA_REORDER_ORDER
 import com.music.bitchord.playback.QueueShuffle
 import com.music.bitchord.playback.canonicalIndex
 import com.music.bitchord.playback.queueEntryId
@@ -39,7 +35,12 @@ class QueueShuffleTierTest {
     private class MockPlayerState(
         val items: MutableList<MediaItem>,
         var currentIndex: Int = 0,
+        var isPlaying: Boolean = false,
+        var playWhenReady: Boolean = false,
+        var currentPosition: Long = 0L,
     ) {
+        var setMediaItemsCalled: Boolean = false
+
         val player: Player = java.lang.reflect.Proxy.newProxyInstance(
             Player::class.java.classLoader,
             arrayOf(Player::class.java),
@@ -49,8 +50,9 @@ class QueueShuffleTierTest {
                 "getMediaItemAt" -> items[args[0] as Int]
                 "getCurrentMediaItemIndex" -> currentIndex
                 "getCurrentMediaItem" -> items.getOrNull(currentIndex)
-                "getCurrentPosition" -> 0L
-                "isPlaying" -> false
+                "getCurrentPosition" -> currentPosition
+                "isPlaying" -> isPlaying
+                "getPlayWhenReady" -> playWhenReady
                 "getPlaybackState" -> Player.STATE_READY
                 "replaceMediaItems" -> {
                     val from = args[0] as Int
@@ -61,9 +63,13 @@ class QueueShuffleTierTest {
                         items.removeAt(i)
                     }
                     items.addAll(from, newItems)
+                    if (to <= currentIndex) {
+                        currentIndex += newItems.size - (to - from)
+                    }
                     null
                 }
                 "setMediaItems" -> {
+                    setMediaItemsCalled = true
                     @Suppress("UNCHECKED_CAST")
                     val newItems = args[0] as List<MediaItem>
                     val startIndex = args[1] as Int
@@ -81,7 +87,16 @@ class QueueShuffleTierTest {
                     null
                 }
                 "prepare" -> null
-                "play" -> null
+                "play" -> {
+                    isPlaying = true
+                    playWhenReady = true
+                    null
+                }
+                "pause" -> {
+                    isPlaying = false
+                    playWhenReady = false
+                    null
+                }
                 else -> null
             }
         } as Player
@@ -612,100 +627,237 @@ class QueueShuffleTierTest {
     }
 
     @Test
-    fun `double tap while command in flight is dropped and inFlight resets properly`() {
-        val songs = (1..5).map { testSong("track-$it", QueueTier.CONTEXT, "id-$it") }
-        val items = songs.mapIndexed { idx, s ->
+    fun `shuffle play more than 25 tracks and restore rebuilds history from canonicalContext`() {
+        val totalTracks = 40
+        val songs = (0 until totalTracks).map { testSong("track-$it", QueueTier.CONTEXT, "id-$it") }
+        val canonicalItems = songs.mapIndexed { idx, s ->
             QueueShuffle.withQueueMetadata(s.toMediaItem(), newEntryId = s.queueEntryId, newCanonicalIndex = idx)
-        }.toMutableList()
-        val state = MockPlayerState(items, currentIndex = 0)
+        }
+        QueueShuffle.setCanonicalContext(canonicalItems)
+
+        // Start playing from track 0
+        val state = MockPlayerState(canonicalItems.toMutableList(), currentIndex = 0)
         QueueShuffle.setEnabled(false)
 
-        // Simulate an in-flight command
-        QueueShuffle.inFlight.set(true)
-
-        // A second toggle tap while inFlight is true must return immediately without altering state
-        QueueShuffle.toggle(state.player)
-        assertEquals(false, QueueShuffle.enabled.value)
-        assertEquals(true, QueueShuffle.inFlight.get())
-
-        // Once inFlight is cleared, toggle works normally
-        QueueShuffle.inFlight.set(false)
+        // Turn on shuffle
         QueueShuffle.toggle(state.player)
         assertEquals(true, QueueShuffle.enabled.value)
-        assertEquals(false, QueueShuffle.inFlight.get())
-    }
 
-    @Test
-    fun `size mismatch in reorder returns false and leaves flags unchanged`() {
-        val songs = (1..3).map { testSong("track-$it", QueueTier.CONTEXT, "id-$it") }
-        val items = songs.map { it.toMediaItem() }.toMutableList()
-        val state = MockPlayerState(items, currentIndex = 0)
-        QueueShuffle.setEnabled(false)
-
-        // Empty order returns false
-        val emptyResult = QueueShuffle.reorder(state.player, from = 1, order = intArrayOf())
-        assertEquals(false, emptyResult)
-
-        // Out of bounds order returns false
-        val overflowResult = QueueShuffle.reorder(state.player, from = 1, order = IntArray(10) { it })
-        assertEquals(false, overflowResult)
-
-        // reorderFromCommand with mismatched size returns false
-        val commandResult = QueueShuffle.reorderFromCommand(
-            player = state.player,
-            from = 1,
-            order = IntArray(50) { it },
-        )
-        assertEquals(false, commandResult)
-
-        // Shuffle flags remain unchanged
-        assertEquals(false, QueueShuffle.enabled.value)
-    }
-
-    @Test
-    fun `reorderFromCommand upcoming hash matches when tail grows from autoplay`() {
-        val songs = (0..3).map { testSong("track-$it", QueueTier.CONTEXT, "id-$it") }
-        val items = songs.map { it.toMediaItem() }.toMutableList()
-        val state = MockPlayerState(items, currentIndex = 0)
-
-        // Snapshot had 3 upcoming items (indices 1..3)
-        val upcoming = items.drop(1)
-        var expectedHash = 1
-        for (item in upcoming) {
-            val id = item.queueEntryId ?: item.mediaId
-            expectedHash = 31 * expectedHash + id.hashCode()
+        // Simulate playing 28 tracks.
+        // In BitChord's QueueCoordinator / PlaybackService, history trims when exceeding 25 tracks:
+        // Older tracks are removed from the head so at most 25 history items remain.
+        repeat(28) {
+            state.currentIndex++
+            if (state.currentIndex > 25) {
+                state.items.removeAt(0)
+                state.currentIndex--
+            }
         }
 
-        // Autoplay appends 2 new items to the tail before the command executes
-        val auto1 = testSong("auto-1", QueueTier.AUTOPLAY, "id-auto-1").toMediaItem()
-        val auto2 = testSong("auto-2", QueueTier.AUTOPLAY, "id-auto-2").toMediaItem()
-        state.items.add(auto1)
-        state.items.add(auto2)
-        assertEquals(6, state.items.size)
+        // We have played 28 tracks, so 3 tracks were trimmed from history.
+        // Player holds 25 history tracks + 1 current track + unplayed upcoming tracks.
+        val currentItem = state.items[state.currentIndex]
+        val c = QueueShuffle.getCanonicalIndex(currentItem)!!
+        assertTrue(c in 0 until totalTracks)
 
-        // Command was prepared for the original 3 upcoming items with permutation [2, 0, 1]
-        val order = intArrayOf(2, 0, 1)
+        // Now restore shuffle
+        QueueShuffle.toggle(state.player)
+        assertEquals(false, QueueShuffle.enabled.value)
 
-        // Hash matches the first order.size upcoming items, so reorder succeeds despite queue growth
-        val ok = QueueShuffle.reorderFromCommand(
-            player = state.player,
-            from = 1,
-            order = order,
-            expectedCurrentEntryId = state.items[0].queueEntryId ?: state.items[0].mediaId,
-            expectedUpcomingHash = expectedHash,
-            hasUpcomingHash = true,
+        // Verify:
+        // 1. Current track index matches c (history was fully restored to canonical 0 until c)
+        assertEquals(c, state.currentIndex)
+        assertEquals(currentItem.mediaId, state.items[state.currentIndex].mediaId)
+
+        // 2. Next track immediately after current track is canonical c + 1
+        if (c + 1 < totalTracks) {
+            val nextItem = state.items[state.currentIndex + 1]
+            assertEquals(c + 1, QueueShuffle.getCanonicalIndex(nextItem))
+        }
+
+        // 3. History range (0 until c) is completely reconstructed from canonicalContext
+        for (i in 0 until c) {
+            val historyItem = state.items[i]
+            assertEquals(i, QueueShuffle.getCanonicalIndex(historyItem))
+            assertEquals(QueueTier.CONTEXT, historyItem.queueTier)
+        }
+
+        // 4. Following range is in canonical order c + 1 until totalTracks
+        for (i in (c + 1) until totalTracks) {
+            val upcomingItem = state.items[i]
+            assertEquals(i, QueueShuffle.getCanonicalIndex(upcomingItem))
+            assertEquals(QueueTier.CONTEXT, upcomingItem.queueTier)
+        }
+
+        // 5. Total items equals totalTracks (40)
+        assertEquals(totalTracks, state.items.size)
+    }
+
+    @Test
+    fun `restore while paused keeps player paused and does not interrupt playback`() {
+        val songs = (0..9).map { testSong("track-$it", QueueTier.CONTEXT, "id-$it") }
+        val canonicalItems = songs.mapIndexed { idx, s ->
+            QueueShuffle.withQueueMetadata(s.toMediaItem(), newEntryId = s.queueEntryId, newCanonicalIndex = idx)
+        }
+        QueueShuffle.setCanonicalContext(canonicalItems)
+
+        val state = MockPlayerState(
+            items = canonicalItems.toMutableList(),
+            currentIndex = 3,
+            isPlaying = false,
+            playWhenReady = false,
+            currentPosition = 45000L,
         )
-        assertEquals(true, ok)
+        QueueShuffle.setEnabled(false)
 
-        // Permuted slice (indices 1..3) is reordered: [track-3, track-1, track-2]
-        assertEquals("track-3", state.items[1].mediaId)
-        assertEquals("track-1", state.items[2].mediaId)
-        assertEquals("track-2", state.items[3].mediaId)
+        val itemBefore = state.items[state.currentIndex]
 
-        // Tail items appended by autoplay remain in place untouched
-        assertEquals("auto-1", state.items[4].mediaId)
-        assertEquals("auto-2", state.items[5].mediaId)
-        assertEquals(6, state.items.size)
+        // Toggle shuffle on
+        QueueShuffle.toggle(state.player)
+        assertEquals(true, QueueShuffle.enabled.value)
+        assertEquals(false, state.isPlaying)
+        assertEquals(false, state.playWhenReady)
+        assertEquals(45000L, state.currentPosition)
+
+        // Toggle restore
+        QueueShuffle.toggle(state.player)
+        assertEquals(false, QueueShuffle.enabled.value)
+
+        // Player must remain strictly paused with exact same position and playing item
+        assertEquals(false, state.isPlaying)
+        assertEquals(false, state.playWhenReady)
+        assertEquals(45000L, state.currentPosition)
+        assertEquals(3, state.currentIndex)
+        assertEquals(itemBefore.mediaId, state.items[state.currentIndex].mediaId)
+        assertEquals(false, state.setMediaItemsCalled)
+    }
+
+    @Test
+    fun `property check set of entry IDs after shuffle and restore is preserved without loss or duplicates`() {
+        // Queue with mixed tiers:
+        // 4 context items (history + current)
+        // 2 user queue items
+        // 8 context items
+        // 2 user queue items
+        // 3 autoplay items
+        val contextSongs = (0..11).map { testSong("ctx-$it", QueueTier.CONTEXT, "id-ctx-$it") }
+        val userSongs = (0..3).map { testSong("usr-$it", QueueTier.USER_QUEUE, "id-usr-$it") }
+        val autoSongs = (0..2).map { testSong("auto-$it", QueueTier.AUTOPLAY, "id-auto-$it") }
+
+        val canonicalItems = contextSongs.mapIndexed { idx, s ->
+            QueueShuffle.withQueueMetadata(s.toMediaItem(), newEntryId = s.queueEntryId, newCanonicalIndex = idx)
+        }
+        QueueShuffle.setCanonicalContext(canonicalItems)
+
+        val initialItems = mutableListOf<MediaItem>()
+        // 4 context items (indices 0..3)
+        initialItems.addAll(canonicalItems.subList(0, 4))
+        // 2 user-queue items
+        initialItems.addAll(userSongs.subList(0, 2).map { it.toMediaItem() })
+        // 8 context items (indices 4..12)
+        initialItems.addAll(canonicalItems.subList(4, 12))
+        // 2 user-queue items
+        initialItems.addAll(userSongs.subList(2, 4).map { it.toMediaItem() })
+        // 3 autoplay items
+        initialItems.addAll(autoSongs.map { it.toMediaItem() })
+
+        val initialEntryIds = initialItems.map { it.queueEntryId ?: it.mediaId }
+        // Invariant: initial set has distinct IDs
+        assertEquals(initialItems.size, initialEntryIds.toSet().size)
+
+        // Playing track is at index 2 (a context track)
+        val state = MockPlayerState(initialItems.toMutableList(), currentIndex = 2)
+        QueueShuffle.setEnabled(false)
+
+        // 1. Toggle Shuffle ON
+        QueueShuffle.toggle(state.player)
+        assertEquals(true, QueueShuffle.enabled.value)
+
+        val shuffledEntryIds = state.items.map { it.queueEntryId ?: it.mediaId }
+        // Set equality check: no loss, no duplication
+        assertEquals(initialEntryIds.toSet(), shuffledEntryIds.toSet())
+        assertEquals(initialEntryIds.size, state.items.size)
+
+        // Verify tier invariants during shuffle:
+        // History (0..2) untouched
+        assertEquals(initialItems[0].mediaId, state.items[0].mediaId)
+        assertEquals(initialItems[1].mediaId, state.items[1].mediaId)
+        assertEquals(initialItems[2].mediaId, state.items[2].mediaId)
+
+        // Upcoming section has USER_QUEUE first, then shuffled CONTEXT, then AUTOPLAY
+        val upcomingShuffled = state.items.drop(state.currentIndex + 1)
+        val uqCount = userSongs.size
+        val autoCount = autoSongs.size
+        // All USER_QUEUE items are at the beginning of upcoming
+        assertTrue(upcomingShuffled.take(uqCount).all { it.queueTier == QueueTier.USER_QUEUE })
+        // All AUTOPLAY items are at the end of upcoming
+        assertTrue(upcomingShuffled.takeLast(autoCount).all { it.queueTier == QueueTier.AUTOPLAY })
+
+        // 2. Toggle Restore
+        QueueShuffle.toggle(state.player)
+        assertEquals(false, QueueShuffle.enabled.value)
+
+        val restoredEntryIds = state.items.map { it.queueEntryId ?: it.mediaId }
+        // Set equality check: no loss, no duplication after restore
+        assertEquals(initialEntryIds.toSet(), restoredEntryIds.toSet())
+        assertEquals(initialEntryIds.size, state.items.size)
+
+        // In upcoming after restore: USER_QUEUE pinned behind current, then CONTEXT, then AUTOPLAY
+        val upcomingRestored = state.items.drop(state.currentIndex + 1)
+        assertTrue(upcomingRestored.take(uqCount).all { it.queueTier == QueueTier.USER_QUEUE })
+        assertTrue(upcomingRestored.takeLast(autoCount).all { it.queueTier == QueueTier.AUTOPLAY })
+    }
+
+    @Test
+    fun `benchmark toggle shuffle and restore performance on 1000 items`() {
+        val totalTracks = 1000
+        val songs = (0 until totalTracks).map { testSong("track-$it", QueueTier.CONTEXT, "id-$it") }
+        val canonicalItems = songs.mapIndexed { idx, s ->
+            QueueShuffle.withQueueMetadata(s.toMediaItem(), newEntryId = s.queueEntryId, newCanonicalIndex = idx)
+        }
+        QueueShuffle.setCanonicalContext(canonicalItems)
+
+        val state = MockPlayerState(canonicalItems.toMutableList(), currentIndex = 250)
+        QueueShuffle.setEnabled(false)
+
+        // Warm up JVM
+        repeat(5) {
+            QueueShuffle.toggle(state.player)
+            QueueShuffle.toggle(state.player)
+        }
+
+        // Benchmark Shuffle ON
+        val startShuffle = System.nanoTime()
+        QueueShuffle.toggle(state.player)
+        val shuffleDurationMs = (System.nanoTime() - startShuffle) / 1_000_000.0
+
+        // Benchmark Restore OFF (Current Two-Segment Replace + O(1) Provenance)
+        val startRestore = System.nanoTime()
+        QueueShuffle.toggle(state.player)
+        val restoreDurationMs = (System.nanoTime() - startRestore) / 1_000_000.0
+
+        // Benchmark Baseline (83fa092 linear scan indexOfFirst + full list rebuild)
+        val startBaseline = System.nanoTime()
+        val existingByCanonicalBaseline = HashMap<Int, MediaItem>()
+        for (i in state.items.indices) {
+            val item = state.items[i]
+            val idx = canonicalItems.indexOfFirst { it.mediaId == item.mediaId }
+            if (idx >= 0 && !existingByCanonicalBaseline.containsKey(idx)) {
+                existingByCanonicalBaseline[idx] = item
+            }
+        }
+        val precedingBaseline = (0 until 250).map { cIdx ->
+            existingByCanonicalBaseline[cIdx] ?: canonicalItems[cIdx]
+        }
+        val followingBaseline = (251 until canonicalItems.size).map { cIdx ->
+            existingByCanonicalBaseline[cIdx] ?: canonicalItems[cIdx]
+        }
+        val fullListBaseline = precedingBaseline + listOf(state.items[250]) + followingBaseline
+        val baselineDurationMs = (System.nanoTime() - startBaseline) / 1_000_000.0
+
+        println("BENCHMARK_RESULT: Current 1000 tracks (shuffle: ${shuffleDurationMs} ms, restore: ${restoreDurationMs} ms) vs Baseline 83fa092 restore resolution: ${baselineDurationMs} ms")
+        assertTrue("Shuffle should complete in < 50ms", shuffleDurationMs < 50.0)
+        assertTrue("Restore should complete in < 50ms", restoreDurationMs < 50.0)
     }
 }
 

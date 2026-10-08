@@ -750,6 +750,9 @@ class QueueCoordinatorTest {
                         items.removeAt(i)
                     }
                     items.addAll(from, newItems)
+                    if (to <= activeIndex) {
+                        activeIndex += newItems.size - (to - from)
+                    }
                     null
                 }
                 "setMediaItems" -> {
