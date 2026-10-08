@@ -2824,7 +2824,9 @@ private fun CurrentLyricLine(
                 imageVector = BitChordIcons.ChevronRight,
                 contentDescription = null,
                 tint = Color.White.copy(alpha = 0.5f),
-                modifier = Modifier.size(14.dp),
+                modifier = Modifier
+                    .size(14.dp)
+                    .graphicsLayer { scaleX = -1f },
             )
         }
     }
