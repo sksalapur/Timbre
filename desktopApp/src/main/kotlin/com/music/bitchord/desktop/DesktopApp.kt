@@ -131,6 +131,7 @@ import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Extension
 import androidx.compose.material.icons.rounded.FastForward
 import androidx.compose.material.icons.rounded.FastRewind
+import androidx.compose.material.icons.rounded.Cloud
 import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.Folder
 import androidx.compose.material.icons.rounded.Fullscreen
@@ -285,7 +286,14 @@ import com.music.bitchord.data.model.UiState
 import com.music.bitchord.data.model.UserPlaylist
 import com.music.bitchord.data.model.artworkAt
 import com.music.bitchord.data.model.durationMillis
+import com.music.bitchord.data.model.isMatchMissing
+import com.music.bitchord.data.model.isMatchPending
 import com.music.bitchord.data.model.isSameTrackAs
+import com.music.bitchord.data.model.isUnresolvedSpotify
+import com.music.bitchord.data.spotify.SPOTIFY_PAGE_PREFIX
+import com.music.bitchord.data.spotify.SpotifyLibrary
+import com.music.bitchord.sharedui.resources.Res as SharedRes
+import com.music.bitchord.sharedui.resources.spotify_logo
 import com.music.bitchord.data.model.withoutRepeatsOf
 import com.music.bitchord.data.settings.AutomixPerformanceMode
 import com.music.bitchord.data.settings.LastPlayerScreen
@@ -559,6 +567,8 @@ fun BitChordDesktopApp() {
     val libraryGridState = rememberLazyGridState()
     /** A Library shelf's "Show all", open as a grid in place of the page. */
     var libraryShowAll by remember { mutableStateOf<HomeShelf?>(null) }
+    /** What the Spotify grid is waiting on, or why it is empty; null once its playlists are in. */
+    var spotifyLibraryStatus by remember { mutableStateOf<String?>(null) }
     /** Where the one back button in the top bar goes: every place visited, oldest first. */
     val navHistory = remember { mutableStateListOf<DesktopNavEntry>() }
     /** Set while [goBack] puts a place back, so that move is not itself recorded as a visit. */
@@ -909,10 +919,14 @@ fun BitChordDesktopApp() {
     }
 
     fun playSongs(songs: List<Song>, startIndex: Int = 0, source: DesktopQueueSource? = null) {
-        if (songs.isEmpty()) return
+        // A Spotify playlist's rows still being matched to YouTube Music, or with no match, have
+        // nothing to play: they stay out of the queue, and the pick moves to the next playable row.
+        val resolved = songs.withIndex().filterNot { it.value.isUnresolvedSpotify }
+        if (resolved.isEmpty()) return
         if (partyTrackChangeBlocked()) return
-        val playable = songs.map(::canonicalSong).map { it.withSource(source) }
-        val at = startIndex.coerceIn(playable.indices)
+        val playable = resolved.map { canonicalSong(it.value).withSource(source) }
+        // Past the end still means the last row, as the clamp here always did.
+        val at = resolved.indexOfFirst { it.index >= startIndex }.takeIf { it >= 0 } ?: resolved.lastIndex
         if (DesktopListenTogether.state.value.inParty) {
             liveQueue = DesktopQueue(partyPlaybackQueue(playable[at]), index = 0)
             preShuffleOrder = emptyList()
@@ -1087,7 +1101,9 @@ fun BitChordDesktopApp() {
     // Keyed on the id, so a second page opened before the first answered cancels the first rather
     // than racing it; and a loading page restored by Back fetches again.
     LaunchedEffect(openedCollection?.browseId, openedCollection?.loading, collectionReloads) {
-        val pending = openedCollection?.takeIf { it.loading } ?: return@LaunchedEffect
+        val pending = openedCollection
+            ?.takeIf { it.loading && !it.browseId.startsWith(SPOTIFY_PAGE_PREFIX) }
+            ?: return@LaunchedEffect
         collectionError = null
         DesktopSearchClient.browse(
             browseId = pending.browseId,
@@ -1104,6 +1120,27 @@ fun BitChordDesktopApp() {
             },
             onFailure = { collectionError = it.message ?: "Could not open ${pending.title.ifBlank { "this page" }}" },
         )
+    }
+
+    // A Spotify playlist: its tracks, then each one's YouTube Music match. Keyed like the browse
+    // above, so opening another page cancels it, and Back to a page left half matched (or Retry
+    // on one that failed) reads it again.
+    LaunchedEffect(openedCollection?.browseId, collectionReloads) {
+        val page = openedCollection?.takeIf { it.browseId.startsWith(SPOTIFY_PAGE_PREFIX) }
+            ?: return@LaunchedEffect
+        if (!page.loading && page.songs.none { it.isMatchPending }) return@LaunchedEffect
+        collectionError = null
+        fun update(change: (DesktopCollection) -> DesktopCollection) {
+            openedCollection?.takeIf { it.browseId == page.browseId }?.let { openedCollection = change(it) }
+        }
+        runCatching { loadSpotifyPlaylist(page.browseId.removePrefix(SPOTIFY_PAGE_PREFIX), ::update) }
+            .onFailure { failure ->
+                if (failure is kotlinx.coroutines.CancellationException) throw failure
+                DesktopTrackLog.log("spotify: playlist ${page.title} failed: ${failure.message}")
+                collectionError = failure.message ?: "Could not open ${page.title}"
+                // The error page stands in for the list only while there is no list.
+                update { if (it.songs.isEmpty()) it.copy(loading = true) else it }
+            }
     }
 
     fun openAlbum(browseId: String) = openCollection(browseId)
@@ -1153,7 +1190,7 @@ fun BitChordDesktopApp() {
     fun downloadAll(songs: List<Song>) {
         val have = downloads.map(Song::videoId).toSet()
         DesktopDownloadQueue.enqueueAll(
-            songs.filterNot { it.videoId in have || it.localPath != null },
+            songs.filterNot { it.videoId in have || it.localPath != null || it.isUnresolvedSpotify },
         )
     }
 
@@ -2171,9 +2208,9 @@ fun BitChordDesktopApp() {
         overlays.settingsPage = DesktopSettingsPage.MAIN
     }
 
-    /** The Library's folder rows: the two folders this computer has. */
-    val libraryLinks = remember {
-        listOf(
+    /** The Library's folder rows: the two folders this computer has, and Spotify once connected. */
+    val libraryLinks = remember(spotifyCanvasCookie.isNotBlank()) {
+        listOfNotNull(
             LibraryLink(
                 item = ShelfItem(
                     title = DesktopStrings["downloads", "Downloads"],
@@ -2194,7 +2231,38 @@ fun BitChordDesktopApp() {
                 ),
                 icon = Icons.Rounded.Folder,
             ),
+            // As on the phone, only while signed in to Spotify in Account & integrations.
+            LibraryLink(
+                item = ShelfItem(
+                    title = SPOTIFY_SHELF,
+                    subtitle = DesktopStrings["spotify_library_subtitle", "Your playlists and Liked Songs"],
+                    thumbnailUrl = null,
+                    videoId = null,
+                    browseId = SPOTIFY_LIBRARY_ID,
+                ),
+                icon = Icons.Rounded.Cloud,
+                logo = SharedRes.drawable.spotify_logo,
+            ).takeIf { spotifyCanvasCookie.isNotBlank() },
         )
+    }
+
+    /** The Spotify account's playlists, as a Library grid; Liked Songs first, as on the phone. */
+    fun openSpotifyLibrary() {
+        libraryShowAll = HomeShelf(SPOTIFY_SHELF, emptyList())
+        spotifyLibraryStatus = "Loading your Spotify playlists…"
+        scope.launch {
+            runCatching { SpotifyLibrary.playlists() }
+                .onSuccess { found ->
+                    spotifyLibraryStatus = null
+                    if (libraryShowAll?.title == SPOTIFY_SHELF) {
+                        libraryShowAll = HomeShelf(SPOTIFY_SHELF, found.map { it.toShelfItem() })
+                    }
+                }
+                .onFailure {
+                    DesktopTrackLog.log("spotify: playlists failed: ${it.message}")
+                    spotifyLibraryStatus = "Could not load your Spotify playlists: ${it.message}"
+                }
+        }
     }
 
     /**
@@ -2220,6 +2288,19 @@ fun BitChordDesktopApp() {
         when {
             browseId == LOCAL_DOWNLOADS_ID -> selectDestination(DesktopDestination.DOWNLOADS)
             browseId == LOCAL_MUSIC_ID -> selectDestination(DesktopDestination.LOCAL_MUSIC)
+            browseId == SPOTIFY_LIBRARY_ID -> openSpotifyLibrary()
+            // Spotify's tracks fill in below, as they are read and matched.
+            browseId.startsWith(SPOTIFY_PAGE_PREFIX) -> showCollection(
+                DesktopCollection(
+                    browseId = browseId,
+                    title = item.title,
+                    subtitle = item.subtitle,
+                    thumbnailUrl = item.thumbnailUrl,
+                    type = BrowseType.PLAYLIST,
+                    songs = emptyList(),
+                    loading = true,
+                ),
+            )
             browseId.startsWith(LOCAL_PLAYLIST_PREFIX) ->
                 playlists.firstOrNull { it.id == browseId.removePrefix(LOCAL_PLAYLIST_PREFIX) }?.let(::openPlaylist)
             else -> openShelfItem(item)
@@ -3887,6 +3968,14 @@ fun BitChordDesktopApp() {
                                 Modifier.fillMaxWidth().padding(top = 8.dp, end = 12.dp),
                                 horizontalArrangement = Arrangement.End,
                             ) { DesktopLibrarySortMenu() }
+                            spotifyLibraryStatus?.takeIf { libraryShowAll?.title == SPOTIFY_SHELF }?.let { status ->
+                                Text(
+                                    status,
+                                    color = DesktopSecondary,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    modifier = Modifier.padding(horizontal = PAGE_GUTTER, vertical = 12.dp),
+                                )
+                            }
                             LibraryGridPage(
                                 shelf = libraryShowAll!!,
                                 gridState = libraryGridState,
@@ -6664,23 +6753,32 @@ private fun DesktopCollectionSongRow(
     /** Takes this row out of the playlist being read. */
     onRemove: ((Song) -> Unit)? = null,
 ) {
+    // A Spotify track still being matched to YouTube Music, or with no match: listed, but there is
+    // nothing yet to play, like, save or remove.
+    val unresolved = song.isUnresolvedSpotify
     Row(
         Modifier
             .fillMaxWidth()
+            .alpha(if (song.isMatchMissing) 0.45f else 1f)
             .clip(RoundedCornerShape(6.dp))
             .background(if (striped) Color.White.copy(alpha = 0.04f) else Color.Transparent)
-            .clickable { onClick(song) }
+            .clickable(enabled = !unresolved) { onClick(song) }
             .padding(horizontal = 8.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         val nowPlaying = song.isNowPlaying()
-        Text(
-            number.toString(),
-            Modifier.width(28.dp),
-            color = DesktopSecondary,
-            textAlign = TextAlign.Center,
-            style = MaterialTheme.typography.labelSmall,
-        )
+        Box(Modifier.width(28.dp), contentAlignment = Alignment.Center) {
+            if (song.isMatchPending) {
+                CircularProgressIndicator(color = DesktopSecondary, strokeWidth = 1.5.dp, modifier = Modifier.size(12.dp))
+            } else {
+                Text(
+                    number.toString(),
+                    color = DesktopSecondary,
+                    textAlign = TextAlign.Center,
+                    style = MaterialTheme.typography.labelSmall,
+                )
+            }
+        }
         Spacer(Modifier.width(12.dp))
         // No sleeve on an album's rows.
         if (collectionType != BrowseType.ALBUM) {
@@ -6723,6 +6821,7 @@ private fun DesktopCollectionSongRow(
             Modifier.width(collectionActionsWidth(onRemove != null)),
             horizontalArrangement = Arrangement.End,
         ) {
+            if (unresolved) return@Row
             onRemove?.let { remove ->
                 IconButton(onClick = { remove(song) }, modifier = Modifier.size(34.dp)) {
                     Icon(
