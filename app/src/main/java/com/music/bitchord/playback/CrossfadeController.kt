@@ -1198,8 +1198,15 @@ class CrossfadeController(
         outgoing = out
         incoming = into
 
+        val t0 = SystemClock.elapsedRealtimeNanos()
         val items = (0 until out.mediaItemCount).map { out.getMediaItemAt(it) }
+        val copyDurationUs = (SystemClock.elapsedRealtimeNanos() - t0) / 1000L
         queuedItemCount = items.size
+        val perTrackUs = if (items.isNotEmpty()) copyDurationUs.toDouble() / items.size else 0.0
+        Log.i(
+            TAG,
+            "begin() queue copy: ${items.size} tracks in ${copyDurationUs}µs (${String.format(java.util.Locale.US, "%.2f", perTrackUs)}µs/track)",
+        )
 
         Log.d(
             TAG,
@@ -1223,7 +1230,10 @@ class CrossfadeController(
         // fight each other. Undone in [finish].
         into.setPlaybackSpeed((AppSettings.playbackSpeed.value * incomingPlaybackRate).toFloat())
         into.volume = 0f
+        val setNanos0 = SystemClock.elapsedRealtimeNanos()
         into.setMediaItems(items, nextIndex, incomingCueTimeMs)
+        val setDurationUs = (SystemClock.elapsedRealtimeNanos() - setNanos0) / 1000L
+        Log.i(TAG, "standby setMediaItems: ${items.size} tracks in ${setDurationUs}µs")
         // Before `prepare`, so the standby's per-player audio state is right
         // for the incoming track from its very first decoded frame rather than
         // from the handoff, which is half a blend too late.
