@@ -569,6 +569,7 @@ fun BitChordDesktopApp() {
     var libraryShowAll by remember { mutableStateOf<HomeShelf?>(null) }
     /** What the Spotify grid is waiting on, or why it is empty; null once its playlists are in. */
     var spotifyLibraryStatus by remember { mutableStateOf<String?>(null) }
+    var spotifyImportOpen by remember { mutableStateOf(false) }
     /** Where the one back button in the top bar goes: every place visited, oldest first. */
     val navHistory = remember { mutableStateListOf<DesktopNavEntry>() }
     /** Set while [goBack] puts a place back, so that move is not itself recorded as a visit. */
@@ -1474,6 +1475,47 @@ fun BitChordDesktopApp() {
                 songs = playlist.songs,
             ),
         )
+    }
+
+    /**
+     * Keeps an imported Spotify playlist where the phone does: on the account when signed in,
+     * otherwise on this computer, which is also the fallback if the account refuses it. Returns a
+     * note only for that fallback.
+     */
+    suspend fun importSpotifyPlaylist(title: String, songs: List<Song>): String? {
+        val signedIn = DesktopYouTubeAuth.isSignedIn
+        if (signedIn) {
+            val created = DesktopSearchClient.createPlaylist(title, PlaylistPrivacy.PRIVATE, songs.map(Song::videoId))
+            created.getOrNull()?.let { playlistId ->
+                editPlaylistShelf { items ->
+                    val card = ShelfItem(
+                        title = title,
+                        subtitle = "${songs.size} songs",
+                        thumbnailUrl = songs.firstOrNull()?.thumbnailUrl,
+                        videoId = null,
+                        browseId = "VL$playlistId",
+                    )
+                    listOf(card) + items.filterNot { it.browseId == card.browseId }
+                }
+                libraryStale = true
+                openCollection("VL$playlistId")
+                return null
+            }
+            DesktopTrackLog.log("spotify import: account playlist failed: ${created.exceptionOrNull()?.message}")
+        }
+        val playlist = DesktopPlaylist(title = title, songs = songs)
+        playlists = playlists + playlist
+        persistence.savePlaylists(playlists)
+        openPlaylist(playlist)
+        return if (signedIn) {
+            DesktopStrings.format(
+                "spotify_import_local_fallback",
+                title,
+                fallback = "Couldn't create it on YouTube Music, so '%1\$s' was saved on this device instead.",
+            )
+        } else {
+            null
+        }
     }
 
     fun addToPlaylist(playlist: DesktopPlaylist) {
@@ -3341,6 +3383,14 @@ fun BitChordDesktopApp() {
                         )
                     }
 
+                    if (spotifyImportOpen) {
+                        DesktopSpotifyImportDialog(
+                            signedIn = youtubeSignedIn,
+                            onImported = ::importSpotifyPlaylist,
+                            onDismiss = { spotifyImportOpen = false },
+                        )
+                    }
+
                     if (overlays.signIn) {
                         DesktopSignInDialog(
                             busy = signInBusy,
@@ -3994,6 +4044,7 @@ fun BitChordDesktopApp() {
                             onShelfItemClick = ::openLibraryItem,
                             onShelfItemLongPress = { item -> if (item.videoId != null) openMenu(item.toSong()) },
                             onNewPlaylist = { overlays.playlistDialog = true },
+                            onImportSpotifyPlaylist = { spotifyImportOpen = true },
                             onShowAll = { shelf -> libraryShowAll = shelf },
                             replay = {
                                 // The phone's wallet of Replay cards, or nothing until there is
