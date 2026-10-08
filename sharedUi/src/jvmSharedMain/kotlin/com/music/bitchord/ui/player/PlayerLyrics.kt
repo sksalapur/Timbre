@@ -565,8 +565,8 @@ internal fun CurrentLyricStrip(
     // strip level.  This lets us override the parent Column's forced
     // CenterHorizontally alignment and flush RTL lines to the right edge.
     val isSynced = remember(lines) { lines.any { it.timeMs > 0L } }
-    var stripRtl = false
-    var activeText = ""
+    var stripRtl by remember { mutableStateOf(false) }
+    var activeText by remember { mutableStateOf("") }
     if (isSynced) {
         val clock = rememberLyricClock(trackKey, playhead, isPlaying)
         val index by remember(lines) {
@@ -586,43 +586,45 @@ internal fun CurrentLyricStrip(
         stripRtl = isRtl(activeText)
     }
 
-    val align: Alignment = if (stripRtl) Alignment.CenterEnd else Alignment.Center
+    val align: Alignment = if (stripRtl) Alignment.CenterStart else Alignment.Center
 
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            // The slider's touch target reaches ~13dp above the drawn bar, so
-            // the strip reads as further off it than it is. Nudged down into
-            // that dead space, the same way the timestamps below are pulled
-            // back up into it.
-            .offset(y = 6.dp),
-    ) {
-        if (lines.isNotEmpty()) {
-            CurrentLyricLine(
-                lines = lines,
-                trackKey = trackKey,
-                playhead = playhead,
-                isPlaying = isPlaying,
-                durationMs = durationMs,
-                onClick = onClick,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .align(align),
-            )
-        } else if (lyricsUnavailable) {
-            LyricsUnavailableLine(
-                trackKey = trackKey,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .align(align),
-            )
-        } else {
-            LyricsLoadingLine(
-                text = loadingText,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .align(align),
-            )
+    CompositionLocalProvider(LocalLayoutDirection provides if (stripRtl) LayoutDirection.Rtl else LayoutDirection.Ltr) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                // The slider's touch target reaches ~13dp above the drawn bar, so
+                // the strip reads as further off it than it is. Nudged down into
+                // that dead space, the same way the timestamps below are pulled
+                // back up into it.
+                .offset(y = 6.dp),
+        ) {
+            if (lines.isNotEmpty()) {
+                CurrentLyricLine(
+                    lines = lines,
+                    trackKey = trackKey,
+                    playhead = playhead,
+                    isPlaying = isPlaying,
+                    durationMs = durationMs,
+                    onClick = onClick,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .align(align),
+                )
+            } else if (lyricsUnavailable) {
+                LyricsUnavailableLine(
+                    trackKey = trackKey,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .align(align),
+                )
+            } else {
+                LyricsLoadingLine(
+                    text = loadingText,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .align(align),
+                )
+            }
         }
     }
 }
@@ -2748,89 +2750,88 @@ private fun CurrentLyricLine(
     // produce for that paragraph.  LTR rows keep the chevron on the right; RTL
     // rows put it on the left (mirrored) and right-align the text.
     val stripRtl = isRtl(text)
-    CompositionLocalProvider(LocalLayoutDirection provides if (stripRtl) LayoutDirection.Rtl else LayoutDirection.Ltr) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = if (stripRtl) Arrangement.End else Arrangement.Start,
-            modifier = modifier
-                .clip(RoundedCornerShape(8.dp))
-                .clickable(onClick = onClick)
-                .padding(vertical = 4.dp),
-        ) {
-            // For RTL the chevron goes first (on the left); for LTR it goes last.
-            if (stripRtl) {
-                Spacer(Modifier.width(6.dp))
-                Icon(
-                    imageVector = BitChordIcons.ChevronRight,
-                    contentDescription = null,
-                    tint = Color.White.copy(alpha = 0.5f),
-                    modifier = Modifier
-                        .size(14.dp)
-                        .graphicsLayer { rotationZ = 180f },
-                )
-            }
 
-            AnimatedContent(
-                targetState = Triple(index, current, text),
-                transitionSpec = {
-                    val duration = if (reduceAnimation) 0 else 340
-                    if (reduceAnimation) {
-                        (fadeIn(snap()) togetherWith fadeOut(snap())).using(
-                            SizeTransform(clip = false, sizeAnimationSpec = { _, _ -> snap() })
-                        )
-                    } else {
-                        (fadeIn(animationSpec = tween(duration, easing = FastOutSlowInEasing)) +
-                            slideInVertically(animationSpec = tween(duration, easing = FastOutSlowInEasing)) { height -> (height * 0.35f).toInt() })
-                            .togetherWith(
-                                fadeOut(animationSpec = tween(duration, easing = FastOutSlowInEasing)) +
-                                    slideOutVertically(animationSpec = tween(duration, easing = FastOutSlowInEasing)) { height -> -(height * 0.35f).toInt() }
-                            ).using(
-                                SizeTransform(clip = false, sizeAnimationSpec = { _, _ -> tween(duration, easing = FastOutSlowInEasing) })
-                            )
-                    }
-                },
-                label = "currentLyricTransition",
-                modifier = Modifier.weight(1f, fill = false),
-            ) { (_, lineItem, lineText) ->
-                val itemInstrumental = lineItem == null || lineItem.isGap
-                val swept = lineItem?.takeIf { !itemInstrumental && it.isWordSynced }
-                if (swept != null) {
-                    SweptLyricLine(
-                        line = swept,
-                        clock = clock,
-                        style = voiceStyle(MaterialTheme.typography.titleMedium, text, alignEnd = false, laneLocked = false),
-                        dimAlpha = UNSUNG_ALPHA_STRIP,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        rise = false,
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = if (stripRtl) Arrangement.End else Arrangement.Start,
+        modifier = modifier
+            .clip(RoundedCornerShape(8.dp))
+            .clickable(onClick = onClick)
+            .padding(vertical = 4.dp),
+    ) {
+        // For RTL the chevron goes first (on the left); for LTR it goes last.
+        if (stripRtl) {
+            Spacer(Modifier.width(6.dp))
+            Icon(
+                imageVector = BitChordIcons.ChevronRight,
+                contentDescription = null,
+                tint = Color.White.copy(alpha = 0.5f),
+                modifier = Modifier
+                    .size(14.dp)
+                    .graphicsLayer { rotationZ = 180f },
+            )
+        }
+
+        AnimatedContent(
+            targetState = Triple(index, current, text),
+            transitionSpec = {
+                val duration = if (reduceAnimation) 0 else 340
+                if (reduceAnimation) {
+                    (fadeIn(snap()) togetherWith fadeOut(snap())).using(
+                        SizeTransform(clip = false, sizeAnimationSpec = { _, _ -> snap() })
                     )
                 } else {
-                    Text(
-                        text = lineText,
-                        style = voiceStyle(
-                            MaterialTheme.typography.titleMedium.copy(
-                                color = if (itemInstrumental) Color.White.copy(alpha = 0.5f) else Color.White
-                            ),
-                            lineText,
-                            alignEnd = false,
-                            laneLocked = false,
-                        ),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
+                    (fadeIn(animationSpec = tween(duration, easing = FastOutSlowInEasing)) +
+                        slideInVertically(animationSpec = tween(duration, easing = FastOutSlowInEasing)) { height -> (height * 0.35f).toInt() })
+                        .togetherWith(
+                            fadeOut(animationSpec = tween(duration, easing = FastOutSlowInEasing)) +
+                                slideOutVertically(animationSpec = tween(duration, easing = FastOutSlowInEasing)) { height -> -(height * 0.35f).toInt() }
+                        ).using(
+                            SizeTransform(clip = false, sizeAnimationSpec = { _, _ -> tween(duration, easing = FastOutSlowInEasing) })
+                        )
                 }
-            }
-
-            if (!stripRtl) {
-                Spacer(Modifier.width(6.dp))
-                // Disclosure hint: this strip opens the full lyrics screen.
-                Icon(
-                    imageVector = BitChordIcons.ChevronRight,
-                    contentDescription = null,
-                    tint = Color.White.copy(alpha = 0.5f),
-                    modifier = Modifier.size(14.dp),
+            },
+            label = "currentLyricTransition",
+            modifier = Modifier.weight(1f, fill = false),
+        ) { (_, lineItem, lineText) ->
+            val itemInstrumental = lineItem == null || lineItem.isGap
+            val swept = lineItem?.takeIf { !itemInstrumental && it.isWordSynced }
+            if (swept != null) {
+                SweptLyricLine(
+                    line = swept,
+                    clock = clock,
+                    style = voiceStyle(MaterialTheme.typography.titleMedium, text, alignEnd = false, laneLocked = false),
+                    dimAlpha = UNSUNG_ALPHA_STRIP,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    rise = false,
+                )
+            } else {
+                Text(
+                    text = lineText,
+                    style = voiceStyle(
+                        MaterialTheme.typography.titleMedium.copy(
+                            color = if (itemInstrumental) Color.White.copy(alpha = 0.5f) else Color.White
+                        ),
+                        lineText,
+                        alignEnd = false,
+                        laneLocked = false,
+                    ),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
             }
+        }
+
+        if (!stripRtl) {
+            Spacer(Modifier.width(6.dp))
+            // Disclosure hint: this strip opens the full lyrics screen.
+            Icon(
+                imageVector = BitChordIcons.ChevronRight,
+                contentDescription = null,
+                tint = Color.White.copy(alpha = 0.5f),
+                modifier = Modifier.size(14.dp),
+            )
         }
     }
 }
