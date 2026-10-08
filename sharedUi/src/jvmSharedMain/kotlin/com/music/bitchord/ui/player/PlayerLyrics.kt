@@ -586,7 +586,7 @@ internal fun CurrentLyricStrip(
         stripRtl = isRtl(activeText)
     }
 
-    val align: Alignment = if (stripRtl) Alignment.CenterStart else Alignment.Center
+    val align: Alignment = if (stripRtl) Alignment.CenterStart else Alignment.CenterStart
 
     CompositionLocalProvider(LocalLayoutDirection provides if (stripRtl) LayoutDirection.Rtl else LayoutDirection.Ltr) {
         Box(
@@ -2767,7 +2767,7 @@ private fun CurrentLyricLine(
                 tint = Color.White.copy(alpha = 0.5f),
                 modifier = Modifier
                     .size(14.dp)
-                    .graphicsLayer { rotationZ = 180f },
+                    .graphicsLayer { scaleX = -1f },
             )
         }
 
