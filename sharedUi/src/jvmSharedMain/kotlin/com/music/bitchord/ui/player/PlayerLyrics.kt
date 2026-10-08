@@ -2758,60 +2758,8 @@ private fun CurrentLyricLine(
             .clickable(onClick = onClick)
             .padding(vertical = 4.dp),
     ) {
-        // RTL: place text first (anchored to the right edge), chevron second
-        // (to the left of the text).  In an RTL Row, Child 1 = far-right edge.
+        // For RTL the chevron goes first (on the left); for LTR it goes last.
         if (stripRtl) {
-            AnimatedContent(
-                targetState = Triple(index, current, text),
-                transitionSpec = {
-                    val duration = if (reduceAnimation) 0 else 340
-                    if (reduceAnimation) {
-                        (fadeIn(snap()) togetherWith fadeOut(snap())).using(
-                            SizeTransform(clip = false, sizeAnimationSpec = { _, _ -> snap() })
-                        )
-                    } else {
-                        (fadeIn(animationSpec = tween(duration, easing = FastOutSlowInEasing)) +
-                            slideInVertically(animationSpec = tween(duration, easing = FastOutSlowInEasing)) { height -> (height * 0.35f).toInt() })
-                            .togetherWith(
-                                fadeOut(animationSpec = tween(duration, easing = FastOutSlowInEasing)) +
-                                    slideOutVertically(animationSpec = tween(duration, easing = FastOutSlowInEasing)) { height -> -(height * 0.35f).toInt() }
-                            ).using(
-                                SizeTransform(clip = false, sizeAnimationSpec = { _, _ -> tween(duration, easing = FastOutSlowInEasing) })
-                            )
-                    }
-                },
-                label = "currentLyricTransition",
-                modifier = Modifier.weight(1f, fill = false),
-            ) { (_, lineItem, lineText) ->
-                val itemInstrumental = lineItem == null || lineItem.isGap
-                val swept = lineItem?.takeIf { !itemInstrumental && it.isWordSynced }
-                if (swept != null) {
-                    SweptLyricLine(
-                        line = swept,
-                        clock = clock,
-                        style = voiceStyle(MaterialTheme.typography.titleMedium, text, alignEnd = false, laneLocked = false),
-                        dimAlpha = UNSUNG_ALPHA_STRIP,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        rise = false,
-                    )
-                } else {
-                    Text(
-                        text = lineText,
-                        style = voiceStyle(
-                            MaterialTheme.typography.titleMedium.copy(
-                                color = if (itemInstrumental) Color.White.copy(alpha = 0.5f) else Color.White
-                            ),
-                            lineText,
-                            alignEnd = false,
-                            laneLocked = false,
-                        ),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-            }
-
             Spacer(Modifier.width(6.dp))
             Icon(
                 imageVector = BitChordIcons.ChevronRight,
@@ -2821,8 +2769,9 @@ private fun CurrentLyricLine(
                     .size(14.dp)
                     .graphicsLayer { scaleX = -1f },
             )
-        } else {
-            AnimatedContent(
+        }
+
+        AnimatedContent(
             targetState = Triple(index, current, text),
             transitionSpec = {
                 val duration = if (reduceAnimation) 0 else 340
