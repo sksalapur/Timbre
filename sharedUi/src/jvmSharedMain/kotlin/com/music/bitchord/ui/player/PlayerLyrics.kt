@@ -2758,19 +2758,6 @@ private fun CurrentLyricLine(
             .clickable(onClick = onClick)
             .padding(vertical = 4.dp),
     ) {
-        // For RTL the chevron goes first (on the left); for LTR it goes last.
-        if (stripRtl) {
-            Spacer(Modifier.width(6.dp))
-            Icon(
-                imageVector = BitChordIcons.ChevronRight,
-                contentDescription = null,
-                tint = Color.White.copy(alpha = 0.5f),
-                modifier = Modifier
-                    .size(14.dp)
-                    .graphicsLayer { scaleX = -1f },
-            )
-        }
-
         AnimatedContent(
             targetState = Triple(index, current, text),
             transitionSpec = {
@@ -2825,6 +2812,14 @@ private fun CurrentLyricLine(
         if (!stripRtl) {
             Spacer(Modifier.width(6.dp))
             // Disclosure hint: this strip opens the full lyrics screen.
+            Icon(
+                imageVector = BitChordIcons.ChevronRight,
+                contentDescription = null,
+                tint = Color.White.copy(alpha = 0.5f),
+                modifier = Modifier.size(14.dp),
+            )
+        } else {
+            Spacer(Modifier.width(6.dp))
             Icon(
                 imageVector = BitChordIcons.ChevronRight,
                 contentDescription = null,
