@@ -11,6 +11,7 @@ import com.music.bitchord.playback.queueEntryId
 import com.music.bitchord.playback.queueTier
 import com.music.bitchord.playback.toMediaItem
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
@@ -40,6 +41,7 @@ class QueueShuffleTierTest {
         var currentPosition: Long = 0L,
     ) {
         var setMediaItemsCalled: Boolean = false
+        val replaceCalls = mutableListOf<Triple<Int, Int, List<MediaItem>>>()
 
         val player: Player = java.lang.reflect.Proxy.newProxyInstance(
             Player::class.java.classLoader,
@@ -59,6 +61,7 @@ class QueueShuffleTierTest {
                     val to = args[1] as Int
                     @Suppress("UNCHECKED_CAST")
                     val newItems = args[2] as List<MediaItem>
+                    replaceCalls.add(Triple(from, to, newItems))
                     for (i in (to - 1) downTo from) {
                         items.removeAt(i)
                     }
@@ -121,7 +124,7 @@ class QueueShuffleTierTest {
         field.set(com.music.bitchord.data.settings.AppSettings, prefs)
 
         QueueShuffle.setEnabled(false)
-        QueueShuffle.canonicalContext = emptyList()
+        QueueShuffle.clearCanonicalContext()
     }
 
     @Test
@@ -495,7 +498,7 @@ class QueueShuffleTierTest {
         // Set up player as if playSongs loaded this queue
         val items = startingOrder.mapIndexed { idx, s ->
             val originalCanonicalIndex = songs.indexOfFirst { it.videoId == s.videoId }
-            QueueShuffle.withQueueMetadata(s.toMediaItem(), newEntryId = "live-$idx", newCanonicalIndex = originalCanonicalIndex)
+            QueueShuffle.withQueueMetadata(s.toMediaItem(), newEntryId = s.queueEntryId, newCanonicalIndex = originalCanonicalIndex)
         }.toMutableList()
 
         val state = MockPlayerState(items, currentIndex = 0) // playing track-3 (canonicalIndex 2)
@@ -858,6 +861,89 @@ class QueueShuffleTierTest {
         println("BENCHMARK_RESULT: Current 1000 tracks (shuffle: ${shuffleDurationMs} ms, restore: ${restoreDurationMs} ms) vs Baseline 83fa092 restore resolution: ${baselineDurationMs} ms")
         assertTrue("Shuffle should complete in < 50ms", shuffleDurationMs < 50.0)
         assertTrue("Restore should complete in < 50ms", restoreDurationMs < 50.0)
+    }
+
+    @Test
+    fun `stale canonicalContext from album A is discarded when playing different queue with overlapping song`() {
+        // 1. User played Album A with 4 tracks
+        val albumASongs = (0..3).map { testSong("albumA-$it", QueueTier.CONTEXT, "id-A-$it") }
+        val albumAItems = albumASongs.mapIndexed { idx, s ->
+            QueueShuffle.withQueueMetadata(s.toMediaItem(), newEntryId = s.queueEntryId, newCanonicalIndex = idx)
+        }
+        QueueShuffle.setCanonicalContext(albumAItems)
+
+        // 2. Later, user plays a Radio queue (via a non-playSongs path)
+        // containing an overlapping song from Album A (track albumA-2), but with a new radio queueEntryId
+        val radioSongs = listOf(
+            testSong("radio-0", QueueTier.CONTEXT, "id-R-0"),
+            testSong("albumA-2", QueueTier.CONTEXT, "id-R-overlap"), // Overlapping mediaId, different entryId!
+            testSong("radio-2", QueueTier.CONTEXT, "id-R-2"),
+            testSong("radio-3", QueueTier.CONTEXT, "id-R-3"),
+        )
+        val radioItems = radioSongs.map { it.toMediaItem() }.toMutableList()
+        val state = MockPlayerState(radioItems, currentIndex = 1) // currently playing overlapping song
+        QueueShuffle.setEnabled(false)
+
+        // 3. Toggle Shuffle ON
+        QueueShuffle.toggle(state.player)
+        assertEquals(true, QueueShuffle.enabled.value)
+
+        // 4. Toggle Shuffle OFF (restore)
+        QueueShuffle.toggle(state.player)
+        assertEquals(false, QueueShuffle.enabled.value)
+
+        // Assert: NO Album A tracks other than the radio queue's own items appear in the queue!
+        val currentMediaIds = state.items.map { it.mediaId }
+        val expectedMediaIds = radioSongs.map { it.videoId }
+        assertEquals(expectedMediaIds, currentMediaIds)
+
+        // Specifically assert Album A tracks albumA-0, albumA-1, albumA-3 were NOT spliced in!
+        assertFalse(currentMediaIds.contains("albumA-0"))
+        assertFalse(currentMediaIds.contains("albumA-1"))
+        assertFalse(currentMediaIds.contains("albumA-3"))
+    }
+
+    @Test
+    fun `replaceChanged preserves unchanged prefix and suffix without replacing next preloaded item`() {
+        val uq1 = testSong("uq-1", QueueTier.USER_QUEUE, "id-uq-1").toMediaItem()
+        val uq2 = testSong("uq-2", QueueTier.USER_QUEUE, "id-uq-2").toMediaItem()
+        val c1 = testSong("c-1", QueueTier.CONTEXT, "id-c-1").toMediaItem()
+        val c2 = testSong("c-2", QueueTier.CONTEXT, "id-c-2").toMediaItem()
+        val auto1 = testSong("auto-1", QueueTier.AUTOPLAY, "id-auto-1").toMediaItem()
+
+        // Timeline has: current track at 0, followed by uq1, uq2, c1, c2, auto1
+        val curTrack = testSong("cur", QueueTier.CONTEXT, "id-cur").toMediaItem()
+        val items = mutableListOf(curTrack, uq1, uq2, c1, c2, auto1)
+        val state = MockPlayerState(items, currentIndex = 0)
+
+        // Upcoming is indices 1..5: [uq1, uq2, c1, c2, auto1]
+        // Target reorder only shuffles c1 and c2: [uq1, uq2, c2, c1, auto1]
+        val target = listOf(uq1, uq2, c2, c1, auto1)
+
+        val replaced = QueueShuffle.replaceChanged(state.player, from = 1, to = 6, new = target)
+        assertTrue(replaced)
+
+        // Assert that replaceMediaItems was called ONLY for the changed middle slice!
+        // Prefix [uq1, uq2] (indices 1 and 2) was skipped (from + 2 = 3)
+        // Suffix [auto1] (index 5) was skipped (to - 1 = 5)
+        assertEquals(1, state.replaceCalls.size)
+        val call = state.replaceCalls.first()
+        assertEquals(3, call.first)  // fromIndex = 3
+        assertEquals(5, call.second) // toIndex = 5
+        assertEquals(listOf("c-2", "c-1"), call.third.map { it.mediaId })
+
+        // Preloaded next items (uq1 at index 1, uq2 at index 2) are completely untouched!
+        assertEquals("uq-1", state.items[1].mediaId)
+        assertEquals("uq-2", state.items[2].mediaId)
+        assertEquals("c-2", state.items[3].mediaId)
+        assertEquals("c-1", state.items[4].mediaId)
+        assertEquals("auto-1", state.items[5].mediaId)
+
+        // Calling replaceChanged with identical list does NOT call replaceMediaItems
+        state.replaceCalls.clear()
+        val noOp = QueueShuffle.replaceChanged(state.player, from = 1, to = 6, new = target)
+        assertFalse(noOp)
+        assertEquals(0, state.replaceCalls.size)
     }
 }
 
