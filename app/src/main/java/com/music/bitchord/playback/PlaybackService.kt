@@ -232,6 +232,10 @@ const val ACTION_REORDER_QUEUE = "com.music.bitchord.action.REORDER_QUEUE"
 /** Where the rearrangement starts, and where each slot's new occupant stands now. */
 const val EXTRA_REORDER_FROM = "bitchord.reorder.from"
 const val EXTRA_REORDER_ORDER = "bitchord.reorder.order"
+const val EXTRA_EXPECTED_CURRENT_ENTRY_ID = "bitchord.reorder.expectedCurrentEntryId"
+const val EXTRA_EXPECTED_UPCOMING_HASH = "bitchord.reorder.expectedUpcomingHash"
+const val EXTRA_NEW_CURRENT_INDEX = "bitchord.reorder.newCurrentIndex"
+const val EXTRA_CURRENT_POSITION = "bitchord.reorder.currentPosition"
 
 /**
  * Session command marking the span of a queue drag in the UI — see
@@ -7251,7 +7255,14 @@ class PlaybackService : MediaLibraryService() {
                         smoothSwapCurrentTrackVersion(targetSong.toMediaItem())
                     }
                 }
-                ACTION_REORDER_QUEUE -> player?.let { QueueShuffle.reorderFromCommand(it, args) }
+                ACTION_REORDER_QUEUE -> {
+                    val ok = player?.let { QueueShuffle.reorderFromCommand(it, args) } ?: false
+                    if (!ok) {
+                        return Futures.immediateFuture(
+                            SessionResult(SessionResult.RESULT_ERROR_BAD_VALUE),
+                        )
+                    }
+                }
                 ACTION_QUEUE_DRAG -> {
                     if (args.getBoolean(EXTRA_QUEUE_DRAG_ACTIVE, false)) {
                         partySync?.beginQueueDrag()

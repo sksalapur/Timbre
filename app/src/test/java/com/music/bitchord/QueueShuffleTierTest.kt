@@ -5,9 +5,14 @@ import androidx.media3.common.Player
 import com.music.bitchord.data.model.PlaybackSourceType
 import com.music.bitchord.data.model.QueueTier
 import com.music.bitchord.data.model.Song
+import com.music.bitchord.playback.EXTRA_EXPECTED_CURRENT_ENTRY_ID
+import com.music.bitchord.playback.EXTRA_EXPECTED_UPCOMING_HASH
+import com.music.bitchord.playback.EXTRA_REORDER_FROM
+import com.music.bitchord.playback.EXTRA_REORDER_ORDER
 import com.music.bitchord.playback.QueueShuffle
 import com.music.bitchord.playback.canonicalIndex
 import com.music.bitchord.playback.queueEntryId
+import com.music.bitchord.playback.queueTier
 import com.music.bitchord.playback.toMediaItem
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
@@ -544,6 +549,163 @@ class QueueShuffleTierTest {
         assertEquals("track-3", state.items[2].mediaId)
         assertEquals(listOf("track-1", "track-2"), state.items.take(2).map { it.mediaId })
         assertEquals(listOf("track-4", "track-5"), state.items.drop(3).map { it.mediaId })
+    }
+
+    @Test
+    fun `user-queued duplicate of album song restores context continuing from last played context track`() {
+        // Album has 25 tracks: track-0 to track-24
+        val albumSongs = (0..24).map { testSong("track-$it", QueueTier.CONTEXT, "id-$it") }
+        val canonicalItems = albumSongs.mapIndexed { idx, s ->
+            QueueShuffle.withQueueMetadata(s.toMediaItem(), newEntryId = s.queueEntryId, newCanonicalIndex = idx)
+        }
+        QueueShuffle.setCanonicalContext(canonicalItems)
+
+        // Context playback was at #5 (history has track-0..5)
+        val historyContext = canonicalItems.take(6)
+
+        // Current item is a user-queued copy of album track #20
+        val userQueuedItem = QueueShuffle.withQueueMetadata(
+            testSong("track-20", QueueTier.USER_QUEUE, "user-entry-track-20").toMediaItem(),
+            newEntryId = "user-entry-track-20",
+            newCanonicalIndex = null,
+            newTier = QueueTier.USER_QUEUE,
+        )
+
+        // Upcoming has remaining context tracks (tracks 6..24, including album's track #20)
+        val upcomingContext = canonicalItems.drop(6)
+
+        // Player items: history (0..5) + userQueuedItem (at index 6) + upcomingContext (tracks 6..24)
+        val playerList = (historyContext + listOf(userQueuedItem) + upcomingContext).toMutableList()
+        val state = MockPlayerState(playerList, currentIndex = 6)
+        QueueShuffle.setEnabled(true)
+
+        // Turn Shuffle OFF
+        QueueShuffle.toggle(state.player)
+        assertEquals(false, QueueShuffle.enabled.value)
+
+        // Current track remains user-queued track-20 at index 6
+        assertEquals(6, state.currentIndex)
+        val current = state.items[state.currentIndex]
+        assertEquals("track-20", current.mediaId)
+        assertEquals(QueueTier.USER_QUEUE, current.queueTier)
+        assertEquals("user-entry-track-20", current.queueEntryId)
+
+        // History contains all 6 context tracks played up to #5
+        assertEquals(6, state.items.take(6).size)
+        assertEquals((0..5).map { "track-$it" }, state.items.take(6).map { it.mediaId })
+        assertEquals((0..5).toList(), state.items.take(6).map { it.canonicalIndex })
+
+        // Upcoming continues from track-6 onwards!
+        val upcoming = state.items.drop(7)
+        assertEquals("track-6", upcoming.first().mediaId)
+        assertEquals(6, upcoming.first().canonicalIndex)
+        assertEquals(QueueTier.CONTEXT, upcoming.first().queueTier)
+
+        // Album's own copy of track-20 is preserved in upcoming as CONTEXT
+        val albumCopy20 = upcoming.first { it.canonicalIndex == 20 }
+        assertEquals("track-20", albumCopy20.mediaId)
+        assertEquals("id-20", albumCopy20.queueEntryId)
+        assertEquals(QueueTier.CONTEXT, albumCopy20.queueTier)
+
+        // Total items = 6 history + 1 current + 19 upcoming = 26 items
+        assertEquals(26, state.items.size)
+    }
+
+    @Test
+    fun `double tap while command in flight is dropped and inFlight resets properly`() {
+        val songs = (1..5).map { testSong("track-$it", QueueTier.CONTEXT, "id-$it") }
+        val items = songs.mapIndexed { idx, s ->
+            QueueShuffle.withQueueMetadata(s.toMediaItem(), newEntryId = s.queueEntryId, newCanonicalIndex = idx)
+        }.toMutableList()
+        val state = MockPlayerState(items, currentIndex = 0)
+        QueueShuffle.setEnabled(false)
+
+        // Simulate an in-flight command
+        QueueShuffle.inFlight.set(true)
+
+        // A second toggle tap while inFlight is true must return immediately without altering state
+        QueueShuffle.toggle(state.player)
+        assertEquals(false, QueueShuffle.enabled.value)
+        assertEquals(true, QueueShuffle.inFlight.get())
+
+        // Once inFlight is cleared, toggle works normally
+        QueueShuffle.inFlight.set(false)
+        QueueShuffle.toggle(state.player)
+        assertEquals(true, QueueShuffle.enabled.value)
+        assertEquals(false, QueueShuffle.inFlight.get())
+    }
+
+    @Test
+    fun `size mismatch in reorder returns false and leaves flags unchanged`() {
+        val songs = (1..3).map { testSong("track-$it", QueueTier.CONTEXT, "id-$it") }
+        val items = songs.map { it.toMediaItem() }.toMutableList()
+        val state = MockPlayerState(items, currentIndex = 0)
+        QueueShuffle.setEnabled(false)
+
+        // Empty order returns false
+        val emptyResult = QueueShuffle.reorder(state.player, from = 1, order = intArrayOf())
+        assertEquals(false, emptyResult)
+
+        // Out of bounds order returns false
+        val overflowResult = QueueShuffle.reorder(state.player, from = 1, order = IntArray(10) { it })
+        assertEquals(false, overflowResult)
+
+        // reorderFromCommand with mismatched size returns false
+        val commandResult = QueueShuffle.reorderFromCommand(
+            player = state.player,
+            from = 1,
+            order = IntArray(50) { it },
+        )
+        assertEquals(false, commandResult)
+
+        // Shuffle flags remain unchanged
+        assertEquals(false, QueueShuffle.enabled.value)
+    }
+
+    @Test
+    fun `reorderFromCommand upcoming hash matches when tail grows from autoplay`() {
+        val songs = (0..3).map { testSong("track-$it", QueueTier.CONTEXT, "id-$it") }
+        val items = songs.map { it.toMediaItem() }.toMutableList()
+        val state = MockPlayerState(items, currentIndex = 0)
+
+        // Snapshot had 3 upcoming items (indices 1..3)
+        val upcoming = items.drop(1)
+        var expectedHash = 1
+        for (item in upcoming) {
+            val id = item.queueEntryId ?: item.mediaId
+            expectedHash = 31 * expectedHash + id.hashCode()
+        }
+
+        // Autoplay appends 2 new items to the tail before the command executes
+        val auto1 = testSong("auto-1", QueueTier.AUTOPLAY, "id-auto-1").toMediaItem()
+        val auto2 = testSong("auto-2", QueueTier.AUTOPLAY, "id-auto-2").toMediaItem()
+        state.items.add(auto1)
+        state.items.add(auto2)
+        assertEquals(6, state.items.size)
+
+        // Command was prepared for the original 3 upcoming items with permutation [2, 0, 1]
+        val order = intArrayOf(2, 0, 1)
+
+        // Hash matches the first order.size upcoming items, so reorder succeeds despite queue growth
+        val ok = QueueShuffle.reorderFromCommand(
+            player = state.player,
+            from = 1,
+            order = order,
+            expectedCurrentEntryId = state.items[0].queueEntryId ?: state.items[0].mediaId,
+            expectedUpcomingHash = expectedHash,
+            hasUpcomingHash = true,
+        )
+        assertEquals(true, ok)
+
+        // Permuted slice (indices 1..3) is reordered: [track-3, track-1, track-2]
+        assertEquals("track-3", state.items[1].mediaId)
+        assertEquals("track-1", state.items[2].mediaId)
+        assertEquals("track-2", state.items[3].mediaId)
+
+        // Tail items appended by autoplay remain in place untouched
+        assertEquals("auto-1", state.items[4].mediaId)
+        assertEquals("auto-2", state.items[5].mediaId)
+        assertEquals(6, state.items.size)
     }
 }
 
