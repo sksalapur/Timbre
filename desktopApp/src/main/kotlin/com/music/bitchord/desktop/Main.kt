@@ -26,6 +26,8 @@ import kotlin.math.roundToInt
 import org.jetbrains.compose.resources.painterResource
 
 fun main() {
+    // Before any WebView exists, so the sign-in window can start over with an empty jar.
+    DesktopWebCookies.install()
     DesktopWindowVisibility.install()
     // The player is the phone's, from the shared UI module; this is what it reads underneath.
     PlayerPlatform.install(DesktopPlayerHost)

@@ -667,6 +667,10 @@ fun BitChordDesktopApp() {
     var legacyMeshGradient by remember { mutableStateOf(persistence.boolean("legacy_mesh_gradient", false)) }
     var animatedCanvas by remember { mutableStateOf(persistence.boolean("animated_canvas", true)) }
     var spotifyCanvasCookie by remember { mutableStateOf(DesktopSpotifyToken.cookie()) }
+    // Held here rather than by the Integrations page, so leaving the page does not close the
+    // sign-in window.
+    var spotifySignInJob by remember { mutableStateOf<Job?>(null) }
+    var spotifySignInError by remember { mutableStateOf<String?>(null) }
     var showNerdStats by remember { mutableStateOf(persistence.boolean("show_nerd_stats", false)) }
     var syncedLyrics by remember {
         mutableStateOf(persistence.boolean(DesktopLyricsClient.KEY_SYNCED_LYRICS, true))
@@ -685,8 +689,7 @@ fun BitChordDesktopApp() {
     var activeProfileId by remember { mutableStateOf(DesktopAccounts.activeProfileId()) }
     var signInBusy by remember { mutableStateOf<String?>(null) }
     var signInError by remember { mutableStateOf<String?>(null) }
-    var browserSignInJob by remember { mutableStateOf<Job?>(null) }
-    val interactiveSignInBrowser = remember { DesktopBrowserSignIn.preferred() }
+    var webSignInJob by remember { mutableStateOf<Job?>(null) }
     val activeAccount = accounts.firstOrNull { it.accountId == activeAccountId } ?: accounts.firstOrNull()
     // The account's own library, fetched once a session is in force.
     var libraryState by remember { mutableStateOf<UiState<LibraryPage>>(UiState.Loading) }
@@ -850,6 +853,29 @@ fun BitChordDesktopApp() {
         liveQueue = DesktopQueue(songs, index = 0)
         preShuffleOrder = emptyList()
         playCurrent(startPlaying)
+    }
+
+    /** Opens the Spotify sign-in window for an `sp_dc`, or closes the one already open. */
+    fun signInToSpotify() {
+        spotifySignInJob?.let {
+            it.cancel()
+            return
+        }
+        spotifySignInError = null
+        spotifySignInJob = scope.launch {
+            try {
+                val cookie = DesktopWebSignIn.captureSpotify()
+                DesktopSpotifyToken.setCookie(cookie)
+                spotifyCanvasCookie = cookie
+            } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                throw cancelled
+            } catch (failure: Exception) {
+                DesktopTrackLog.log("sign-in: Spotify failed: ${failure.message}")
+                spotifySignInError = failure.message ?: "Could not complete the Spotify sign-in."
+            } finally {
+                spotifySignInJob = null
+            }
+        }
     }
 
     /** Takes a captured cookie all the way to a saved account. */
@@ -3238,22 +3264,23 @@ fun BitChordDesktopApp() {
                         DesktopSignInDialog(
                             busy = signInBusy,
                             error = signInError,
-                            interactiveBrowser = interactiveSignInBrowser,
-                            onBrowserSignIn = { browser ->
-                                browserSignInJob?.cancel()
-                                browserSignInJob = scope.launch {
+                            webSignIn = DesktopWebSignIn.available,
+                            onWebSignIn = {
+                                webSignInJob?.cancel()
+                                webSignInJob = scope.launch {
                                     signInError = null
-                                    signInBusy = browser.label
+                                    signInBusy = WEB_SIGN_IN
                                     try {
-                                        val cookie = DesktopBrowserSignIn.capture(browser)
-                                        signIn(cookie, browser.label)
+                                        val cookie = DesktopWebSignIn.captureYouTube()
+                                        signIn(cookie, WEB_SIGN_IN)
                                     } catch (cancelled: kotlinx.coroutines.CancellationException) {
                                         throw cancelled
                                     } catch (failure: Exception) {
-                                        signInError = failure.message ?: "Could not complete browser sign-in."
+                                        DesktopTrackLog.log("sign-in: YouTube Music failed: ${failure.message}")
+                                        signInError = failure.message ?: "Could not complete the sign-in."
                                     } finally {
                                         signInBusy = null
-                                        browserSignInJob = null
+                                        webSignInJob = null
                                     }
                                 }
                             },
@@ -3279,7 +3306,7 @@ fun BitChordDesktopApp() {
                                 }
                             },
                             onDismiss = {
-                                browserSignInJob?.cancel()
+                                webSignInJob?.cancel()
                                 overlays.signIn = false
                                 signInError = null
                             },
@@ -3631,6 +3658,18 @@ fun BitChordDesktopApp() {
                                 )
                                 DesktopSettingsPage.INTEGRATIONS -> DesktopIntegrationsDialog(
                                     song = playback.song,
+                                    spotify = DesktopSpotifyConnection(
+                                        connected = spotifyCanvasCookie.isNotBlank(),
+                                        canSignIn = DesktopWebSignIn.available,
+                                        signingIn = spotifySignInJob != null,
+                                        error = spotifySignInError,
+                                        onSignIn = ::signInToSpotify,
+                                        onPasteCookie = { overlays.settingsPage = DesktopSettingsPage.SPOTIFY_CANVAS },
+                                        onDisconnect = {
+                                            DesktopSpotifyToken.setCookie("")
+                                            spotifyCanvasCookie = ""
+                                        },
+                                    ),
                                     onOpenLastfm = { overlays.lastfmLogin = true },
                                     onOpenListenBrainz = { overlays.listenBrainzToken = true },
                                     onOpenDiscordToken = { overlays.discordToken = true },
