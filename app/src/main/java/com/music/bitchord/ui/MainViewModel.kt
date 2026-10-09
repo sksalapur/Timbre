@@ -1934,7 +1934,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         searchSubmitted = true
         _suggestions.value = emptyList()
         _typeaheadResults.value = emptyList()
-        runSearch()
+        runSearch(anonymous = false)
     }
 
     /**
@@ -1996,7 +1996,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             val query: String,
             val filter: SearchFilter,
             val requestId: Long,
-            val anonymous: Boolean = false,
+            val anonymous: Boolean = true,
         )
 
     private fun cacheKey(query: String, filter: SearchFilter) = "${filter.name}:$query"
@@ -2014,7 +2014,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             ?.rows
     }
 
-    private fun runSearch(anonymous: Boolean = false) {
+    private fun runSearch(anonymous: Boolean = true) {
         val query = _query.value
         if (query.isBlank()) {
             // Nothing in flight can still be waiting to overwrite this: the

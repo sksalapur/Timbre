@@ -615,7 +615,7 @@ object Innertube {
         put("params", Base64.getEncoder().encodeToString(bytes))
     }
 
-    suspend fun search(query: String, params: String? = null, anonymous: Boolean = false): JsonObject =
+    suspend fun search(query: String, params: String? = null, anonymous: Boolean = true): JsonObject =
         if (anonymous) {
             postMusicAnonymous("search") {
                 put("query", query)
