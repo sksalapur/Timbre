@@ -43,6 +43,8 @@ fun main() {
     SpotifyLibrary.auth = SpotifyLibrary.Auth {
         DesktopSpotifyToken.accessToken()?.let { SpotifyLibrary.Tokens(it, DesktopSpotifyToken.clientToken()) }
     }
+    // Desktop follows its own language picker (zh-Hant / zh-Hans preserved).
+    com.music.bitchord.data.innertube.Innertube.appLanguage = { DesktopStrings.resolvedTag() }
     // YouTube playback is the phone's StreamResolver over InnerTubeX, with BotGuard PoTokens
     // minted in JavaFX's WebView where the phone uses Android's.
     TrackLog.echo = { level, tag, message, error ->

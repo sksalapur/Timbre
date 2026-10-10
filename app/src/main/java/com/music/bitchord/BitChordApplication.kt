@@ -66,7 +66,9 @@ class BitChordApplication : Application(), SingletonImageLoader.Factory {
             SpotifyToken.accessToken()?.let { SpotifyLibrary.Tokens(it, SpotifyToken.clientToken()) }
         }
         // The per-app language picker, which YouTube Music's `hl` follows.
-        Innertube.appLanguage = { AppCompatDelegate.getApplicationLocales().get(0)?.language }
+        // Full tag (zh-Hant / zh-Hans preserved); Innertube maps to hl/gl.
+        Innertube.appLanguage = { AppCompatDelegate.getApplicationLocales().get(0)?.toLanguageTag() }
+        migrateScriptOnlyAppLocale()
         LyricsTranslation.cacheDir = cacheDir
         // PlaybackService shares this process, so seeding the cookie here means
         // stream resolution is authenticated from the first play onwards.
@@ -216,5 +218,27 @@ class BitChordApplication : Application(), SingletonImageLoader.Factory {
     companion object {
         lateinit var authStore: AuthStore
             private set
+
+        /**
+         * One-time move from region-less script tags to regional ones.
+         *
+         * Early builds of the Simplified/Traditional picker stored `zh-Hant` /
+         * `zh-Hans`. Android Views resolve those (script qualifiers), but the
+         * shared Compose resources only match language + region — so Settings
+         * read Traditional while the player read Simplified. Regional tags
+         * match on both systems. Bare `zh` is left alone: it historically
+         * meant Simplified.
+         */
+        private fun migrateScriptOnlyAppLocale() {
+            val current = AppCompatDelegate.getApplicationLocales().get(0)?.toLanguageTag()
+            val replacement = when (current) {
+                "zh-Hant" -> "zh-TW"
+                "zh-Hans" -> "zh-CN"
+                else -> return
+            }
+            AppCompatDelegate.setApplicationLocales(
+                androidx.core.os.LocaleListCompat.forLanguageTags(replacement),
+            )
+        }
     }
 }
