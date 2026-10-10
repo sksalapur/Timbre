@@ -9,6 +9,7 @@ import javafx.concurrent.Worker
 import javafx.geometry.Insets
 import javafx.scene.Scene
 import javafx.scene.control.Button
+import javafx.scene.control.Label
 import javafx.scene.layout.BorderPane
 import javafx.scene.layout.HBox
 import javafx.scene.layout.Priority
@@ -90,6 +91,8 @@ internal object DesktopWebSignIn {
         private val stage = Stage()
         private val root = BorderPane()
         private val confirm = Button("Use this profile")
+        // The page's host, since the window has no address bar to show it.
+        private val where = Label().apply { style = "-fx-text-fill: #aaaaaa;" }
         private var view: WebView? = null
         private var storage: Path? = null
         private var done = false
@@ -97,7 +100,7 @@ internal object DesktopWebSignIn {
         init {
             stage.title = service.title
             val startOver = Button("Start over").apply { setOnAction { load() } }
-            val bar = HBox(8.0, startOver, Region().also { HBox.setHgrow(it, Priority.ALWAYS) })
+            val bar = HBox(8.0, startOver, Region().also { HBox.setHgrow(it, Priority.ALWAYS) }, where)
             bar.padding = Insets(8.0)
             if (service == Service.YOUTUBE_MUSIC) {
                 confirm.isDefaultButton = true
@@ -128,6 +131,7 @@ internal object DesktopWebSignIn {
             val next = WebView().also { view = it }
             val engine = next.engine
             engine.userDataDirectory = folder.toFile()
+            engine.locationProperty().addListener { _, _, url -> where.text = hostOf(url) }
             engine.loadWorker.stateProperty().addListener { _, _, state ->
                 if (state == Worker.State.SUCCEEDED && view === next) onPage(engine.location.orEmpty())
             }
@@ -159,11 +163,20 @@ internal object DesktopWebSignIn {
             finish(result)
         }
 
+        private fun hostOf(url: String): String = runCatching { URI(url).host }.getOrNull().orEmpty()
+
         /** Stops the current page and deletes its storage. */
         private fun discard() {
             view?.engine?.load("about:blank")
             view = null
-            storage?.toFile()?.deleteRecursively()
+            storage?.toFile()?.let { folder ->
+                if (!folder.deleteRecursively()) {
+                    // The page may still hold its files open for a moment. Retry as the app exits;
+                    // a hard kill still leaves the folder behind.
+                    DesktopTrackLog.log("sign-in: could not delete ${folder.name} yet; removing it at exit")
+                    Runtime.getRuntime().addShutdownHook(Thread { folder.deleteRecursively() })
+                }
+            }
             storage = null
         }
     }
