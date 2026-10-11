@@ -130,14 +130,14 @@ jobs:
         run: |
           cd build-dir
           chmod +x gradlew
-          # Build release APK (skip unit tests)
-          ./gradlew assembleRelease -x test --no-daemon --stacktrace
+          # Build production release APK (skip unit tests)
+          ./gradlew assembleProdRelease -x test --no-daemon --stacktrace
 
       - name: Sign APK (Keystore or Auto-Debug Key)
         if: steps.check_release.outputs.should_build == 'true'
         id: sign_apk
         run: |
-          APK_PATH=$(find build-dir/app/build/outputs/apk/release -name "*.apk" | head -n 1)
+          APK_PATH=$(find build-dir/app/build/outputs/apk -name "*.apk" | grep -v "unaligned" | head -n 1)
           if [ -z "$APK_PATH" ]; then
             echo "Error: No release APK found!"
             exit 1
@@ -178,6 +178,96 @@ jobs:
           echo "Signed APK ready at $SIGNED_APK"
           echo "apk_path=$SIGNED_APK" >> $GITHUB_OUTPUT
 
+      - name: Generate TrueBit Rebadged Release Notes
+        if: steps.check_release.outputs.should_build == 'true'
+        run: |
+          python3 - << 'EOF'
+          import urllib.request, json, re, os
+
+          tag = "${{ steps.check_release.outputs.upstream_tag }}"
+          my_repo = "${{ github.repository }}"
+          url = f"https://api.github.com/repos/kushagrasinghx/BitChord/releases/tags/{tag}"
+          
+          upstream_body = ""
+          try:
+              req = urllib.request.Request(url, headers={'User-Agent': 'TrueBit-Automation'})
+              with urllib.request.urlopen(req) as resp:
+                  data = json.loads(resp.read().decode())
+                  upstream_body = data.get('body', '')
+          except Exception as e:
+              print(f"Could not fetch upstream release body: {e}")
+
+          # Remove existing banners
+          body = re.sub(r'!\[.*?banner.*?\]\(.*?\)', '', upstream_body, flags=re.IGNORECASE)
+          
+          lines = body.splitlines()
+          filtered_lines = []
+          skip_desktop = False
+          for line in lines:
+              stripped = line.strip()
+              # Skip Desktop install sections
+              if stripped.startswith('**Windows') or stripped.startswith('**Linux') or stripped.startswith('**macOS'):
+                  skip_desktop = True
+                  continue
+              if skip_desktop:
+                  if stripped.startswith('**') or stripped.startswith('## '):
+                      skip_desktop = False
+                  else:
+                      continue
+              if 'DESKTOP.md' in line or 'desktopApp' in line:
+                  continue
+                  
+              # Strip Discord and Telegram mentions and links
+              if any(keyword in stripped.lower() for keyword in ['discord.gg', 'discord.com/invite', 't.me/', 'telegram.me']):
+                  continue
+              if any(phrase in stripped.lower() for phrase in ['support channel', 'telegram group', 'community channel', 'discord']):
+                  continue
+                  
+              # Strip donation / sponsor lines if any
+              if any(keyword in stripped.lower() for keyword in ['buymeacoffee', 'liberapay', 'ko-fi', 'patreon', 'upi_support']):
+                  continue
+
+              filtered_lines.append(line)
+          
+          clean_body = '
+'.join(filtered_lines).strip()
+          
+          # Rebrand BitChord -> TrueBit
+          clean_body = clean_body.replace('BitChord', 'TrueBit')
+          clean_body = clean_body.replace('bitchord', 'truebit')
+          clean_body = clean_body.replace('kushagrasinghx/TrueBit', my_repo)
+          clean_body = clean_body.replace('kushagrasinghx/truebit', my_repo)
+          clean_body = clean_body.replace('kushagrasinghx/BitChord', my_repo)
+
+          header = f"""![TrueBit Banner](https://raw.githubusercontent.com/{my_repo}/main/Banner.png)
+
+# TrueBit {tag}
+> **High-Fidelity Bit-Perfect Android Audio Player**  
+> Autonomous build from upstream [BitChord {tag}](https://github.com/kushagrasinghx/BitChord/releases/tag/{tag}).
+
+### 💎 TrueBit Enhancements Included
+- 🌉 **Built-in Lossless Bridge**: Pre-configured Fly.io FLAC master resolver (`https://lossless-bridge.fly.dev/sksalapur`) supporting up to 24-bit / 192 kHz.
+- 🎯 **Lossless-First Audio Routing**: Instant FLAC playback from 0:00 without lossy start delays.
+- ⏩ **Predictive Queue Lookahead**: Pre-resolves and buffers the next 4 tracks in queue (2s delay).
+- 🎛️ **Native 24-Bit PCM Audio Output**: Bit-perfect output tailored for Type-C DSPs and external DACs (Moondrop Chu II DSP).
+- 📊 **Accurate Bitrate Telemetry**: Live FLAC/PCM bitrate telemetry in Nerd Stats.
+- 🎨 **TrueBit Custom Branding**: Bespoke high-res squircle audio emblem across all DPIs.
+- 🚀 **Stripped Desktop Bloat**: Pure Android-focused architecture.
+
+---
+"""
+
+          footer = f"""
+---
+### 📲 Install & Update
+Download **`TrueBit-{tag}.apk`** attached below and install it directly on Android (8.0+ / API 26+).
+"""
+          final_notes = header + (clean_body if clean_body else "See upstream BitChord release for detailed changes.") + footer
+          with open("release_notes.md", "w", encoding="utf-8") as f:
+              f.write(final_notes)
+          print("Generated release_notes.md successfully!")
+          EOF
+
       - name: Publish GitHub Release
         if: steps.check_release.outputs.should_build == 'true'
         uses: softprops/action-gh-release@v2
@@ -186,21 +276,7 @@ jobs:
           target_commitish: ${{ github.sha }}
           token: ${{ secrets.GITHUB_TOKEN }}
           name: "TrueBit ${{ steps.check_release.outputs.upstream_tag }} (BitChord Auto-Patched)"
-          body: |
-            ## 💎 TrueBit ${{ steps.check_release.outputs.upstream_tag }}
-            
-            Automatically patched and compiled from upstream **BitChord [${{ steps.check_release.outputs.upstream_tag }}](https://github.com/kushagrasinghx/BitChord/releases/tag/${{ steps.check_release.outputs.upstream_tag }})**.
-            
-            ### ✨ TrueBit Features Included
-            - 🌉 **Built-in Lossless Bridge**: Pre-configured Fly.io FLAC master resolver (up to 24-bit / 192kHz).
-            - 🎯 **Lossless-First Audio Routing**: Instant FLAC from 0:00 without lossy start.
-            - ⏩ **Predictive Lookahead**: Pre-resolves the next 4 tracks in queue (2s delay).
-            - 🎛️ **24-Bit PCM Audio Output**: Tailored for Chu II DSP and Type-C DACs.
-            - 📊 **Accurate Bitrate Display**: Genuine FLAC/PCM bitrate telemetry in Nerd Stats.
-            - 🎨 **TrueBit Custom Branding**: High-res squircle audio icon & revamped aesthetics.
-            
-            ---
-            *Built autonomously with GitHub Actions.*
+          body_path: release_notes.md
           files: ${{ steps.sign_apk.outputs.apk_path }}
           make_latest: true
         env:
