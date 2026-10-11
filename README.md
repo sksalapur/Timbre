@@ -1,7 +1,7 @@
 <h1 align="center">💎 TrueBit</h1>
 
 <p align="center">
-  <img src="assets/logo.png" alt="TrueBit Logo" width="180" style="border-radius: 28px;" />
+  <img src="Logo.png?v=2" alt="TrueBit Logo" width="180" style="border-radius: 28px;" />
 </p>
 
 <p align="center">
