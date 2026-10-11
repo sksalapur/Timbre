@@ -1,9 +1,17 @@
 diff --git a/app/src/main/java/com/music/bitchord/data/sources/SourceKind.kt b/app/src/main/java/com/music/bitchord/data/sources/SourceKind.kt
-index 06c02bfc..474f81b9 100644
+index 06c02bfc..1ee43386 100644
 --- a/app/src/main/java/com/music/bitchord/data/sources/SourceKind.kt
 +++ b/app/src/main/java/com/music/bitchord/data/sources/SourceKind.kt
 @@ -76,6 +76,7 @@ enum class SourceKind(
          labels = listOf("FLAC", "Lossless", "Hi-Res"),
+         needsServer = true,
+         canServeLossless = true,
++        worthPrefetching = true,
+         // Literal, not [USER_ADDED]: an enum entry is constructed before
+         // its own companion exists.
+         rank = 0,
+@@ -95,6 +96,7 @@ enum class SourceKind(
+         labels = listOf("FLAC", "Lossless", "Hi-Res", "Plugins"),
          needsServer = true,
          canServeLossless = true,
 +        worthPrefetching = true,
@@ -32,3 +40,18 @@ index 3bcae45e..8f1c5955 100644
  
      /** Spacing between queued resolves, so warming the queue never competes with the track actually playing. */
      private const val QUEUE_RESOLVE_STAGGER_MS = 500L
+diff --git a/app/src/main/java/com/music/bitchord/playback/PlaybackService.kt b/app/src/main/java/com/music/bitchord/playback/PlaybackService.kt
+index 3c631bc0..41d429ca 100644
+--- a/app/src/main/java/com/music/bitchord/playback/PlaybackService.kt
++++ b/app/src/main/java/com/music/bitchord/playback/PlaybackService.kt
+@@ -4676,7 +4676,9 @@ class PlaybackService : MediaLibraryService() {
+         // are still looking — [lookup.isActive] below is what tells those
+         // apart, which is the question the old head start answered by timing
+         // out rather than by asking.
+-        val quick: SourceStream? = select {
++        val quick: SourceStream? = kotlinx.coroutines.withTimeoutOrNull(2000L) {
++            lookup.await()
++        } ?: select {
+             lookup.onAwait { it }
+             // A fallback that finished without a URL has not won anything.
+             //
