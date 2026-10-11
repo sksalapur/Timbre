@@ -62,8 +62,12 @@ Modern music streaming on mobile is riddled with compromises for anyone who care
 └────────────────────────────────────────────────────────────────────────┘
 ```
 
-### 1. 🌉 Hardcoded Built-In Lossless Bridge
-No need to manually copy-paste addon URLs or sign in to third-party endpoints. TrueBit embeds your dedicated high-performance **Lossless Bridge** directly into the engine as a permanent, first-priority source. You get instant access to studio-quality FLAC streams from song one.
+### 1. 🤖 Authenticated Lossless FLAC via Telegram Bot
+TrueBit resolves studio-quality 24-bit FLAC streams securely without third-party web dashboard logins. Get your private Addon URL directly from **[@TrueBitLosslessBot](https://t.me/TrueBitLosslessBot)**:
+1. Open [@TrueBitLosslessBot](https://t.me/TrueBitLosslessBot) on Telegram and send `/start`.
+2. Copy your private Addon URL.
+3. In TrueBit, open **Settings ➔ Sources ➔ Add Source ➔ Custom Addon** and paste your URL.
+4. Check your listening quota (250 songs / day) at any time directly in Telegram with `/quota`.
 
 ### 2. 🎯 Lossless-First Routing (Zero Mid-Song Jumps)
 Stock clients start playback immediately on low-bitrate YouTube Opus audio and later perform a "seam swap" to FLAC mid-song. TrueBit flips this: it actively queries lossless sources *before* opening the audio stream. When a lossless copy exists, you hear pure FLAC from **0:00**.
@@ -103,13 +107,12 @@ All modifications are maintained as atomic, surgical `.patch` files in the [`.pa
 
 | Patch | Target Component | Description |
 | :--- | :--- | :--- |
-| [`01-rebrand-app-name.patch`](.patches/01-rebrand-app-name.patch) | `strings.xml` | Updates application branding to TrueBit across the UI and system notifications. |
-| [`02-builtin-lossless-bridge.patch`](.patches/02-builtin-lossless-bridge.patch) | `SourceRegistry.kt`, `SourcesScreen.kt` | Seeds the Fly.io lossless bridge as a persistent, non-removable priority #1 source. |
-| [`03-lossless-first-prefetch.patch`](.patches/03-lossless-first-prefetch.patch) | `SourceKind.kt`, `AudioCache.kt` | Enables prefetching for addons, expands queue lookahead to 4, cuts delay to 2s. |
+| [`01-rebrand-app-name.patch`](.patches/01-rebrand-app-name.patch) | `strings.xml`, `build.gradle.kts` | Updates application branding to TrueBit across the UI and system notifications. |
+| [`03-lossless-first-prefetch.patch`](.patches/03-lossless-first-prefetch.patch) | `SourceKind.kt`, `AudioCache.kt`, `PlaybackService.kt`, `SettingsSheet.kt` | Prioritizes lossless addons, expands lookahead to 4, and adds customizable priority timeout slider. |
 | [`04-fix-bitrate-display.patch`](.patches/04-fix-bitrate-display.patch) | `PlaybackService.kt` | Prevents stale YouTube Opus bitrate from leaking into lossless stream telemetry. |
-| [`05-pcm-24bit-mode.patch`](.patches/05-pcm-24bit-mode.patch) | `AppSettings.kt`, `OutputNegotiator.kt` | Adds 24-bit integer PCM mode to settings enum and direct/external audio negotiation. |
-| [`06-truebit-app-icon.patch`](.patches/06-truebit-app-icon.patch) | `res/mipmap-*`, `Logo.png` | Complete aesthetic overhaul with high-res TrueBit neon squircle branding across all DPIs. |
-| [`07-rebrand-readme.patch`](.patches/07-rebrand-readme.patch) | `README.md` | Updates repository documentation for release tags. |
+| [`08-remove-desktop.patch`](.patches/08-remove-desktop.patch) | `settings.gradle.kts` | Streamlines build pipeline by focusing strictly on Android targets. |
+| [`09-inapp-update-repo.patch`](.patches/09-inapp-update-repo.patch) | `AppUpdateChecker.kt` | Points in-app update checks directly to `sksalapur/TrueBit` releases. |
+| [`10-rebrand-app-links.patch`](.patches/10-rebrand-app-links.patch) | `DiscordRPC.kt`, `LastFM.kt`, `SettingsSheet.kt` | Updates repository and official website links to `sksalapur.github.io/TrueBit`. |
 
 ---
 
@@ -117,7 +120,7 @@ All modifications are maintained as atomic, surgical `.patch` files in the [`.pa
 
 - **[BitChord](https://github.com/kushagrasinghx/BitChord)** — Created by [kushagrasinghx](https://github.com/kushagrasinghx). All core player architecture, audio pipelines, and UI belong to the original BitChord team.
 - **[Lossless Bridge](https://github.com/sksalapur/lossless-bridge)** — High-performance cloud proxy routing lossless FLAC streams.
-- **[LastWave Addons](https://lastwaveaddons.clashprojects.qd.je/)** — Community lossless search infrastructure.
+- **[TrueBit Lossless Bot](https://t.me/TrueBitLosslessBot)** — Authenticated Telegram bot gateway providing private FLAC addon endpoints with daily quota management.
 
 ---
 

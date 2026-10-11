@@ -62,7 +62,7 @@ def rebadge_release(tag, my_repo):
 > Streamlined mobile fork of [BitChord {tag}](https://github.com/kushagrasinghx/BitChord/releases/tag/{tag}).
 
 ### 💎 TrueBit Enhancements Included
-- 🌊 **Built-in Lossless Bridge**: Pre-configured Fly.io FLAC resolver (`https://lossless-bridge.fly.dev/sksalapur`) streaming studio masters.
+- 🤖 **Telegram-Authenticated Lossless Resolver**: Connect your private 24-bit FLAC addon endpoint from [@TrueBitLosslessBot](https://t.me/TrueBitLosslessBot) with daily quota management (250 songs/day).
 - 🎯 **Lossless-First Audio Routing**: Clean FLAC playback from 0:00 with tuned priority timeout (0.5s–5.0s slider).
 - ⏩ **Predictive Queue Lookahead**: Pre-resolves and buffers the next 4 tracks in queue (2s delay).
 - 🎛️ **Direct Bit-Perfect Hardware Routing**: Direct AudioTrack sink unconstrained by Android mixer resampling, ideal for Type-C DSPs and external DACs.
