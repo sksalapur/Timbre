@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  
+  <title>Addon Developer Guide — TrueBit Bit-Perfect Audio</title>
+  <meta name="description" content="Complete guide and protocol specification for building custom high-resolution audio addons for TrueBit and BitChord." />
+  <meta name="keywords" content="TrueBit addon, BitChord addon, FLAC stream, audio addon protocol, bit-perfect streaming" />
+  <meta name="author" content="sksalapur" />
+
+  <!-- Open Graph -->
+  <meta property="og:title" content="TrueBit Addon Developer Guide" />
+  <meta property="og:description" content="Connect your own audio catalogue or FLAC server with three simple JSON routes." />
+  <meta property="og:image" content="assets/banner.png" />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://sksalapur.github.io/TrueBit/addons.html" />
+
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" href="assets/emblem.png" />
+  <link rel="apple-touch-icon" href="assets/logo.png" />
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600;700&family=Outfit:wght@600;700;800;900&display=swap" rel="stylesheet" />
+
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="bg-grid"></div>
+
+  <!-- Navigation Bar -->
+  <nav>
+    <a href="index.html" class="nav-brand">
+      <img src="assets/emblem.png" alt="TrueBit Logo" class="nav-logo" />
+      <span class="brand-title">TrueBit</span>
+      <span class="brand-badge">Docs</span>
+    </a>
+
+    <ul class="nav-links">
+      <li><a href="index.html" class="nav-link">&larr; Back to App</a></li>
+      <li><a href="#overview" class="nav-link">Overview</a></li>
+      <li><a href="#endpoints" class="nav-link">Endpoints</a></li>
+      <li><a href="#lossless" class="nav-link">Lossless Pipeline</a></li>
+      <li><a href="#examples" class="nav-link">Code Samples</a></li>
+    </ul>
+
+    <div class="nav-actions">
+      <a href="https://github.com/sksalapur/TrueBit" class="btn-github" target="_blank" rel="noopener">
+        <svg height="18" width="18" viewBox="0 0 16 16" fill="currentColor">
+          <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"></path>
+        </svg>
+        GitHub
+      </a>
+      <a href="index.html#download" class="btn-primary" style="padding: 0.5rem 1rem; font-size: 0.9rem;">
+        Get TrueBit
+      </a>
+    </div>
+  </nav>
+
+  <!-- Docs Main Container -->
+  <div class="docs-layout">
+    <!-- Sidebar Navigation -->
+    <aside class="docs-sidebar">
+      <h4>Getting Started</h4>
+      <ul>
+        <li><a href="#overview" class="active">Overview</a></li>
+        <li><a href="#architecture">How Addons Work</a></li>
+      </ul>
+
+      <h4>Protocol Endpoints</h4>
+      <ul>
+        <li><a href="#manifest">1. GET /manifest.json</a></li>
+        <li><a href="#search">2. GET /search</a></li>
+        <li><a href="#stream">3. GET /stream/:id</a></li>
+      </ul>
+
+      <h4>Audio Engineering</h4>
+      <ul>
+        <li><a href="#lossless">Lossless Negotiation</a></li>
+        <li><a href="#hardware">Bit-Perfect Hardware Sink</a></li>
+        <li><a href="#priority-window">Priority Window (Slider)</a></li>
+      </ul>
+
+      <h4>Implementation</h4>
+      <ul>
+        <li><a href="#express-example">Node.js / Express</a></li>
+        <li><a href="#fastapi-example">Python / FastAPI</a></li>
+        <li><a href="#flyio-bridge">Built-In Cloud Bridge</a></li>
+      </ul>
+
+      <h4>Deployment</h4>
+      <ul>
+        <li><a href="#installation">Adding to TrueBit</a></li>
+        <li><a href="#troubleshooting">Diagnostics & Nerd Stats</a></li>
+      </ul>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main class="docs-content">
+      <!-- Hero -->
+      <header class="docs-hero">
+        <div class="eyebrow" style="margin-bottom: 0.75rem;">
+          <span class="pulse-dot"></span>
+          Universal JSON Audio Protocol
+        </div>
+        <h1>Addon Developer Guide</h1>
+        <p class="docs-lead">
+          Connect any custom music catalog, private Subsonic/Navidrome server, or FLAC lossless repository to TrueBit with just <strong>three simple HTTP GET endpoints</strong>.
+        </p>
+      </header>
+
+      <!-- Section: Overview -->
+      <section class="docs-section" id="overview">
+        <h2>Overview</h2>
+        <p>
+          TrueBit never executes arbitrary untrusted remote code. Instead, it interacts with your audio backend over standard HTTP using lightweight JSON messages.
+        </p>
+        <p>
+          When a track is requested, TrueBit searches your catalog, resolves a direct playable stream URL (e.g. uncompressed 24-bit/96kHz FLAC), and feeds it straight to the bit-perfect Android AudioTrack pipeline.
+        </p>
+
+        <div class="flow-step-grid" id="architecture">
+          <div class="flow-step">
+            <div class="step-num">01 &bull; DISCOVERY</div>
+            <h4>GET /manifest.json</h4>
+            <p>Describes addon name, author, capabilities, and supported audio qualities.</p>
+          </div>
+          <div class="flow-step">
+            <div class="step-num">02 &bull; CATALOG SEARCH</div>
+            <h4>GET /search?q=...</h4>
+            <p>Matches song title, artist, and album against your catalog.</p>
+          </div>
+          <div class="flow-step">
+            <div class="step-num">03 &bull; RESOLUTION</div>
+            <h4>GET /stream/:id</h4>
+            <p>Returns media stream URL, codec format, sample rate, and bit depth.</p>
+          </div>
+          <div class="flow-step">
+            <div class="step-num">04 &bull; PLAYBACK</div>
+            <h4>Direct AudioTrack</h4>
+            <p>Plays bit-perfect audio through external USB DAC or local headphones.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Section: Endpoints -->
+      <section class="docs-section" id="endpoints">
+        <h2>Addon Protocol Endpoints</h2>
+
+        <!-- Endpoint 1 -->
+        <div id="manifest" style="margin-top: 2rem;">
+          <h3>1. Addon Manifest</h3>
+          <p>
+            When a user enters your addon URL (e.g. <code>https://my-audio-addon.com</code>), TrueBit fetches <code>/manifest.json</code> to register capabilities and verify server health.
+          </p>
+
+          <div class="endpoint-header">
+            <span class="method-pill get">GET</span>
+            <span class="endpoint-path">/manifest.json</span>
+          </div>
+
+          <div class="code-container">
+            <div class="code-header">
+              <span>Response (application/json)</span>
+              <button class="code-copy-btn" onclick="copyCode(this)">Copy</button>
+            </div>
+            <pre><code>{
+  "id": "studio-flac-source",
+  "name": "Studio Masters FLAC",
+  "description": "High-resolution 24-bit/96kHz lossless audio catalog",
+  "version": "1.0.0",
+  "author": "Audio Engineering",
+  "homepage": "https://github.com/sksalapur/lossless-bridge",
+  "resources": ["search", "stream"],
+  "capabilities": {
+    "search": true,
+    "stream": true,
+    "lossless": true,
+    "maxSampleRate": 192000,
+    "maxBitDepth": 24
+  }
+}</code></pre>
+          </div>
+        </div>
+
+        <!-- Endpoint 2 -->
+        <div id="search" style="margin-top: 3rem;">
+          <h3>2. Catalog Search</h3>
+          <p>
+            Searches your catalog for matching tracks. TrueBit evaluates <code>title</code>, <code>artist</code>, <code>album</code>, and <code>duration</code> to guarantee the exact master is resolved.
+          </p>
+
+          <div class="endpoint-header">
+            <span class="method-pill get">GET</span>
+            <span class="endpoint-path">/search?q={query}&limit={limit}</span>
+          </div>
+
+          <div class="code-container">
+            <div class="code-header">
+              <span>Response (application/json)</span>
+              <button class="code-copy-btn" onclick="copyCode(this)">Copy</button>
+            </div>
+            <pre><code>[
+  {
+    "id": "trk_eagles_hotel_california",
+    "title": "Hotel California",
+    "artist": "Eagles",
+    "album": "Hotel California (2013 Remaster)",
+    "duration": 391,
+    "artworkURL": "https://cdn.example.com/art/eagles_hc.jpg",
+    "isLossless": true
+  }
+]</code></pre>
+          </div>
+        </div>
+
+        <!-- Endpoint 3 -->
+        <div id="stream" style="margin-top: 3rem;">
+          <h3>3. Stream Resolver</h3>
+          <p>
+            Returns the direct media URL and detailed encoding metadata. Providing exact <code>bitDepth</code> and <code>sampleRate</code> allows TrueBit's bit-perfect sink to configure your hardware DAC immediately.
+          </p>
+
+          <div class="endpoint-header">
+            <span class="method-pill get">GET</span>
+            <span class="endpoint-path">/stream/{trackId}</span>
+          </div>
+
+          <div class="code-container">
+            <div class="code-header">
+              <span>Response (application/json)</span>
+              <button class="code-copy-btn" onclick="copyCode(this)">Copy</button>
+            </div>
+            <pre><code>{
+  "url": "https://stream.example.com/flac/trk_eagles_hotel_california.flac",
+  "format": "flac",
+  "bitDepth": 24,
+  "sampleRate": 96000,
+  "bitrate": 4608000,
+  "headers": {
+    "User-Agent": "TrueBit/1.8"
+  }
+}</code></pre>
+          </div>
+        </div>
+      </section>
+
+      <!-- Section: Lossless Pipeline -->
+      <section class="docs-section" id="lossless">
+        <h2>TrueBit Lossless Pipeline</h2>
+
+        <div class="alert-card info">
+          <span class="alert-icon">💎</span>
+          <div class="alert-content">
+            <strong>Pure Hardware Path:</strong> Android's default <code>AudioTrack</code> mixer resamples all audio streams to 48kHz. TrueBit utilizes direct hardware routing via AndroidX Media3, preserving pristine 24-bit/96kHz and 24-bit/192kHz PCM without downsampling.
+          </div>
+        </div>
+
+        <h3 id="priority-window">Lossless Priority Window (Settings Slider)</h3>
+        <p>
+          Unlike stock players that clumsily start with lossy Opus and swap streams halfway through, TrueBit queries your lossless addon <strong>first</strong>.
+        </p>
+        <p>
+          In <em>Settings &rarr; Playback</em>, users can set the <strong>Lossless Priority Window</strong> between <strong>0.5s and 5.0s</strong> (in 0.5s increments, default 3.5s). TrueBit waits up to this duration for the lossless addon to reply. If the track is absent, it gracefully falls back to YouTube Music Opus with zero playback gap.
+        </p>
+
+        <h3 id="hardware">Supported Codecs</h3>
+        <div class="table-card" style="margin-top: 1rem;">
+          <table>
+            <thead>
+              <tr>
+                <th>Codec</th>
+                <th>Container</th>
+                <th>Max Precision</th>
+                <th>Android Handling</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>FLAC</strong></td>
+                <td><code>.flac</code> / Native</td>
+                <td>24-bit / 192 kHz</td>
+                <td><span class="tag-verified">Bit-perfect Sink</span></td>
+              </tr>
+              <tr>
+                <td><strong>ALAC</strong></td>
+                <td><code>.m4a</code> / Apple Lossless</td>
+                <td>24-bit / 96 kHz</td>
+                <td><span class="tag-verified">Hardware Decoded</span></td>
+              </tr>
+              <tr>
+                <td><strong>AAC</strong></td>
+                <td><code>.m4a</code> / ADTS</td>
+                <td>320 kbps High Quality</td>
+                <td>MediaCodec pass-through</td>
+              </tr>
+              <tr>
+                <td><strong>Opus</strong></td>
+                <td><code>.webm</code> / <code>.ogg</code></td>
+                <td>160 kbps Adaptive</td>
+                <td>Standard fallback</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- Section: Code Examples -->
+      <section class="docs-section" id="examples">
+        <h2>Reference Implementation & Code Samples</h2>
+
+        <div id="express-example">
+          <h3>Node.js / Express</h3>
+          <div class="code-container">
+            <div class="code-header">
+              <span>server.js (Node 18+)</span>
+              <button class="code-copy-btn" onclick="copyCode(this)">Copy</button>
+            </div>
+            <pre><code>const express = require('express');
+const cors = require('cors');
+const app = express();
+
+app.use(cors());
+
+// 1. Manifest
+app.get('/manifest.json', (req, res) => {
+  res.json({
+    id: 'my-flac-server',
+    name: 'My FLAC Server',
+    description: 'Personal Hi-Res Audio Addon',
+    version: '1.0.0',
+    resources: ['search', 'stream'],
+    capabilities: { search: true, stream: true, lossless: true }
+  });
+});
+
+// 2. Search
+app.get('/search', (req, res) => {
+  const query = req.query.q || '';
+  // Query your media index (e.g. SQLite, Subsonic, Deezer, Tidal)
+  res.json([
+    {
+      id: 'song_42',
+      title: 'Time',
+      artist: 'Pink Floyd',
+      album: 'The Dark Side of the Moon',
+      duration: 425,
+      artworkURL: 'https://example.com/covers/dsotm.jpg'
+    }
+  ]);
+});
+
+// 3. Stream
+app.get('/stream/:id', (req, res) => {
+  const trackId = req.params.id;
+  res.json({
+    url: `https://example.com/audio/${trackId}.flac`,
+    format: 'flac',
+    bitDepth: 24,
+    sampleRate: 96000,
+    bitrate: 4608000
+  });
+});
+
+app.listen(3000, () => console.log('TrueBit Addon listening on port 3000'));</code></pre>
+          </div>
+        </div>
+
+        <div id="fastapi-example" style="margin-top: 3rem;">
+          <h3>Python / FastAPI</h3>
+          <div class="code-container">
+            <div class="code-header">
+              <span>main.py (FastAPI)</span>
+              <button class="code-copy-btn" onclick="copyCode(this)">Copy</button>
+            </div>
+            <pre><code>from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
+app = FastAPI()
+app.add_middleware(CORSMiddleware, allow_origins=["*"])
+
+@app.get("/manifest.json")
+def get_manifest():
+    return {
+        "id": "py-lossless",
+        "name": "Python FLAC Bridge",
+        "description": "FastAPI Lossless Resolver",
+        "version": "1.0.0",
+        "resources": ["search", "stream"],
+        "capabilities": {"search": True, "stream": True, "lossless": True}
+    }
+
+@app.get("/search")
+def search_tracks(q: str = ""):
+    return [
+        {
+            "id": "track_1",
+            "title": "Teardrop",
+            "artist": "Massive Attack",
+            "album": "Mezzanine",
+            "duration": 330,
+            "artworkURL": "https://example.com/mezzanine.jpg"
+        }
+    ]
+
+@app.get("/stream/{track_id}")
+def get_stream(track_id: str):
+    return {
+        "url": f"https://example.com/stream/{track_id}.flac",
+        "format": "flac",
+        "bitDepth": 24,
+        "sampleRate": 96000,
+        "bitrate": 4608000
+    }</code></pre>
+          </div>
+        </div>
+
+        <div id="flyio-bridge" style="margin-top: 3rem;">
+          <h3>The Built-in Fly.io Lossless Bridge</h3>
+          <p>
+            TrueBit comes pre-configured out-of-the-box with a high-availability cloud resolver hosted on Fly.io (<code>https://lossless-bridge.fly.dev/sksalapur</code>).
+          </p>
+          <p>
+            You can inspect the production source code and architecture on GitHub:
+          </p>
+          <div style="margin: 1.25rem 0;">
+            <a href="https://github.com/sksalapur/lossless-bridge" target="_blank" rel="noopener" class="btn-secondary" style="display: inline-flex; align-items: center; gap: 0.5rem;">
+              <svg height="16" width="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"></path></svg>
+              View Lossless Bridge Source Repository &rarr;
+            </a>
+          </div>
+        </div>
+      </section>
+
+      <!-- Section: Installation -->
+      <section class="docs-section" id="installation">
+        <h2>Installation & Testing in TrueBit</h2>
+        <ol style="margin-left: 1.5rem; color: var(--text-dim); margin-bottom: 1.5rem;">
+          <li style="margin-bottom: 0.5rem;">Open <strong>TrueBit</strong> on your Android device.</li>
+          <li style="margin-bottom: 0.5rem;">Navigate to <strong>Settings &rarr; Addons</strong>.</li>
+          <li style="margin-bottom: 0.5rem;">Tap <strong>Add Addon</strong> and enter your server URL (e.g. <code>https://my-addon.example.com</code>).</li>
+          <li style="margin-bottom: 0.5rem;">TrueBit will query <code>/manifest.json</code>, validate schema, and display a green active badge.</li>
+        </ol>
+
+        <h3 id="troubleshooting">Verifying Playback in Nerd Stats</h3>
+        <p>
+          While playing any song in TrueBit, tap the <strong>Nerd Stats</strong> button on the player screen to see real-time hardware telemetry:
+        </p>
+        <ul style="margin-left: 1.5rem; color: var(--text-dim);">
+          <li style="margin-bottom: 0.35rem;"><strong>Audio Sink:</strong> Verify it displays <code>AudioTrack (Direct)</code> when external USB DAC is connected.</li>
+          <li style="margin-bottom: 0.35rem;"><strong>Sample Rate:</strong> Confirms physical output matches stream master (e.g. <code>96.0 kHz &rarr; 96.0 kHz</code>).</li>
+          <li style="margin-bottom: 0.35rem;"><strong>Bitrate:</strong> Displays full uncompressed PCM data rate (e.g. <code>4,608 kbps</code> for 24-bit/96kHz).</li>
+        </ul>
+      </section>
+    </main>
+  </div>
+
+  <!-- Footer -->
+  <footer>
+    <div class="footer-content">
+      <div class="footer-col" style="max-width: 320px;">
+        <div style="display: flex; align-items: center; gap: 0.6rem; margin-bottom: 1rem;">
+          <img src="assets/emblem.png" width="28" height="28" alt="emblem" />
+          <span style="font-family: var(--font-heading); font-size: 1.25rem; font-weight: 800; color: #fff;">TrueBit</span>
+        </div>
+        <p style="color: var(--text-muted); font-size: 0.85rem; line-height: 1.6;">
+          Autonomous, bit-perfect high-resolution music streaming for Android.
+        </p>
+      </div>
+
+      <div class="footer-col">
+        <h4>Links</h4>
+        <ul class="footer-links">
+          <li><a href="index.html">Home Page</a></li>
+          <li><a href="index.html#download">Download APK</a></li>
+          <li><a href="https://github.com/sksalapur/TrueBit" target="_blank" rel="noopener">GitHub Repository</a></li>
+          <li><a href="https://github.com/sksalapur/lossless-bridge" target="_blank" rel="noopener">Fly.io Lossless Bridge</a></li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="footer-bottom">
+      TrueBit is an open-source project licensed under GPLv3.
+    </div>
+  </footer>
+
+  <script>
+    function copyCode(btn) {
+      const codeBlock = btn.closest('.code-container').querySelector('code');
+      if (codeBlock) {
+        navigator.clipboard.writeText(codeBlock.textContent).then(() => {
+          const original = btn.textContent;
+          btn.textContent = 'Copied!';
+          setTimeout(() => { btn.textContent = original; }, 2000);
+        });
+      }
+    }
+  </script>
+</body>
+</html>

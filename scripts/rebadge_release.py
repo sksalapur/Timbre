@@ -20,35 +20,34 @@ def rebadge_release(tag, my_repo):
     
     lines = body.splitlines()
     filtered_lines = []
-    skip_desktop = False
+    skip_install_section = False
+    
     for line in lines:
         stripped = line.strip()
-        # Skip Desktop install sections
-        if stripped.startswith('**Windows') or stripped.startswith('**Linux') or stripped.startswith('**macOS'):
-            skip_desktop = True
+
+        # If we hit upstream's "## Install", skip the entire section since TrueBit provides its own dedicated Android install guide
+        if stripped.lower().startswith('## install'):
+            skip_install_section = True
             continue
-        if skip_desktop:
-            if stripped.startswith('**') or stripped.startswith('## '):
-                skip_desktop = False
+        if skip_install_section:
+            if stripped.startswith('## ') and not stripped.lower().startswith('## install'):
+                skip_install_section = False
             else:
                 continue
-        if 'DESKTOP.md' in line or 'desktopApp' in line:
-            continue
-            
-        # Strip Discord and Telegram mentions and links
-        if any(keyword in stripped.lower() for keyword in ['discord.gg', 'discord.com/invite', 't.me/', 'telegram.me']):
-            continue
-        if any(phrase in stripped.lower() for phrase in ['support channel', 'telegram group', 'community channel', 'discord']):
-            continue
-            
-        # Strip donation / sponsor lines
-        if any(keyword in stripped.lower() for keyword in ['buymeacoffee', 'liberapay', 'ko-fi', 'patreon', 'upi_support']):
+
+        # Skip PC, TV, and Desktop feature bullets
+        lower_line = stripped.lower()
+        if any(term in lower_line for term in [
+            'tv / fire tv', 'truebit for pc', 'truebittv', 'bitchord for pc',
+            'bitchordtv', 'windows and linux', 'mica/acrylic', 'media keys and the volume flyout',
+            'win + g', 'tray icon', 'taskbar progress'
+        ]):
             continue
 
         filtered_lines.append(line)
-    
-    clean_body = '\n'.join(filtered_lines).strip()
-    
+
+    clean_body = "\n".join(filtered_lines).strip()
+
     # Rebrand BitChord -> TrueBit
     clean_body = clean_body.replace('BitChord', 'TrueBit')
     clean_body = clean_body.replace('bitchord', 'truebit')
@@ -60,16 +59,16 @@ def rebadge_release(tag, my_repo):
 
 # TrueBit {tag}
 > **High-Fidelity Bit-Perfect Android Audio Player**  
-> Autonomous build from upstream [BitChord {tag}](https://github.com/kushagrasinghx/BitChord/releases/tag/{tag}).
+> Streamlined mobile fork of [BitChord {tag}](https://github.com/kushagrasinghx/BitChord/releases/tag/{tag}).
 
 ### 💎 TrueBit Enhancements Included
-- 🌉 **Built-in Lossless Bridge**: Pre-configured Fly.io FLAC master resolver (`https://lossless-bridge.fly.dev/sksalapur`) supporting up to 24-bit / 192 kHz.
-- 🎯 **Lossless-First Audio Routing**: Instant FLAC playback from 0:00 without lossy start delays.
+- 🌊 **Built-in Lossless Bridge**: Pre-configured Fly.io FLAC resolver (`https://lossless-bridge.fly.dev/sksalapur`) streaming studio masters.
+- 🎯 **Lossless-First Audio Routing**: Clean FLAC playback from 0:00 with tuned priority timeout (0.5s–5.0s slider).
 - ⏩ **Predictive Queue Lookahead**: Pre-resolves and buffers the next 4 tracks in queue (2s delay).
-- 🎛️ **Native 24-Bit PCM Audio Output**: Bit-perfect output tailored for Type-C DSPs and external DACs (Moondrop Chu II DSP).
+- 🎛️ **Direct Bit-Perfect Hardware Routing**: Direct AudioTrack sink unconstrained by Android mixer resampling, ideal for Type-C DSPs and external DACs.
 - 📊 **Accurate Bitrate Telemetry**: Live FLAC/PCM bitrate telemetry in Nerd Stats.
-- 🎨 **TrueBit Custom Branding**: Bespoke high-res squircle audio emblem across all DPIs.
-- 🚀 **Stripped Desktop Bloat**: Pure Android-focused architecture.
+- 🎨 **Minimalist Niche Branding**: Modern geometric vector identity and adaptive icon.
+- 🚀 **Stripped Desktop & Bloat**: Pure Android mobile performance.
 
 ---
 """
@@ -77,7 +76,10 @@ def rebadge_release(tag, my_repo):
     footer = f"""
 ---
 ### 📲 Install & Update
-Download **`TrueBit-{tag}.apk`** attached below and install it directly on Android (8.0+ / API 26+).
+- **ARM64** *(Recommended for most phones)*: Download **`TrueBit-{tag}-arm64.apk`**
+- **Universal** *(All devices)*: Download **`TrueBit-{tag}.apk`**
+
+> 💡 **Desktop or TV user?** TrueBit is engineered specifically for Android mobile devices. If you need Windows, Linux, macOS, or Android TV builds, please check upstream [BitChord {tag}](https://github.com/kushagrasinghx/BitChord/releases/tag/{tag}).
 """
     final_notes = header + (clean_body if clean_body else "See upstream BitChord release for detailed changes.") + footer
     with open("release_notes.md", "w", encoding="utf-8") as f:

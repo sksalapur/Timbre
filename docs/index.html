@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  
+  <title>TrueBit — Bit-Perfect High-Resolution Audio Streaming for Android</title>
+  <meta name="description" content="The autonomous, bit-perfect Android audio streamer with built-in cloud FLAC lossless bridge, direct DAC AudioTrack output, and 0:00 instant playback." />
+  <meta name="keywords" content="TrueBit, BitChord, lossless music, bit perfect, android dac, hi-res audio, FLAC streamer, Chu II DSP, usb dac" />
+  <meta name="author" content="sksalapur" />
+
+  <!-- Open Graph -->
+  <meta property="og:title" content="TrueBit — Bit-Perfect High-Resolution Audio Streaming" />
+  <meta property="og:description" content="Pure uncompressed 24-bit/192kHz studio masters. Built-in cloud lossless bridge. Autonomous upstream sync." />
+  <meta property="og:image" content="assets/banner.png" />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://sksalapur.github.io/TrueBit/" />
+
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" href="assets/emblem.png" />
+  <link rel="apple-touch-icon" href="assets/logo.png" />
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600;700&family=Outfit:wght@600;700;800;900&display=swap" rel="stylesheet" />
+
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="bg-grid"></div>
+
+  <!-- Navigation Bar -->
+  <nav>
+    <a href="index.html" class="nav-brand">
+      <img src="assets/emblem.png" alt="TrueBit Logo" class="nav-logo" />
+      <span class="brand-title">TrueBit</span>
+      <span class="brand-badge release-tag">v1.8</span>
+    </a>
+
+    <ul class="nav-links">
+      <li><a href="#features" class="nav-link">Features</a></li>
+      <li><a href="#hardware" class="nav-link">Hardware & DACs</a></li>
+      <li><a href="addons.html" class="nav-link">Addon Docs</a></li>
+      <li><a href="https://github.com/sksalapur/TrueBit/releases" class="nav-link" target="_blank" rel="noopener">Releases</a></li>
+    </ul>
+
+    <div class="nav-actions">
+      <a href="https://github.com/sksalapur/TrueBit" class="btn-github" target="_blank" rel="noopener" id="nav-github-btn">
+        <svg height="18" width="18" viewBox="0 0 16 16" fill="currentColor">
+          <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"></path>
+        </svg>
+        GitHub
+      </a>
+      <a href="#download" class="btn-primary" style="padding: 0.5rem 1rem; font-size: 0.9rem;">
+        Get APK
+      </a>
+    </div>
+  </nav>
+
+  <!-- Hero Section -->
+  <header class="hero">
+    <div class="eyebrow">
+      <span class="pulse-dot"></span>
+      Direct Bit-Perfect Android Audio Pipeline
+    </div>
+
+    <h1>
+      Pure Studio Masters.<br />
+      <span class="gradient-text">Zero Compromise.</span>
+    </h1>
+
+    <p class="hero-subtitle">
+      The autonomous, bit-perfect music player for Android. Engineered with a built-in cloud lossless FLAC bridge, direct unresampled AudioTrack routing for external DACs, and seamless 0:00 instant playback.
+    </p>
+
+    <!-- Download CTA -->
+    <div class="cta-group" id="download">
+      <div class="cta-buttons">
+        <a id="btn-download-arm64" href="https://github.com/sksalapur/TrueBit/releases/latest" class="btn-primary">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM17 13l-5 5-5-5h3V9h4v4h3z"/>
+          </svg>
+          <div style="text-align: left;">
+            <div class="btn-label">Download ARM64 (<span class="release-tag">v1.8</span>)</div>
+            <div class="btn-sub" style="font-size: 0.72rem; opacity: 0.85; font-weight: normal;">Recommended for most phones</div>
+          </div>
+        </a>
+
+        <a id="btn-download-universal" href="https://github.com/sksalapur/TrueBit/releases/latest" class="btn-secondary">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="4" y="4" width="16" height="16" rx="2" />
+            <rect x="9" y="9" width="6" height="6" />
+          </svg>
+          <span class="btn-label">Universal APK</span>
+        </a>
+      </div>
+
+      <div class="release-meta">
+        <span>Latest Release: <strong class="release-tag-badge release-tag">v1.8</strong></span>
+        <span>•</span>
+        <span id="release-date">Oct 2026</span>
+        <span>•</span>
+        <span>Android 8.0+ (API 26+)</span>
+        <span>•</span>
+        <span>100% Free & Open Source</span>
+      </div>
+    </div>
+
+    <!-- Interactive Mockup: Nerd Stats & Engine Readout -->
+    <div class="mockup-container">
+      <div class="mockup-header">
+        <div style="display: flex; align-items: center; gap: 0.75rem;">
+          <img src="assets/emblem.png" width="32" height="32" style="border-radius: 6px;" alt="emblem" />
+          <div style="text-align: left;">
+            <div style="font-size: 0.95rem; font-weight: 700;">Hotel California (Live On Air)</div>
+            <div style="font-size: 0.8rem; color: var(--text-dim);">Eagles — Eagles Live (1980)</div>
+          </div>
+        </div>
+        <div class="mockup-badge">
+          <span class="pulse-dot"></span>
+          DIRECT AUDIOTRACK
+        </div>
+      </div>
+
+      <!-- Live Nerd Stats Grid -->
+      <div class="nerd-stats-grid">
+        <div class="nerd-stat-box">
+          <div class="stat-label">Audio Route</div>
+          <div class="stat-val highlight">AudioTrack (Direct)</div>
+        </div>
+        <div class="nerd-stat-box">
+          <div class="stat-label">Hardware Device</div>
+          <div class="stat-val">Moondrop Chu II DSP</div>
+        </div>
+        <div class="nerd-stat-box">
+          <div class="stat-label">Sample Rate</div>
+          <div class="stat-val highlight">96.0 kHz &rarr; 96.0 kHz</div>
+        </div>
+        <div class="nerd-stat-box">
+          <div class="stat-label">Data Bitrate</div>
+          <div class="stat-val highlight">4,608 kbps (PCM)</div>
+        </div>
+        <div class="nerd-stat-box">
+          <div class="stat-label">Source Format</div>
+          <div class="stat-val">24-bit / 96kHz FLAC</div>
+        </div>
+        <div class="nerd-stat-box">
+          <div class="stat-label">Stream Provider</div>
+          <div class="stat-val">TrueBit Fly.io Bridge</div>
+        </div>
+      </div>
+
+      <!-- Priority Window Live Simulator -->
+      <div style="background: rgba(0,0,0,0.3); border: 1px solid var(--border-subtle); border-radius: 12px; padding: 1rem 1.25rem; text-align: left;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+          <span style="font-size: 0.85rem; font-weight: 600; color: #fff;">⚙️ Lossless Priority Window (Settings Slider)</span>
+          <span id="demo-timeout-val" style="font-family: var(--font-mono); font-size: 0.9rem; color: var(--cyan-primary); font-weight: 700;">3.5s</span>
+        </div>
+        <input type="range" id="demo-timeout-slider" min="0.5" max="5.0" step="0.5" value="3.5" style="width: 100%; accent-color: var(--cyan-primary); cursor: pointer;" />
+        <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.35rem;">
+          Adjusts max wait for FLAC studio stream before fallback to YouTube Opus. Matches your personal connection speed and tolerance.
+        </div>
+      </div>
+
+      <!-- Animated Waveform -->
+      <div class="waveform-container" id="waveform-bars">
+        <!-- Rendered dynamically by app.js -->
+      </div>
+    </div>
+  </header>
+
+  <!-- Features Grid -->
+  <section class="features-section" id="features">
+    <div class="section-header">
+      <h2>Engineered for Audiophiles</h2>
+      <p>TrueBit transforms everyday mobile streaming into a zero-compromise high-resolution listening experience.</p>
+    </div>
+
+    <div class="features-grid">
+      <div class="feature-card">
+        <div class="feature-icon">🌊</div>
+        <h3>Built-In Cloud Lossless Bridge</h3>
+        <p>
+          Never copy-paste custom server URLs again. TrueBit permanently embeds your dedicated Fly.io lossless resolver (<code>https://lossless-bridge.fly.dev/sksalapur</code>) as a top-priority native source, delivering pristine FLAC streams directly from song one.
+        </p>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon">🎯</div>
+        <h3>Configurable Priority Window</h3>
+        <p>
+          Stock players default to lossy Opus and clumsily upgrade mid-track. TrueBit queries lossless studio sources first. With the newly introduced <strong>0.5s – 5.0s Playback Slider</strong>, you decide the exact safety window before falling back.
+        </p>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon">🎛️</div>
+        <h3>Direct Bit-Perfect Hardware Sink</h3>
+        <p>
+          Android's default system audio mixer aggressively resamples all audio to 48kHz and truncates bit depths. TrueBit leverages AndroidX Media3's direct AudioTrack pipeline, driving USB DACs and Type-C DSPs (such as Moondrop Chu II DSP) at native 96 kHz.
+        </p>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon">⏩</div>
+        <h3>4-Track Predictive Lookahead</h3>
+        <p>
+          Skip without delays. TrueBit increases background queue lookahead from 1 to <strong>4 tracks</strong> and optimizes prefetch intervals to 2 seconds. Upcoming album tracks are pre-resolved and primed in memory before you tap Next.
+        </p>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon">📊</div>
+        <h3>Accurate Bitrate Telemetry</h3>
+        <p>
+          Eliminated upstream telemetry leaks. TrueBit's Nerd Stats accurately displays genuine decoded PCM data rates (e.g. 1,411 kbps for 16/44.1, 4,608 kbps for 24/96) matching your hardware sink's physical throughput.
+        </p>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon">🎨</div>
+        <h3>Aesthetic Modern Player</h3>
+        <p>
+          Enjoy Spotify playlist integration, character-synchronized lyrics powered by lrc.red, beat-matched Automix, high-resolution covers, and a fluid Material 3 Expressive UI with glassmorphic accents.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Hardware Compatibility -->
+  <section class="hardware-section" id="hardware">
+    <div class="section-header">
+      <h2>Hardware & DAC Compatibility</h2>
+      <p>TrueBit is verified to deliver bit-perfect unresampled digital audio across popular audiophile gear.</p>
+    </div>
+
+    <div class="table-card">
+      <table>
+        <thead>
+          <tr>
+            <th>Hardware / Earphone</th>
+            <th>Type</th>
+            <th>Sample Rate</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Moondrop Chu II DSP</strong></td>
+            <td>Type-C Integrated DAC</td>
+            <td><code>96.0 kHz / 24-bit</code></td>
+            <td><span class="tag-verified">Verified Bit-Perfect</span></td>
+          </tr>
+          <tr>
+            <td><strong>Apple USB-C Dongle</strong></td>
+            <td>Type-C Adapter</td>
+            <td><code>48.0 kHz / 24-bit</code></td>
+            <td><span class="tag-verified">Direct Sink</span></td>
+          </tr>
+          <tr>
+            <td><strong>FiiO KA1 / KA3 / KA13</strong></td>
+            <td>Portable USB DAC</td>
+            <td><code>Up to 192 kHz</code></td>
+            <td><span class="tag-verified">Direct Sink</span></td>
+          </tr>
+          <tr>
+            <td><strong>iFi Go Link / AudioQuest</strong></td>
+            <td>Hi-Res Audio Dongle</td>
+            <td><code>Up to 192 kHz</code></td>
+            <td><span class="tag-verified">Direct Sink</span></td>
+          </tr>
+          <tr>
+            <td><strong>Desktop USB DACs (Chord, Schiit)</strong></td>
+            <td>External Desktop DAC</td>
+            <td><code>32-bit Float / 192 kHz</code></td>
+            <td><span class="tag-verified">Direct Sink</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- Addon Documentation CTA -->
+  <section class="hero" style="padding-top: 2rem;">
+    <div class="mockup-container" style="text-align: center; max-width: 900px; padding: 3rem 2rem;">
+      <h2 style="font-family: var(--font-heading); font-size: 2.2rem; font-weight: 800; margin-bottom: 1rem;">
+        Extend TrueBit with Custom Addons
+      </h2>
+      <p style="color: var(--text-dim); max-width: 650px; margin: 0 auto 2rem; line-height: 1.6;">
+        Want to host your own audio server or connect Deezer, Tidal, Qobuz, or Subsonic? TrueBit supports the universal JSON Addon Protocol with just 3 simple HTTP routes.
+      </p>
+      <div style="display: flex; justify-content: center; gap: 1rem; flex-wrap: wrap;">
+        <a href="addons.html" class="btn-primary" style="font-size: 1rem;">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/>
+          </svg>
+          Read Addon Developer Guide
+        </a>
+        <a href="https://github.com/sksalapur/lossless-bridge" target="_blank" rel="noopener" class="btn-secondary" style="font-size: 1rem;">
+          Lossless Bridge Repository &rarr;
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer>
+    <div class="footer-content">
+      <div class="footer-col" style="max-width: 320px;">
+        <div style="display: flex; align-items: center; gap: 0.6rem; margin-bottom: 1rem;">
+          <img src="assets/emblem.png" width="28" height="28" alt="emblem" />
+          <span style="font-family: var(--font-heading); font-size: 1.25rem; font-weight: 800; color: #fff;">TrueBit</span>
+        </div>
+        <p style="color: var(--text-muted); font-size: 0.85rem; line-height: 1.6;">
+          Autonomous, bit-perfect high-resolution music streaming for Android. Fork of BitChord with built-in cloud lossless routing and direct DAC sinks.
+        </p>
+      </div>
+
+      <div class="footer-col">
+        <h4>Downloads</h4>
+        <ul class="footer-links">
+          <li><a href="https://github.com/sksalapur/TrueBit/releases/latest" target="_blank" rel="noopener">Latest Release (v1.8)</a></li>
+          <li><a href="https://github.com/sksalapur/TrueBit/releases" target="_blank" rel="noopener">All GitHub Releases</a></li>
+          <li><a href="https://github.com/sksalapur/lossless-bridge" target="_blank" rel="noopener">Lossless Bridge API</a></li>
+        </ul>
+      </div>
+
+      <div class="footer-col">
+        <h4>Documentation</h4>
+        <ul class="footer-links">
+          <li><a href="addons.html">Addon Developer Guide</a></li>
+          <li><a href="https://github.com/sksalapur/TrueBit#readme" target="_blank" rel="noopener">Project README</a></li>
+          <li><a href="https://github.com/kushagrasinghx/BitChord" target="_blank" rel="noopener">Upstream BitChord</a></li>
+        </ul>
+      </div>
+
+      <div class="footer-col">
+        <h4>Developer</h4>
+        <ul class="footer-links">
+          <li><a href="https://github.com/sksalapur" target="_blank" rel="noopener">GitHub Profile (@sksalapur)</a></li>
+          <li><a href="https://github.com/sksalapur/TrueBit/blob/main/LICENSE" target="_blank" rel="noopener">GPLv3 License</a></li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="footer-bottom">
+      TrueBit is an open-source project licensed under GPLv3. All core player architecture belongs to the upstream BitChord team.
+    </div>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>

@@ -4,6 +4,12 @@ on:
   schedule:
     # Run every 6 hours to check for upstream BitChord releases
     - cron: '0 */6 * * *'
+  push:
+    branches:
+      - main
+    paths:
+      - 'docs/**'
+      - '.github/workflows/**'
   workflow_dispatch:
     inputs:
       force_build:
@@ -22,6 +28,9 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    outputs:
+      should_build: ${{ steps.check_release.outputs.should_build }}
+      published: ${{ steps.publish_release.outputs.release_id != '' }}
 
     steps:
       - name: Checkout TrueBit Repo (for patches & workflow)
@@ -91,6 +100,9 @@ jobs:
           cp ../truebit-repo/assets/logo.png ./Logo.png
           cp ../truebit-repo/assets/banner.png ./Banner.png
           cp ../truebit-repo/README.md ./README.md
+          if [ -d "../truebit-repo/docs" ]; then
+            cp -r ../truebit-repo/docs ./docs
+          fi
 
           echo "Applying TrueBit patch suite..."
           for patch in ../truebit-repo/.patches/*.patch; do
@@ -153,26 +165,13 @@ jobs:
             echo "Using custom signing keystore from secrets..."
             echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > keystore.jks
             
-            $BUILD_TOOLS/apksigner sign \
-              --ks keystore.jks \
-              --ks-key-alias "${{ secrets.KEY_ALIAS }}" \
-              --ks-pass "pass:${{ secrets.KEYSTORE_PASSWORD }}" \
-              --key-pass "pass:${{ secrets.KEY_PASSWORD }}" \
-              --out "$SIGNED_APK" \
-              "$APK_PATH"
+            $BUILD_TOOLS/apksigner sign               --ks keystore.jks               --ks-key-alias "${{ secrets.KEY_ALIAS }}"               --ks-pass "pass:${{ secrets.KEYSTORE_PASSWORD }}"               --key-pass "pass:${{ secrets.KEY_PASSWORD }}"               --out "$SIGNED_APK"               "$APK_PATH"
           else
             echo "No custom keystore secret found. Generating consistent signing key for this build..."
-            keytool -genkeypair -v -keystore auto.keystore -alias truebit -keyalg RSA -keysize 2048 -validity 10000 \
-              -storepass "truebitpass" -keypass "truebitpass" -dname "CN=TrueBit, OU=Audio, O=TrueBit, L=HQ, S=Audio, C=US"
+            keytool -genkeypair -v -keystore auto.keystore -alias truebit -keyalg RSA -keysize 2048 -validity 10000               -storepass "truebitpass" -keypass "truebitpass" -dname "CN=TrueBit, OU=Audio, O=TrueBit, L=HQ, S=Audio, C=US"
             
             BUILD_TOOLS=$(ls -d $ANDROID_HOME/build-tools/* | sort -V | tail -n 1)
-            $BUILD_TOOLS/apksigner sign \
-              --ks auto.keystore \
-              --ks-key-alias truebit \
-              --ks-pass pass:truebitpass \
-              --key-pass pass:truebitpass \
-              --out "$SIGNED_APK" \
-              "$APK_PATH"
+            $BUILD_TOOLS/apksigner sign               --ks auto.keystore               --ks-key-alias truebit               --ks-pass pass:truebitpass               --key-pass pass:truebitpass               --out "$SIGNED_APK"               "$APK_PATH"
           fi
 
           echo "Signed APK ready at $SIGNED_APK"
@@ -185,6 +184,7 @@ jobs:
 
       - name: Publish GitHub Release
         if: steps.check_release.outputs.should_build == 'true'
+        id: publish_release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.check_release.outputs.truebit_tag }}
@@ -196,3 +196,31 @@ jobs:
           make_latest: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  deploy-pages:
+    name: Deploy GitHub Pages
+    runs-on: ubuntu-latest
+    needs: check-and-build
+    if: always() && (needs.check-and-build.result == 'success' || github.event_name == 'push')
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Checkout TrueBit Repo
+        uses: actions/checkout@v4
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages Artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: './docs'
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
