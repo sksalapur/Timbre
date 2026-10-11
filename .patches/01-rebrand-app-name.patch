@@ -1,0 +1,11 @@
+diff --git a/app/src/main/res/values/strings.xml b/app/src/main/res/values/strings.xml
+index 38ebd669..01f588a7 100644
+--- a/app/src/main/res/values/strings.xml
++++ b/app/src/main/res/values/strings.xml
+@@ -1,5 +1,5 @@
+ <resources>
+-    <string name="app_name">BitChord</string>
++    <string name="app_name">TrueBit</string>
+     <string name="playback_channel_name">Now playing</string>
+     <string name="download_channel_name">Downloads</string>
+     <string name="download_channel_description">Songs being saved to your Music folder</string>

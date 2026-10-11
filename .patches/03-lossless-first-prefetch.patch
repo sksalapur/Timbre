@@ -1,0 +1,34 @@
+diff --git a/app/src/main/java/com/music/bitchord/data/sources/SourceKind.kt b/app/src/main/java/com/music/bitchord/data/sources/SourceKind.kt
+index 06c02bfc..474f81b9 100644
+--- a/app/src/main/java/com/music/bitchord/data/sources/SourceKind.kt
++++ b/app/src/main/java/com/music/bitchord/data/sources/SourceKind.kt
+@@ -76,6 +76,7 @@ enum class SourceKind(
+         labels = listOf("FLAC", "Lossless", "Hi-Res"),
+         needsServer = true,
+         canServeLossless = true,
++        worthPrefetching = true,
+         // Literal, not [USER_ADDED]: an enum entry is constructed before
+         // its own companion exists.
+         rank = 0,
+diff --git a/app/src/main/java/com/music/bitchord/playback/AudioCache.kt b/app/src/main/java/com/music/bitchord/playback/AudioCache.kt
+index 3bcae45e..8f1c5955 100644
+--- a/app/src/main/java/com/music/bitchord/playback/AudioCache.kt
++++ b/app/src/main/java/com/music/bitchord/playback/AudioCache.kt
+@@ -157,7 +157,7 @@ object AudioCache {
+      * skips into a single fetch of wherever the listener lands, and leaves the
+      * player's opening burst holding the cache entry alone — see [fetchWhole].
+      */
+-    private const val PREFETCH_DELAY_MS = 8_000L
++    private const val PREFETCH_DELAY_MS = 2_000L
+ 
+     /** How long to leave the player alone with an entry before trying again. */
+     private const val RETRY_DELAY_MS = 5_000L
+@@ -183,7 +183,7 @@ object AudioCache {
+      * [StreamResolver][com.music.bitchord.data.innertube.StreamResolver]'s
+      * extraction gate, which serialises what is left of that.
+      */
+-    private const val QUEUE_LOOKAHEAD = 1
++    private const val QUEUE_LOOKAHEAD = 4
+ 
+     /** Spacing between queued resolves, so warming the queue never competes with the track actually playing. */
+     private const val QUEUE_RESOLVE_STAGGER_MS = 500L

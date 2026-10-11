@@ -1,158 +1,125 @@
-<div align="center">
+<h1 align="center">💎 TrueBit</h1>
 
-<br/>
-<br/>
+<p align="center">
+  <img src="Logo.png" alt="TrueBit Logo" width="180" style="border-radius: 28px;" />
+</p>
 
-<img src="Logo.png" alt="BitChord app icon" width="200" />
+<p align="center">
+  <strong>High-Fidelity, Bit-Perfect Music Streaming for Android</strong>
+</p>
 
-# BitChord
+<p align="center">
+  <em>Pure uncompressed 24-bit/192kHz studio masters. Built-in cloud lossless bridge. Autonomous upstream synchronization. The player your DAC was built for.</em>
+</p>
 
-### Aesthetic YouTube Music Client
-
-<br/>
-
-[![Latest release](https://img.shields.io/github/v/release/kushagrasinghx/BitChord?style=for-the-badge&labelColor=0d1117)](https://github.com/kushagrasinghx/BitChord/releases)
-[![License](https://img.shields.io/github/license/kushagrasinghx/BitChord?style=for-the-badge&labelColor=0d1117)](https://github.com/kushagrasinghx/BitChord/blob/main/LICENSE)
-[![Downloads](https://img.shields.io/github/downloads/kushagrasinghx/BitChord/total?style=for-the-badge&labelColor=0d1117)](https://github.com/kushagrasinghx/BitChord/releases)
-[![Listening now](https://api.bitchord.kushagrasingh.in/api/stats/live/badge.svg)](https://api.bitchord.kushagrasingh.in/api/stats/live)
-
-<br/>
-
-[**Download**](#download) · [**Features**](#features) · [**Contributing**](#contributing) · [**Support**](#support) · [**Disclaimer**](#disclaimer)
-
-<br/>
-
-<a href="https://fmhy.net/mobile#youtube-music" target="_blank" rel="noopener noreferrer"><img src="https://cdn.jsdelivr.net/gh/JMcrafter26/badges@main/src/assets/available/fmhy/cozy.svg" alt="Featured on FMHY" height="55"/></a>
-<a href="https://trendshift.io/repositories/177639?utm_source=trendshift-badge&utm_medium=badge&utm_campaign=badge-trendshift-177639" target="_blank" rel="noopener noreferrer"><img src="https://trendshift.io/api/badge/trendshift/repositories/177639/daily?language=Kotlin" alt="kushagrasinghx%2FBitChord | Trendshift" width="250" height="55"/></a>
-<a href="https://trendshift.io/repositories/177639?utm_source=trendshift-badge&utm_medium=badge&utm_campaign=badge-trendshift-177639" target="_blank" rel="noopener noreferrer"><img src="https://trendshift.io/api/badge/trendshift/repositories/177639/weekly?language=Kotlin" alt="kushagrasinghx%2FBitChord | Trendshift" width="250" height="55"/></a>
-
-</div>
-
-> [!IMPORTANT]
-> BitChord is not affiliated with, endorsed by, or connected to YouTube or Google in any way. Use it at your own discretion.
+<p align="center">
+  <a href="https://github.com/sksalapur/TrueBit/releases/latest"><img src="https://img.shields.io/github/v/release/sksalapur/TrueBit?style=for-the-badge&label=Download%20APK&color=00D2FF&logo=android&logoColor=white" /></a>
+  <img src="https://img.shields.io/badge/Audio-24--bit%20%2F%20192kHz%20FLAC-gold?style=for-the-badge&logo=audacity&logoColor=white" />
+  <img src="https://img.shields.io/badge/Upstream-BitChord%20Auto--Synced-8A2BE2?style=for-the-badge&logo=github&logoColor=white" />
+  <img src="https://img.shields.io/badge/License-GPLv3-brightgreen?style=for-the-badge" />
+</p>
 
 ---
 
-<div align="center">
+## 🎧 The Problem
 
-<img src="Banner.png" alt="BitChord banner" width="100%" />
+Modern music streaming on mobile is riddled with compromises for anyone who cares about audio quality:
 
-<h1><a id="features"></a>Features</h1>
+| Platform | Limitation |
+| :--- | :--- |
+| **YouTube Music / Spotify** | Heavily compressed lossy audio (128–160 kbps Opus/AAC). Smeared transients, flat dynamics, and audible compression artifacts. |
+| **Tidal / Qobuz / Apple Music** | $11–20/month subscription fees, DRM lock-in, proprietary closed-source apps, heavy battery drain, and no YouTube Music playlist integration. |
+| **Stock BitChord** | Requires manual server configuration on every install; defaults to lossy YouTube streams first before upgrading mid-track; only pre-fetches 1 track ahead; lacks 24-bit PCM mode. |
+| **Android Audio Pipeline** | Default Android system mixer forces 48kHz resampling and truncates 24-bit studio masters down to 16-bit integer PCM. |
 
-<table>
-  <tr>
-    <td width="50%" valign="top">
-
-#### Playback
-- **Search, browse and play** anything available on YouTube Music.
-- **Hi-Res lossless audio** — FLAC/ALAC from a configured module source, with YouTube Music as fallback.
-- **Gapless playback with true crossfade**, adjustable 0–12s.
-- **Automix [Beta]** — DJ-style transitions with beat-matching and tempo-stretching.
-- **Offline downloads** — save tracks with embedded metadata.
-- **Local music library** integration.
-- **Background playback** via a proper foreground media session.
-- **Apple-like lyrics animation** — credit to [binimum](https://github.com/binimum/am-lyrics).
-
-#### Connectivity & Accounts
-- **Sign in with your Google account** for personalized content.
-- **Spotify integration** — connect your account to play your playlists and Liked Songs.
-- **Discord Rich Presence** — in-app login, live track/artist/album and progress.
-- **Scrobbling** to Last.fm and ListenBrainz.
-- **Pluggable sources** — add, edit, test and health-check module sources.
-
-    </td>
-    <td width="50%" valign="top">
-
-#### Experience
-- **Animated album canvas** — motion artwork on the now-playing screen.
-- **Word-synced lyrics** — word/syllable-level highlighting from multiple sources.
-- **Lyrics providers** — credit to [lrc.red](https://lrc.red), [BiniLyrics](https://github.com/binimum), [BetterLyrics](https://github.com/better-lyrics/better-lyrics), [PaxSenix](https://lyrics.paxsenix.org), [LyricsPlus](https://github.com/ibratabian17/YouLyPlus), [SimpMusic](https://github.com/maxrave-dev/SimpMusic), [Unison](https://unison.boidu.dev), [Megalobiz](https://www.megalobiz.com), [KuGou](https://www.kugou.com), [LRCLIB](https://lrclib.net), [Musixmatch](https://www.musixmatch.com) and [Genius](https://genius.com).
-- **Dynamic, artwork-driven theming** — Material palette extracted from album art.
-- **Frosted-glass UI** — Telegram-style translucent bars via Haze, Material 3 theming.
-
-#### Controls & Tweaks
-- **Per-network audio quality** — separate quality ceilings for Wi-Fi and mobile data.
-- **Playback speed control** (0.5×–2.0×) and **skip silence**.
-- **Sleep timer** — fixed presets or "stop after this track".
-- **System equalizer** integration.
-- **Stats for nerds** — codec, bit depth, sample rate, and more on the now-playing screen.
-
-    </td>
-  </tr>
-</table>
-
-</div>
+**TrueBit solves all of this out of the box.** It is a purpose-built, high-fidelity fork of BitChord featuring hardcoded cloud lossless routing, aggressive queue pre-caching, direct 24-bit PCM DAC output, and automated upstream release patching.
 
 ---
 
-<div align="center">
+## ⚡ What Makes TrueBit Different
 
-<h1><a id="download"></a>Download</h1>
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│                        TrueBit (Android Player)                        │
+│                                                                        │
+│   Track Requested: "Hotel California" (Eagles)                         │
+│         │                                                              │
+│         ▼                                                              │
+│   ┌──────────────────────────────────────────────────────────────┐     │
+│   │ 1. Built-in Lossless Bridge (Queried First)                  │     │
+│   │    Direct match found: 24-bit / 192kHz FLAC Master           │     │
+│   └──────────────────────────────┬───────────────────────────────┘     │
+│                                  │                                     │
+│   ┌──────────────────────────────▼───────────────────────────────┐     │
+│   │ 2. Predictive Lookahead Engine                               │     │
+│   │    Pre-resolves next 4 songs in queue (2s stagger)           │     │
+│   └──────────────────────────────┬───────────────────────────────┘     │
+│                                  │                                     │
+│   ┌──────────────────────────────▼───────────────────────────────┐     │
+│   │ 3. Bit-Perfect Hardware Pipeline                             │     │
+│   │    24-bit PCM Direct Route → USB DAC (e.g. Chu II DSP)       │     │
+│   └──────────────────────────────────────────────────────────────┘     │
+└────────────────────────────────────────────────────────────────────────┘
+```
 
-<a href="https://github.com/kushagrasinghx/BitChord/releases" target="_blank" rel="noopener noreferrer"><img src="https://cdn.jsdelivr.net/gh/JMcrafter26/badges@main/src/assets/supported/android/cozy.svg" alt="Download for Android" height="55"/></a>
-<a href="https://github.com/kushagrasinghx/BitChord/releases" target="_blank" rel="noopener noreferrer"><img src="https://cdn.jsdelivr.net/gh/JMcrafter26/badges@main/src/assets/supported/windows/cozy.svg" alt="Download for Windows" height="55"/></a>
+### 1. 🌉 Hardcoded Built-In Lossless Bridge
+No need to manually copy-paste addon URLs or sign in to third-party endpoints. TrueBit embeds your dedicated high-performance **Lossless Bridge** directly into the engine as a permanent, first-priority source. You get instant access to studio-quality FLAC streams from song one.
 
-Grab the latest signed APK from the [Releases](https://github.com/kushagrasinghx/BitChord/releases) page. Sideloading requires enabling "Install unknown apps" for whichever app you download it with.
+### 2. 🎯 Lossless-First Routing (Zero Mid-Song Jumps)
+Stock clients start playback immediately on low-bitrate YouTube Opus audio and later perform a "seam swap" to FLAC mid-song. TrueBit flips this: it actively queries lossless sources *before* opening the audio stream. When a lossless copy exists, you hear pure FLAC from **0:00**.
 
-For the Windows and Linux desktop app, see [DESKTOP.md](DESKTOP.md).
+### 3. ⏩ 4-Track Predictive Queue Pre-Resolving
+- Increased queue lookahead from 1 track to **4 tracks**.
+- Reduced background prefetch stagger from 8s to **2s**.
+- Upcoming tracks in your album or playlist are already resolved and primed in memory, delivering instant, gapless transitions even when skipping quickly.
 
-</div>
+### 4. 🎛️ Dedicated 24-Bit PCM Audio Output Mode
+Alongside standard 16-bit PCM and 32-bit Float, TrueBit introduces a native **24-bit PCM** output option under Playback Settings. Tailored specifically for audiophile Type-C DACs (such as the Moondrop Chu II DSP, Conexant, and Cirrus Logic dongles), bypassing Android's 16-bit integer truncation.
 
----
+### 5. 📊 Fixed Real-Time Bitrate Telemetry
+Eliminated the upstream bug where Nerd Stats leaked stale 165 kbps lossy bitrates onto FLAC streams. TrueBit displays genuine PCM data rates (e.g. 1,411 kbps for 16/44.1, 4,608 kbps for 24/96) accurately reflecting your hardware sink.
 
-<div align="center">
-
-<h1><a id="contributing"></a>Contributing</h1>
-
-We welcome contributions to BitChord! Please review our [Contributing Guide](CONTRIBUTING.md) and [Code of Conduct](CODE_OF_CONDUCT.md) before submitting a Pull Request.
-
-[**Contributing Guide**](CONTRIBUTING.md) · [**Code of Conduct**](CODE_OF_CONDUCT.md) · [**Maintainers**](MAINTAINERS.md) · [**Additional Docs**](ADDITIONAL.md)
-
-### Thanks to all contributors ❤
-
-<a href="https://github.com/kushagrasinghx/BitChord/graphs/contributors">
-  <img src="https://raw.githubusercontent.com/kushagrasinghx/BitChord/contributors/contributors.svg" />
-</a>
-
-</div>
-
----
-
-<div align="center">
-
-<h1><a id="support"></a>Support</h1>
-
-BitChord is free and always will be — if it's earned a spot in your rotation, you can chip in here:
-
-<a href="https://ko-fi.com/kushagrasinghx" target="_blank" rel="noopener noreferrer"><img src="https://cdn.jsdelivr.net/gh/JMcrafter26/badges@main/src/assets/donate/kofi-singular-alt/cozy.svg" alt="Support me on Ko-fi" height="55"/></a>
-<a href="https://paypal.me/kuxhagrasingh" target="_blank" rel="noopener noreferrer"><img src="https://cdn.jsdelivr.net/gh/JMcrafter26/badges@main/src/assets/donate/paypal-plural/cozy.svg" alt="Support us on PayPal" height="55"/></a>
-
-<br/>
-<img src="upi_support.jpg" alt="UPI Support" width="250" />
-
-</div>
-
----
-
-<div align="center">
-
-<h1><a id="disclaimer"></a>Disclaimer & Legal Notice</h1>
-
-BitChord is an independent, community-driven third-party audio player and client. It is **not** associated with Google LLC, YouTube Music, Deezer, Telegram, or any of their parent companies.
-
-* **No Media Hosting:** BitChord does not host, upload, or store copyrighted music files. It operates strictly as an interface to scan local device storage or stream media directly from public, public-facing, or user-authenticated APIs.
-* **Fair Use & API Usage:** This software is created solely for personal research, educational, and fair-use purposes. The user is entirely responsible for ensuring their usage aligns with their local copyright laws and YouTube Terms of Service.
-* **No Ad-Blocking Guarantee:** While BitChord focuses on providing a clean listening environment, it does not guarantee permanent bypasses or modifications to commercial third-party platform conditions.
-* **Copyleft:** BitChord is free software under the GPLv3. The license does not let anyone forbid others from selling or redistributing copies, but any distribution must come with the Corresponding Source under the same license.
-
-</div>
+### 6. 🔄 Autonomous Upstream Synchronization
+TrueBit never falls behind. A GitHub Actions CI pipeline monitors upstream `kushagrasinghx/BitChord` daily. Whenever upstream releases an update:
+1. The workflow pulls the new tag.
+2. Applies TrueBit's surgical patches via `git apply`.
+3. Builds and signs the release APK.
+4. Automatically publishes the update to [TrueBit Releases](https://github.com/sksalapur/TrueBit/releases).
 
 ---
 
-<div align="center">
+## 📥 Download & Installation
 
-<h1><a id="license"></a>License</h1>
+1. Go to the [**Latest Releases**](https://github.com/sksalapur/TrueBit/releases/latest) page.
+2. Download `TrueBit-release.apk`.
+3. Install the APK on your Android device (Android 8.0+ supported; Android 13+ recommended for bit-perfect direct output).
+4. Connect your favorite wired earphones or USB DAC, enable **24-bit PCM** in *Settings → Playback*, and enjoy uncompressed studio fidelity.
 
-This project is licensed under the **GNU General Public License v3.0 (GPLv3)**. See the [LICENSE](LICENSE) file for details.
+---
 
-</div>
+## 🛠️ Patch Suite Architecture
+
+All modifications are maintained as atomic, surgical `.patch` files in the [`.patches/`](.patches/) directory:
+
+| Patch | Target Component | Description |
+| :--- | :--- | :--- |
+| [`01-rebrand-app-name.patch`](.patches/01-rebrand-app-name.patch) | `strings.xml` | Updates application branding to TrueBit across the UI and system notifications. |
+| [`02-builtin-lossless-bridge.patch`](.patches/02-builtin-lossless-bridge.patch) | `SourceRegistry.kt`, `SourcesScreen.kt` | Seeds the Fly.io lossless bridge as a persistent, non-removable priority #1 source. |
+| [`03-lossless-first-prefetch.patch`](.patches/03-lossless-first-prefetch.patch) | `SourceKind.kt`, `AudioCache.kt` | Enables prefetching for addons, expands queue lookahead to 4, cuts delay to 2s. |
+| [`04-fix-bitrate-display.patch`](.patches/04-fix-bitrate-display.patch) | `PlaybackService.kt` | Prevents stale YouTube Opus bitrate from leaking into lossless stream telemetry. |
+| [`05-pcm-24bit-mode.patch`](.patches/05-pcm-24bit-mode.patch) | `AppSettings.kt`, `OutputNegotiator.kt` | Adds 24-bit integer PCM mode to settings enum and direct/external audio negotiation. |
+| [`06-truebit-app-icon.patch`](.patches/06-truebit-app-icon.patch) | `res/mipmap-*`, `Logo.png` | Complete aesthetic overhaul with high-res TrueBit neon squircle branding across all DPIs. |
+
+---
+
+## 🤝 Credits & Acknowledgements
+
+- **[BitChord](https://github.com/kushagrasinghx/BitChord)** — Created by [kushagrasinghx](https://github.com/kushagrasinghx). All core player architecture, audio pipelines, and UI belong to the original BitChord team.
+- **[Lossless Bridge](https://github.com/sksalapur/lossless-bridge)** — High-performance cloud proxy routing lossless FLAC streams.
+- **[LastWave Addons](https://lastwaveaddons.clashprojects.qd.je/)** — Community lossless search infrastructure.
+
+---
+
+## ⚖️ License
+
+TrueBit is licensed under the **GNU General Public License v3.0 (GPLv3)** in compliance with the upstream BitChord license. See [LICENSE](LICENSE) for details.
