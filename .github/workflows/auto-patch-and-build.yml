@@ -181,7 +181,7 @@ jobs:
       - name: Generate TrueBit Rebadged Release Notes
         if: steps.check_release.outputs.should_build == 'true'
         run: |
-          python3 ../truebit-repo/scripts/rebadge_release.py "${{ steps.check_release.outputs.upstream_tag }}" "${{ github.repository }}"
+          python3 "${{ github.workspace }}/truebit-repo/scripts/rebadge_release.py" "${{ steps.check_release.outputs.upstream_tag }}" "${{ github.repository }}"
 
       - name: Publish GitHub Release
         if: steps.check_release.outputs.should_build == 'true'
