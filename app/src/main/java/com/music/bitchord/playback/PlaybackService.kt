@@ -170,10 +170,21 @@ import kotlin.math.roundToInt
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.TimeoutCancellationException
 import java.util.Locale
+import java.util.UUID
 
 
 /** Session command used by both the player UI and the media notification. */
 const val ACTION_TOGGLE_AUTOPLAY = "com.music.bitchord.action.TOGGLE_AUTOPLAY"
+
+/** Session command used by album/playlist playback to install a bounded context. */
+const val ACTION_START_BOUNDED_CONTEXT = "com.music.bitchord.action.START_BOUNDED_CONTEXT"
+const val ACTION_CLEAR_BOUNDED_CONTEXT = "com.music.bitchord.action.CLEAR_BOUNDED_CONTEXT"
+const val EXTRA_BOUNDED_CONTEXT_SONGS = "bitchord.boundedContext.songs"
+const val EXTRA_BOUNDED_CONTEXT_START_INDEX = "bitchord.boundedContext.startIndex"
+const val EXTRA_BOUNDED_CONTEXT_SOURCE_TITLE = "bitchord.boundedContext.sourceTitle"
+const val EXTRA_BOUNDED_CONTEXT_SOURCE_TYPE = "bitchord.boundedContext.sourceType"
+const val EXTRA_BOUNDED_CONTEXT_SOURCE_ID = "bitchord.boundedContext.sourceId"
+const val EXTRA_BOUNDED_CONTEXT_CONTINUATION = "bitchord.boundedContext.continuation"
 
 /** Session command used to smoothly swap the current track's version (film vs release). */
 const val ACTION_SWAP_VERSION = "com.music.bitchord.action.SWAP_VERSION"
@@ -675,6 +686,24 @@ class PlaybackService : MediaLibraryService() {
     private var discordPresenceUp = false
 
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+
+    /** Canonical context owner for the active local bounded album/playlist. */
+    private val boundedContextRegistry = ContextRegistry { snapshot ->
+        scope.launch {
+            val window = boundedContextWindow ?: return@launch
+            if (snapshot.contextToken != boundedContextToken) return@launch
+            window.extendTo(snapshot.songs.size)
+            scheduleBoundedContextTopUp()
+        }
+    }
+
+    private var boundedContextWindow: QueueWindow? = null
+    private var boundedContextToken: String? = null
+    private var boundedContextSource: QueueSource? = null
+    private var boundedContinuationJob: Job? = null
+    private var boundedTopUpJob: Job? = null
+    private var boundedTopUpPending = false
+
     private val localBitrateCache = ConcurrentHashMap<String, Int>()
 
     /**
@@ -705,6 +734,8 @@ class PlaybackService : MediaLibraryService() {
     private var partySync: PartySync? = null
 
     /** Commands exposed as the secondary buttons on the media notification. */
+    private val boundedContextCommand = SessionCommand(ACTION_START_BOUNDED_CONTEXT, Bundle.EMPTY)
+    private val clearBoundedContextCommand = SessionCommand(ACTION_CLEAR_BOUNDED_CONTEXT, Bundle.EMPTY)
     private val favoriteCommand = SessionCommand(ACTION_TOGGLE_FAVORITE, Bundle.EMPTY)
     private val autoplayCommand = SessionCommand(ACTION_TOGGLE_AUTOPLAY, Bundle.EMPTY)
     private val shuffleCommand = SessionCommand(ACTION_TOGGLE_SHUFFLE, Bundle.EMPTY)
@@ -2355,6 +2386,262 @@ class PlaybackService : MediaLibraryService() {
         refreshCustomLayouts()
     }
 
+    /**
+     * Installs the first bounded window for an album/playlist request.  The
+     * complete list stays in [boundedContextRegistry]; only the bounded plan is
+     * converted to Media3 items.  This command is intentionally handled by the
+     * service so the physical edit uses the raw ExoPlayer and never trips the
+     * PartySync user-intent path.
+     */
+    private fun startBoundedContext(args: Bundle) {
+        val exoPlayer = player ?: return
+        val bundles = args.getParcelableArrayList<Bundle>(EXTRA_BOUNDED_CONTEXT_SONGS).orEmpty()
+        if (bundles.isEmpty()) return
+
+        val sourceType = args.getString(EXTRA_BOUNDED_CONTEXT_SOURCE_TYPE)
+            ?.let { runCatching { PlaybackSourceType.valueOf(it) }.getOrNull() }
+            ?: return
+        val source = QueueSource(
+            title = args.getString(EXTRA_BOUNDED_CONTEXT_SOURCE_TITLE).orEmpty(),
+            type = sourceType,
+            id = args.getString(EXTRA_BOUNDED_CONTEXT_SOURCE_ID),
+        )
+        val requestedSongs = bundles.map(::songFromBundle)
+            .filterNot { it.isUnresolvedSpotify }
+            .map { it.copy(
+                queueTier = QueueTier.CONTEXT,
+                playbackSource = source.title,
+                playbackSourceType = source.type,
+                playbackSourceId = source.id,
+            ) }
+        if (requestedSongs.isEmpty()) return
+
+        val requestedIndex = args.getInt(EXTRA_BOUNDED_CONTEXT_START_INDEX, 0)
+            .coerceIn(requestedSongs.indices)
+        val selectedVideoId = requestedSongs[requestedIndex].videoId
+        val contextToken = "${source.type.name}:${source.id.orEmpty()}:${UUID.randomUUID()}"
+        val registered = boundedContextRegistry.register(
+            contextToken = contextToken,
+            sourceKey = "${source.type.name}:${source.id.orEmpty()}",
+            browseId = source.id,
+            songs = requestedSongs,
+            continuationToken = args.getString(EXTRA_BOUNDED_CONTEXT_CONTINUATION),
+        )
+        val selectedIndex = registered.songs.indexOfFirst { it.videoId == selectedVideoId }
+            .takeIf { it >= 0 } ?: 0
+        val shuffle = QueueShuffle.enabled.value
+        val window = QueueWindow(registered.songs.size).startAt(selectedIndex, shuffle)
+
+        boundedContinuationJob?.cancel()
+        boundedContextWindow = window
+        boundedContextToken = contextToken
+        boundedContextSource = source
+        boundedTopUpPending = false
+
+        val currentIndex = exoPlayer.currentMediaItemIndex
+        val upcoming = if (currentIndex in 0 until exoPlayer.mediaItemCount) {
+            (currentIndex + 1 until exoPlayer.mediaItemCount).map { exoPlayer.getMediaItemAt(it) }
+        } else {
+            emptyList()
+        }
+        val userQueue = upcoming.filter { it.queueTier == QueueTier.USER_QUEUE }.map(MediaItem::toSong)
+        val autoplay = upcoming.filter { it.queueTier == QueueTier.AUTOPLAY }.map(MediaItem::toSong)
+        val repeatAll = exoPlayer.repeatMode == Player.REPEAT_MODE_ALL
+        val plan = BoundedQueuePlanner.buildInitialPlan(
+            contextSnapshot = registered,
+            selectedIndex = selectedIndex,
+            queueWindow = window,
+            preservedUserQueue = userQueue,
+            existingAutoplay = if (repeatAll) emptyList() else autoplay,
+            repeatAll = repeatAll,
+        )
+
+        QueueShuffle.setCanonicalContext(
+            registered.songs.mapIndexed { index, song ->
+                val canonical = song.copy(queueEntryId = "context:$contextToken:$index")
+                QueueShuffle.withQueueMetadata(
+                    canonical.toMediaItem(),
+                    newEntryId = canonical.queueEntryId,
+                    newCanonicalIndex = index,
+                    newTier = QueueTier.CONTEXT,
+                )
+            },
+        )
+
+        val items = boundedMediaItems(plan, window)
+        val start = plan.history.size
+        exoPlayer.setMediaItems(items, start.coerceIn(items.indices), 0L)
+        exoPlayer.prepare()
+        exoPlayer.play()
+        startBoundedContinuationLoading(contextToken)
+    }
+
+    /** Clears local bounded state before a non-context queue replaces the player. */
+    private fun clearBoundedContext() {
+        boundedContinuationJob?.cancel()
+        boundedContinuationJob = null
+        boundedTopUpJob?.cancel()
+        boundedTopUpJob = null
+        boundedContextRegistry.register(
+            contextToken = "cleared:${UUID.randomUUID()}",
+            sourceKey = "cleared",
+            browseId = null,
+            songs = emptyList(),
+            continuationToken = null,
+        )
+        boundedContextWindow = null
+        boundedContextToken = null
+        boundedContextSource = null
+        boundedTopUpPending = false
+        QueueShuffle.clearCanonicalContext()
+    }
+
+    /** Follows the continuation independently of the detail-page lifecycle. */
+    private fun startBoundedContinuationLoading(contextToken: String) {
+        boundedContinuationJob = scope.launch {
+            while (isActive && boundedContextToken == contextToken) {
+                val request = boundedContextRegistry.claimContinuation(contextToken) ?: return@launch
+                val page = withContext(Dispatchers.IO) {
+                    YtMusicRepository.moreSongs(request.continuationToken).getOrNull()
+                }
+                if (page == null) {
+                    boundedContextRegistry.fail(request)
+                    return@launch
+                }
+                val source = boundedContextSource
+                val songs = page.songs.map { song ->
+                    if (source == null) song else song.copy(
+                        queueTier = QueueTier.CONTEXT,
+                        playbackSource = source.title,
+                        playbackSourceType = source.type,
+                        playbackSourceId = source.id,
+                    )
+                }
+                val result = boundedContextRegistry.complete(
+                    request,
+                    ContinuationPage(songs = songs, continuationToken = page.continuation),
+                )
+                if (result.status != ContinuationResultStatus.COMPLETED) return@launch
+            }
+        }
+    }
+
+    private fun scheduleBoundedContextTopUp() {
+        if (boundedContextWindow == null || boundedContextToken == null) return
+        boundedTopUpPending = true
+        if (boundedTopUpJob?.isActive == true) return
+        boundedTopUpJob = scope.launch {
+            boundedTopUpPending = false
+            if (ListenTogether.state.value.inParty) return@launch
+            if (crossfade?.isTransitioning() == true) {
+                boundedTopUpPending = true
+                return@launch
+            }
+            applyBoundedContextTopUp()
+        }
+    }
+
+    private fun applyBoundedContextTopUp() {
+        val exoPlayer = player ?: return
+        val window = boundedContextWindow ?: return
+        val snapshot = boundedContextRegistry.snapshot() ?: return
+        if (snapshot.contextToken != boundedContextToken) return
+        window.extendTo(snapshot.songs.size)
+        val currentIndex = boundedContextAnchor(exoPlayer) ?: window.currentCanonicalIndex ?: return
+        if (window.currentCanonicalIndex != currentIndex) {
+            window.jumpTo(currentIndex)
+        }
+        val now = exoPlayer.currentMediaItemIndex
+        val afterCurrent = if (now in 0 until exoPlayer.mediaItemCount) {
+            (now + 1 until exoPlayer.mediaItemCount).map { exoPlayer.getMediaItemAt(it) }
+        } else emptyList()
+        val userQueue = afterCurrent.filter { it.queueTier == QueueTier.USER_QUEUE }.map(MediaItem::toSong)
+        val autoplay = afterCurrent.filter { it.queueTier == QueueTier.AUTOPLAY }.map(MediaItem::toSong)
+        val plan = BoundedQueuePlanner.buildInitialPlan(
+            contextSnapshot = snapshot,
+            selectedIndex = currentIndex,
+            queueWindow = window,
+            preservedUserQueue = userQueue,
+            existingAutoplay = autoplay,
+            repeatAll = exoPlayer.repeatMode == Player.REPEAT_MODE_ALL,
+        )
+        val existingIds = afterCurrent.filter { it.queueTier == QueueTier.CONTEXT }
+            .mapTo(HashSet()) { it.mediaId }
+        val target = BoundedQueuePlanner.topUpPlan(
+            plan = plan,
+            queueWindow = window,
+            contextSnapshot = snapshot,
+            currentMaterializedContextIds = existingIds,
+            repeatAll = exoPlayer.repeatMode == Player.REPEAT_MODE_ALL,
+        )
+        val additions = target.contextUpcoming.filter { entry ->
+            snapshot.songs.getOrNull(entry.canonicalIndex)?.videoId !in existingIds
+        }
+        if (additions.isEmpty()) return
+        val autoplayIndex = (now + 1 until exoPlayer.mediaItemCount)
+            .firstOrNull { exoPlayer.getMediaItemAt(it).queueTier == QueueTier.AUTOPLAY }
+            ?: exoPlayer.mediaItemCount
+        val items = additions.map { entry ->
+            boundedMediaItem(snapshot.songs[entry.canonicalIndex], entry.canonicalIndex, entry.cycleId)
+        }
+        exoPlayer.addMediaItems(autoplayIndex, items)
+    }
+
+    private fun boundedContextAnchor(exoPlayer: ExoPlayer): Int? {
+        val current = exoPlayer.currentMediaItem
+        if (current?.queueTier == QueueTier.CONTEXT) {
+            QueueShuffle.getCanonicalIndex(current)?.let { return it }
+        }
+        val currentIndex = exoPlayer.currentMediaItemIndex
+        for (index in currentIndex - 1 downTo 0) {
+            val item = exoPlayer.getMediaItemAt(index)
+            if (item.queueTier == QueueTier.CONTEXT) {
+                QueueShuffle.getCanonicalIndex(item)?.let { return it }
+            }
+        }
+        return null
+    }
+
+    private fun syncBoundedContextCursor(exoPlayer: ExoPlayer, mediaItem: MediaItem?) {
+        val window = boundedContextWindow ?: return
+        if (mediaItem?.queueTier != QueueTier.CONTEXT) return
+        val canonicalIndex = QueueShuffle.getCanonicalIndex(mediaItem) ?: return
+        val cycle = mediaItem.contextCycleId
+        if (cycle != null) {
+            window.commit(QueueWindowEntry(canonicalIndex, cycle))
+        } else if (window.currentCanonicalIndex != canonicalIndex) {
+            window.jumpTo(canonicalIndex)
+        }
+    }
+
+    private fun boundedMediaItems(plan: BoundedContextPlan, window: QueueWindow): List<MediaItem> {
+        val canonical = plan.canonicalContext
+        val history = plan.history.map { song ->
+            boundedMediaItem(song, canonical.indexOfFirst { it.videoId == song.videoId }, window.cycleId)
+        }
+        val current = boundedMediaItem(plan.current, plan.currentCanonicalIndex, window.cycleId)
+        val user = plan.userQueue.map { it.copy(queueEntryId = it.queueEntryId ?: UUID.randomUUID().toString()).toMediaItem() }
+        val context = plan.contextUpcoming.map { entry ->
+            boundedMediaItem(canonical[entry.canonicalIndex], entry.canonicalIndex, entry.cycleId)
+        }
+        val autoplay = plan.autoplay.map { it.copy(queueEntryId = it.queueEntryId ?: UUID.randomUUID().toString()).toMediaItem() }
+        return history + listOf(current) + user + context + autoplay
+    }
+
+    private fun boundedMediaItem(song: Song, canonicalIndex: Int, cycleId: Long): MediaItem {
+        val entry = song.copy(
+            queueTier = QueueTier.CONTEXT,
+            queueEntryId = "window:${UUID.randomUUID()}",
+        )
+        return QueueShuffle.withQueueMetadata(
+            entry.toMediaItem(),
+            newEntryId = entry.queueEntryId,
+            newCanonicalIndex = canonicalIndex,
+            newTier = QueueTier.CONTEXT,
+            newContextCycleId = cycleId,
+        )
+    }
+
     private fun toggleAutoplayFromNotification() {
         val party = ListenTogether.state.value
         val enabled = if (party.inParty) !party.playback.autoplayEnabled else !AppSettings.autoplay.value
@@ -2400,6 +2687,9 @@ class PlaybackService : MediaLibraryService() {
             exoPlayer.repeatMode == Player.REPEAT_MODE_ALL ||
             (party.inParty && autoplaySupplierId(party) != party.you?.memberId)
         ) {
+            return
+        }
+        if (boundedContextWindow != null && !boundedAutoplayEligible(exoPlayer)) {
             return
         }
         val current = exoPlayer.currentMediaItem?.toSong() ?: return
@@ -2556,6 +2846,20 @@ class PlaybackService : MediaLibraryService() {
         autoplayLoadJob = null
         autoplaySeed = null
         loadAutoplayForCurrentTrack()
+    }
+
+    private fun boundedAutoplayEligible(exoPlayer: ExoPlayer): Boolean {
+        val window = boundedContextWindow ?: return true
+        val snapshot = boundedContextRegistry.snapshot() ?: return false
+        if (snapshot.contextToken != boundedContextToken) return false
+        boundedContextAnchor(exoPlayer)?.let { anchor ->
+            if (window.currentCanonicalIndex != anchor) window.jumpTo(anchor)
+        }
+        return BoundedQueuePlanner.autoplayEligible(
+            queueWindow = window,
+            continuationState = snapshot.continuationState,
+            repeatAll = exoPlayer.repeatMode == Player.REPEAT_MODE_ALL,
+        )
     }
 
     /** @see autoplayEnabledFor — shared with the player, which draws the toggle. */
@@ -2837,6 +3141,7 @@ class PlaybackService : MediaLibraryService() {
         alreadyAudible: Boolean = false,
     ) {
         val exoPlayer = player ?: return
+        syncBoundedContextCursor(exoPlayer, mediaItem)
         currentAudioInputFormat = null
         NerdStats.onTrackTransition()
         AudioOutputStatus.onTrackTransition()
@@ -2884,6 +3189,7 @@ class PlaybackService : MediaLibraryService() {
                 exoPlayer.removeMediaItems(0, expiredHistory)
             }
         }
+        scheduleBoundedContextTopUp()
         // A *different* track is a clean slate for [recoverFrom], and so is the
         // same track becoming current for any reason other than that method's
         // own retry. The distinction is the whole of the reported loading loop.
@@ -7188,6 +7494,8 @@ class PlaybackService : MediaLibraryService() {
             val sessionCommands = MediaSession.ConnectionResult.DEFAULT_SESSION_AND_LIBRARY_COMMANDS
                 .buildUpon()
                 .add(favoriteCommand)
+                .add(boundedContextCommand)
+                .add(clearBoundedContextCommand)
                 .add(autoplayCommand)
                 .add(shuffleCommand)
                 .add(startStationCommand)
@@ -7223,6 +7531,8 @@ class PlaybackService : MediaLibraryService() {
             args: Bundle,
         ): ListenableFuture<SessionResult> {
             when (customCommand.customAction) {
+                ACTION_START_BOUNDED_CONTEXT -> startBoundedContext(args)
+                ACTION_CLEAR_BOUNDED_CONTEXT -> clearBoundedContext()
                 ACTION_TOGGLE_AUTOPLAY -> toggleAutoplayFromNotification()
                 ACTION_TOGGLE_SHUFFLE -> toggleShuffleFromSession()
                 ACTION_START_STATION -> startStationFromSession()

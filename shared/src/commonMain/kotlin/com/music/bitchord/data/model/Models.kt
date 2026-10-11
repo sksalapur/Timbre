@@ -460,6 +460,8 @@ data class DetailPage(
     val thumbnailUrl: String?,
     val songs: UiState<List<Song>>,
     val type: BrowseType = BrowseType.OTHER,
+    /** Continuation behind the currently visible songs, if the listing can grow. */
+    val continuation: String? = null,
     /** Albums / singles carousels, populated for artist pages. */
     val sections: List<HomeShelf> = emptyList(),
     /**

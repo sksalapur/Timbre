@@ -112,6 +112,28 @@ fun MediaController.toggleShuffle() {
     )
 }
 
+/** Starts an album/playlist through the service-owned bounded context window. */
+suspend fun MediaController.playBoundedContext(
+    songs: List<Song>,
+    startIndex: Int,
+    source: QueueSource,
+    continuationToken: String?,
+) {
+    val request = ArrayList<Bundle>(songs.size)
+    songs.forEach { request += it.toSongBundle() }
+    sendCustomCommand(
+        SessionCommand(ACTION_START_BOUNDED_CONTEXT, Bundle.EMPTY),
+        bundleOf(
+            EXTRA_BOUNDED_CONTEXT_SONGS to request,
+            EXTRA_BOUNDED_CONTEXT_START_INDEX to startIndex,
+            EXTRA_BOUNDED_CONTEXT_SOURCE_TITLE to source.title,
+            EXTRA_BOUNDED_CONTEXT_SOURCE_TYPE to source.type.name,
+            EXTRA_BOUNDED_CONTEXT_SOURCE_ID to source.id,
+            EXTRA_BOUNDED_CONTEXT_CONTINUATION to continuationToken,
+        ),
+    ).await()
+}
+
 /** Clears the previous queue's service and restart state before starting radio. */
 suspend fun MediaController.beginRadioQueue() {
     sendCustomCommand(
@@ -203,6 +225,8 @@ fun Song.toSongBundle(): Bundle = bundleOf(
     "playbackSourceType" to playbackSourceType?.name,
     "playbackSourceId" to playbackSourceId,
     "isExplicit" to (isExplicit ?: false),
+    "queueTier" to queueTier.name,
+    "queueEntryId" to queueEntryId,
     // `bundleOf` has no overload for a list of strings, so the two halves of
     // the credits go in afterwards.
 ).apply {
@@ -233,6 +257,10 @@ fun songFromBundle(b: Bundle): Song = Song(
     playbackSourceType = b.getString("playbackSourceType")?.let { runCatching { com.music.bitchord.data.model.PlaybackSourceType.valueOf(it) }.getOrNull() },
     playbackSourceId = b.getString("playbackSourceId"),
     isExplicit = if (b.containsKey("isExplicit")) b.getBoolean("isExplicit") else null,
+    queueTier = b.getString("queueTier")?.let {
+        runCatching { QueueTier.valueOf(it) }.getOrNull()
+    } ?: QueueTier.CONTEXT,
+    queueEntryId = b.getString("queueEntryId"),
 )
 
 /** Flushes the current radio queue to disk before reporting that it started. */
@@ -799,6 +827,10 @@ fun mediaIdIn(uri: Uri): String? = if (uri.authority == "source") {
  */
 suspend fun MediaController.playSongs(songs: List<Song>, startIndex: Int) {
     if (songs.isEmpty()) return
+    sendCustomCommand(
+        SessionCommand(ACTION_CLEAR_BOUNDED_CONTEXT, Bundle.EMPTY),
+        Bundle.EMPTY,
+    ).await()
     // A queue started while shuffle is on goes in shuffled rather than being
     // played out of order — see [QueueShuffle]. The track the user picked still
     // leads, so it ends up at the top instead of at [startIndex].

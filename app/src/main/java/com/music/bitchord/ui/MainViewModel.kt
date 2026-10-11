@@ -2588,6 +2588,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                         title = name ?: it.title,
                         subtitle = credit ?: it.subtitle,
                         suggestedSongs = suggested,
+                        continuation = more,
                         library = library,
                         description = description,
                         subscriberCountText = subscriberCountText,
@@ -2812,6 +2813,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     it[index] = current.copy(
                         songs = UiState.Success(existing + added),
                         suggestedSongs = current.suggestedSongs + addedSuggested,
+                        continuation = fetched.continuation,
                     )
                 }
                 next = fetched.continuation

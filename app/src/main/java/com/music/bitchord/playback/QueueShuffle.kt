@@ -128,11 +128,13 @@ object QueueShuffle {
         newEntryId: String? = item.queueEntryId,
         newCanonicalIndex: Int? = item.canonicalIndex,
         newTier: QueueTier = item.queueTier,
+        newContextCycleId: Long? = item.contextCycleId,
     ): MediaItem {
         val currentExtras = item.mediaMetadata.extras ?: Bundle()
         val newExtras = Bundle(currentExtras).apply {
             if (newEntryId != null) putString(EXTRA_QUEUE_ENTRY_ID, newEntryId)
             if (newCanonicalIndex != null) putInt(EXTRA_CANONICAL_INDEX, newCanonicalIndex)
+            if (newContextCycleId != null) putLong(EXTRA_CONTEXT_CYCLE_ID, newContextCycleId)
             putString(EXTRA_QUEUE_TIER, newTier.name)
         }
         val newMetadata = item.mediaMetadata.buildUpon().setExtras(newExtras).build()
@@ -532,3 +534,11 @@ object QueueShuffle {
     private fun Player.queueItems(): List<MediaItem> =
         List(mediaItemCount) { getMediaItemAt(it) }
 }
+
+/** Repeat-all cycle identity for a bounded CONTEXT materialization. */
+const val EXTRA_CONTEXT_CYCLE_ID = "bitchord.contextCycleId"
+
+val MediaItem.contextCycleId: Long?
+    get() = mediaMetadata.extras
+        ?.takeIf { it.containsKey(EXTRA_CONTEXT_CYCLE_ID) }
+        ?.getLong(EXTRA_CONTEXT_CYCLE_ID)

@@ -189,6 +189,7 @@ import com.music.bitchord.playback.fromAutoplay
 import com.music.bitchord.playback.hasYouTubeOriginal
 import com.music.bitchord.playback.loadAutoplayTracks
 import com.music.bitchord.playback.playSongs
+import com.music.bitchord.playback.playBoundedContext
 import com.music.bitchord.playback.toMediaItem
 import com.music.bitchord.playback.toSong
 import com.music.bitchord.playback.toDirectYouTubeMediaItem
@@ -1259,10 +1260,16 @@ private fun BitChordApp(
         }
     }
 
-    val playFrom: (List<Song>, Int, QueueSource) -> Unit = playFrom@{ allSongs, allIndex, source ->
+    fun playFrom(
+        allSongs: List<Song>,
+        allIndex: Int,
+        source: QueueSource,
+        boundedContext: Boolean = false,
+        continuationToken: String? = null,
+    ) {
         // A Spotify page lists songs it has not found on YouTube Music yet (or
         // never will); those can't be queued, so play the rest in their order.
-        if (allSongs.getOrNull(allIndex)?.isUnresolvedSpotify == true) return@playFrom
+        if (allSongs.getOrNull(allIndex)?.isUnresolvedSpotify == true) return
         val songs = allSongs.filterNot { it.isUnresolvedSpotify }
         val index = songs.indexOf(allSongs.getOrNull(allIndex)).coerceAtLeast(0)
         playRequestGeneration++
@@ -1291,14 +1298,18 @@ private fun BitChordApp(
                 )
                 c.playSongs(timeline, 0)
             } else {
-                val result = QueueCoordinator.buildContextQueue(
-                    currentTimeline = currentTimeline,
-                    currentIndex = currentIndex,
-                    newContextSongs = songs,
-                    selectedIndex = index,
-                    contextSource = source,
-                )
-                c.playSongs(result.timeline, result.startIndex)
+                if (boundedContext) {
+                    c.playBoundedContext(songs, index, source, continuationToken)
+                } else {
+                    val result = QueueCoordinator.buildContextQueue(
+                        currentTimeline = currentTimeline,
+                        currentIndex = currentIndex,
+                        newContextSongs = songs,
+                        selectedIndex = index,
+                        contextSource = source,
+                    )
+                    c.playSongs(result.timeline, result.startIndex)
+                }
             }
             // Start playback in the mini-player; the user opens the full view by tapping it.
         }
@@ -2906,6 +2917,8 @@ private fun BitChordApp(
                                     songs.map(withAlbum),
                                     index,
                                     QueueSource(page.title, PlaybackSourceType.BROWSE, page.browseId),
+                                    boundedContext = page.type == BrowseType.ALBUM || page.type == BrowseType.PLAYLIST,
+                                    continuationToken = page.continuation,
                                 )
                             },
                             onSongLongPress = { openSongMenu(withAlbum(it)) },
@@ -2920,6 +2933,8 @@ private fun BitChordApp(
                                         songs.map(withAlbum),
                                         songs.indices.random(),
                                         QueueSource(page.title, PlaybackSourceType.BROWSE, page.browseId),
+                                        boundedContext = page.type == BrowseType.ALBUM || page.type == BrowseType.PLAYLIST,
+                                        continuationToken = page.continuation,
                                     )
                                 }
                             },
