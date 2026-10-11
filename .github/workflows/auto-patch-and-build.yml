@@ -109,11 +109,7 @@ jobs:
           # Stage and commit patched source code
           git add -A
           git commit -m "chore: apply TrueBit patches to ${{ steps.check_release.outputs.upstream_tag }}"
-          # Push tag back to TrueBit repository
-          git remote set-url origin "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git"
-          git tag -f "${{ steps.check_release.outputs.truebit_tag }}"
-          git push origin "${{ steps.check_release.outputs.truebit_tag }}" --force
-          echo "✅ Pushed tagged release commit to GitHub!"
+          echo "✅ Patched source committed locally in build-dir!"
 
       - name: Setup JDK 17
         if: steps.check_release.outputs.should_build == 'true'
@@ -185,6 +181,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.check_release.outputs.truebit_tag }}
+          target_commitish: ${{ github.sha }}
           token: ${{ secrets.GITHUB_TOKEN }}
           name: "TrueBit ${{ steps.check_release.outputs.upstream_tag }} (BitChord Auto-Patched)"
           body: |
