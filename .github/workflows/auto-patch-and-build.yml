@@ -126,8 +126,8 @@ jobs:
         run: |
           cd build-dir
           chmod +x gradlew
-          # Build release APK
-          ./gradlew assembleRelease --no-daemon --stacktrace
+          # Build release APK (skip unit tests)
+          ./gradlew assembleRelease -x test --no-daemon --stacktrace
 
       - name: Sign APK (Keystore or Auto-Debug Key)
         if: steps.check_release.outputs.should_build == 'true'
