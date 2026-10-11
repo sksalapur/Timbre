@@ -79,12 +79,18 @@ jobs:
           rm -rf build-dir/desktopApp
           echo "Stripped desktopApp targets"
 
-      - name: Apply TrueBit Patches
+      - name: Apply TrueBit Patches & Assets
         if: steps.check_release.outputs.should_build == 'true'
         run: |
           cd build-dir
           git config user.name "TrueBit Bot"
           git config user.email "bot@truebit.local"
+
+          echo "Applying TrueBit branding assets..."
+          cp -r ../truebit-repo/assets/res/* ./app/src/main/res/
+          cp ../truebit-repo/assets/logo.png ./Logo.png
+          cp ../truebit-repo/assets/banner.png ./Banner.png
+          cp ../truebit-repo/README.md ./README.md
 
           echo "Applying TrueBit patch suite..."
           for patch in ../truebit-repo/.patches/*.patch; do
@@ -98,7 +104,7 @@ jobs:
               }
             fi
           done
-          echo "✅ All patches applied successfully!"
+          echo "✅ All patches and assets applied successfully!"
 
           # Stage and commit patched source code
           git add -A
