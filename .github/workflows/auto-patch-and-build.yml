@@ -111,7 +111,7 @@ jobs:
           git commit -m "chore: apply TrueBit patches to ${{ steps.check_release.outputs.upstream_tag }}"
           # Push tag back to TrueBit repository
           git remote set-url origin "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git"
-          git tag "${{ steps.check_release.outputs.truebit_tag }}"
+          git tag -f "${{ steps.check_release.outputs.truebit_tag }}"
           git push origin "${{ steps.check_release.outputs.truebit_tag }}" --force
           echo "✅ Pushed tagged release commit to GitHub!"
 
@@ -148,11 +148,14 @@ jobs:
           echo "Found APK: $APK_PATH"
           SIGNED_APK="build-dir/TrueBit-${{ steps.check_release.outputs.upstream_tag }}.apk"
 
+          BUILD_TOOLS=$(ls -d $ANDROID_HOME/build-tools/* | sort -V | tail -n 1)
+          echo "Using Android Build Tools: $BUILD_TOOLS"
+
           if [ -n "${{ secrets.KEYSTORE_BASE64 }}" ]; then
             echo "Using custom signing keystore from secrets..."
             echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > keystore.jks
             
-            $ANDROID_HOME/build-tools/34.0.0/apksigner sign \
+            $BUILD_TOOLS/apksigner sign \
               --ks keystore.jks \
               --ks-key-alias "${{ secrets.KEY_ALIAS }}" \
               --ks-pass "pass:${{ secrets.KEYSTORE_PASSWORD }}" \
@@ -182,6 +185,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.check_release.outputs.truebit_tag }}
+          token: ${{ secrets.GITHUB_TOKEN }}
           name: "TrueBit ${{ steps.check_release.outputs.upstream_tag }} (BitChord Auto-Patched)"
           body: |
             ## 💎 TrueBit ${{ steps.check_release.outputs.upstream_tag }}
