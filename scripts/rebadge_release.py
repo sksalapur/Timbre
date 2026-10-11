@@ -76,7 +76,7 @@ def rebadge_release(tag, my_repo):
     footer = f"""
 ---
 ### 💬 Community & Support
-Join our official **[TrueBit Telegram Community](https://t.me/+f3PaI9uPURthMDA1)** for discussions, news, and setup assistance.
+Join our official **[TrueBit Telegram Community](https://t.me/TrueBit_Lossless)** for discussions, news, and setup assistance.
 
 ---
 

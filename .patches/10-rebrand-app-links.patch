@@ -1,8 +1,8 @@
 diff --git a/app/src/main/java/com/music/bitchord/data/discord/DiscordRPC.kt b/app/src/main/java/com/music/bitchord/data/discord/DiscordRPC.kt
-index 5da7675..5a48571 100644
+index 5da7675..aede252 100644
 --- a/app/src/main/java/com/music/bitchord/data/discord/DiscordRPC.kt
 +++ b/app/src/main/java/com/music/bitchord/data/discord/DiscordRPC.kt
-@@ -167,7 +167,7 @@ class DiscordRPC(
+@@ -167,10 +167,10 @@ class DiscordRPC(
           */
          private const val APPLICATION_ID = "1411019391843172514"
  
@@ -10,7 +10,11 @@ index 5da7675..5a48571 100644
 +        const val PROJECT_URL = "https://github.com/sksalapur/TrueBit"
  
          const val DEFAULT_BUTTON_1 = "Listen on YouTube Music"
-         const val DEFAULT_BUTTON_2 = "Visit BitChord"
+-        const val DEFAULT_BUTTON_2 = "Visit BitChord"
++        const val DEFAULT_BUTTON_2 = "Visit TrueBit"
+ 
+         /** Discord draws the sleeve at roughly 96dp; 480px covers it on any density. */
+         private const val ART_PX = 480
 diff --git a/app/src/main/java/com/music/bitchord/data/scrobbling/LastFM.kt b/app/src/main/java/com/music/bitchord/data/scrobbling/LastFM.kt
 index 5e3a709..2074dd3 100644
 --- a/app/src/main/java/com/music/bitchord/data/scrobbling/LastFM.kt
@@ -25,9 +29,18 @@ index 5e3a709..2074dd3 100644
              mutableMapOf(
                  "method" to method,
 diff --git a/app/src/main/java/com/music/bitchord/ui/screens/SettingsSheet.kt b/app/src/main/java/com/music/bitchord/ui/screens/SettingsSheet.kt
-index 82f3232..f26a985 100644
+index 82f3232..dae7ddb 100644
 --- a/app/src/main/java/com/music/bitchord/ui/screens/SettingsSheet.kt
 +++ b/app/src/main/java/com/music/bitchord/ui/screens/SettingsSheet.kt
+@@ -531,7 +531,7 @@ fun SettingsScreen(
+                     title = exportDownloadsTitle,
+                     checked = exportDownloads,
+                     onCheckedChange = AppSettings::setExportDownloads,
+-                    subtitle = "Music/BitChord".takeIf { exportDownloads },
++                    subtitle = "Music/TrueBit".takeIf { exportDownloads },
+                 )
+             }
+         }
 @@ -1408,26 +1408,22 @@ fun SettingsScreen(
          if (searchQuery.isBlank()) {
          Text(

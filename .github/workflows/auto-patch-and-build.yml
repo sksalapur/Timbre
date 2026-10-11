@@ -231,6 +231,14 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Send Release Announcement to Telegram Group
+        if: steps.check_release.outputs.should_build == 'true'
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: "@TrueBit_Lossless"
+        run: |
+          python3 "${{ github.workspace }}/truebit-repo/scripts/post_telegram_release.py" "${{ steps.check_release.outputs.upstream_tag }}" "${{ github.repository }}" "release_notes.md" "signed-apks" 
+
   deploy-pages:
     name: Deploy GitHub Pages
     runs-on: ubuntu-latest

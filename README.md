@@ -116,14 +116,14 @@ All modifications are maintained as atomic, surgical `.patch` files in the [`.pa
 
 - **[BitChord](https://github.com/kushagrasinghx/BitChord)** — Created by [kushagrasinghx](https://github.com/kushagrasinghx). All core player architecture, audio pipelines, and UI belong to the original BitChord team.
 - **[Lossless Bridge](https://github.com/sksalapur/lossless-bridge)** — High-performance cloud proxy routing lossless FLAC streams.
-- **[TrueBit Community](https://t.me/+f3PaI9uPURthMDA1)** — Official Telegram community discussion group for audiophiles and user feedback.
+- **[TrueBit Community](https://t.me/TrueBit_Lossless)** — Official Telegram community discussion group for audiophiles and user feedback.
 
 ---
 
 ## 💬 Community & Discussion
 
 Have questions, feedback, or want to discuss audiophile setups? Join our official community:
-👉 **[Join TrueBit Community on Telegram](https://t.me/+f3PaI9uPURthMDA1)**
+👉 **[Join TrueBit Community on Telegram](https://t.me/TrueBit_Lossless)**
 
 ---
 
