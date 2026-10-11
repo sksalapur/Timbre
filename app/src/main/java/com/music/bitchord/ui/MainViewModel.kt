@@ -5,6 +5,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.music.bitchord.R
 import com.music.bitchord.auth.AuthStore
+import com.music.bitchord.auth.SignedIn
 import com.music.bitchord.auth.GoogleAccountSession
 import com.music.bitchord.auth.YouTubeProfile
 import com.music.bitchord.auth.profileId
@@ -99,7 +100,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     private val authStore = AuthStore(app)
 
-    private val _signedIn = MutableStateFlow(authStore.isSignedIn)
+    // Process-wide, so the playback service offers Like on the same tracks.
+    private val _signedIn = SignedIn.state(app)
     val signedIn: StateFlow<Boolean> = _signedIn.asStateFlow()
 
     private val _home = MutableStateFlow<UiState<List<HomeShelf>>>(UiState.Loading)

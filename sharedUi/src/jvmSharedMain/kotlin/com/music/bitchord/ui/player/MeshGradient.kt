@@ -305,6 +305,13 @@ fun rememberArtworkColors(imageUrl: String?, canvasFrame: ImageBitmap? = null): 
 private const val DRIFT_RADIANS = (PI * 0.45f).toFloat()
 
 /**
+ * The player's four mesh colours for [bitmap], for surfaces that draw the mesh
+ * somewhere this code doesn't run — the watch app is sent these rather than
+ * running Palette on a watch.
+ */
+fun artworkMeshColors(bitmap: ImageBitmap): List<Color> = paletteOf(bitmap)
+
+/**
  * Four mesh colours drawn from the artwork.
  *
  * The named swatches — vibrant, muted and friends — are a convenience over the

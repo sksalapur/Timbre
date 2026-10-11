@@ -1,5 +1,6 @@
 package com.music.bitchord.ui.screens
 
+import com.music.bitchord.wear.WatchInstaller
 import android.content.Context
 import android.content.Intent
 import android.media.AudioFormat
@@ -176,6 +177,7 @@ fun SettingsScreen(
     onTranslationLanguage: () -> Unit,
     onSources: () -> Unit,
     onListenTogether: () -> Unit,
+    onWearOs: () -> Unit,
     onSpotifyCanvasAuth: () -> Unit,
     onAppLanguage: () -> Unit,
     contentPadding: PaddingValues,
@@ -1166,6 +1168,15 @@ fun SettingsScreen(
                         Toast.makeText(context, context.getString(R.string.image_cache_cleared), Toast.LENGTH_SHORT).show()
                     },
                 )
+            }
+        }
+
+        // Only in a build that carries the watch app — see app/build.gradle.kts.
+        if (remember { WatchInstaller.available(context) }) {
+            SearchableSettingsGroup(search) {
+                row(stringResource(R.string.wear_os_section), "watch", "wear os", "galaxy watch", "pixel watch", "install") {
+                    WearOsSettingsRow(onClick = onWearOs)
+                }
             }
         }
 

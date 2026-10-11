@@ -732,12 +732,25 @@ object AppSettings {
      */
     val smartTransitionWindow = MutableStateFlow<TransitionWindow?>(null)
 
+    /**
+     * A temporary cap on [effectiveAudioQuality], for as long as something other
+     * than this phone's own speaker is playing — the BitChord watch app, whose
+     * audio goes over a Bluetooth link that cannot keep up with lossless. Never
+     * persisted, never shown: the listener's own settings are untouched, and
+     * apply again the moment the phone takes the music back.
+     */
+    val streamCeilingOverride = MutableStateFlow<AudioQuality?>(null)
+
     /** The ceiling that applies to a stream started right now. */
     val effectiveAudioQuality: AudioQuality
-        get() = if (meteredConnection.value == true) {
-            audioQualityCellular.value
-        } else {
-            audioQualityWifi.value
+        get() {
+            val chosen = if (meteredConnection.value == true) {
+                audioQualityCellular.value
+            } else {
+                audioQualityWifi.value
+            }
+            val cap = streamCeilingOverride.value ?: return chosen
+            return if (chosen.ordinal > cap.ordinal) cap else chosen
         }
 
     /**

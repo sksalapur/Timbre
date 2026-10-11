@@ -156,6 +156,7 @@ import com.music.bitchord.data.settings.LibrarySort
 import com.music.bitchord.data.settings.ThemeMode
 import com.music.bitchord.ui.components.AccountProfileSelector
 import com.music.bitchord.ui.components.SpotifyImportAlert
+import com.music.bitchord.ui.screens.WearOsScreen
 import com.music.bitchord.ui.screens.AccountAndScrobblingScreen
 import com.music.bitchord.ui.screens.DiscordDialog
 import com.music.bitchord.ui.screens.DiscordDialogHost
@@ -560,6 +561,7 @@ private fun BitChordApp(
     var showAccountScrobbling by rememberSaveable { mutableStateOf(false) }
     var showSources by rememberSaveable { mutableStateOf(false) }
     var showListenTogether by rememberSaveable { mutableStateOf(false) }
+    var showWearOs by rememberSaveable { mutableStateOf(false) }
     var showEqualizer by rememberSaveable { mutableStateOf(false) }
     var showSpotifyCanvasAuth by remember { mutableStateOf(false) }
 
@@ -2384,6 +2386,7 @@ private fun BitChordApp(
                 showAccountScrobbling = false
                 showSources = false
                 showListenTogether = false
+                showWearOs = false
                 showEqualizer = false
                 showReplay = false
                 settingsSubScreen = null
@@ -2471,7 +2474,7 @@ private fun BitChordApp(
             }
         }
         BackHandler(
-            enabled = detail != null && !showSettings && !showAccountScrobbling && !showSources && !showListenTogether &&
+            enabled = detail != null && !showSettings && !showAccountScrobbling && !showSources && !showListenTogether && !showWearOs &&
                 !showEqualizer && !showReplay,
         ) { viewModel.closeDetail() }
         BackHandler(enabled = selectedMoodGenre != null && detail == null && !showSettings && !showReplay) {
@@ -2495,6 +2498,10 @@ private fun BitChordApp(
             showListenTogether = false
             if (settingsSubScreen == "listen_together") settingsSubScreen = null
         }
+        BackHandler(enabled = showWearOs) {
+            showWearOs = false
+            if (settingsSubScreen == "wear_os") settingsSubScreen = null
+        }
         BackHandler(enabled = showEqualizer) {
             showEqualizer = false
             if (settingsSubScreen == "equalizer") settingsSubScreen = null
@@ -2502,7 +2509,7 @@ private fun BitChordApp(
         // One back step out of Settings, or out of any tab but Home, lands on
         // Home rather than exiting — only Home itself hands back to the system,
         // which is what actually closes/minimizes the app.
-        BackHandler(enabled = showSettings && !showSpotify && !showAccountScrobbling && !showSources && !showListenTogether && !showEqualizer && !showReplay) {
+        BackHandler(enabled = showSettings && !showSpotify && !showAccountScrobbling && !showSources && !showListenTogether && !showWearOs && !showEqualizer && !showReplay) {
             showSettings = false
             // Only when Settings was the whole of what was on screen. Opened
             // over Replay or over a release page, closing it reveals that again
@@ -2511,7 +2518,7 @@ private fun BitChordApp(
         }
         BackHandler(
             enabled = detail == null && !showSettings && !showAccountScrobbling && !showSpotify &&
-                !showSources && !showListenTogether && !showEqualizer && !showReplay && selectedMoodGenre == null &&
+                !showSources && !showListenTogether && !showWearOs && !showEqualizer && !showReplay && selectedMoodGenre == null &&
                 selectedTab != TAB_HOME,
         ) {
             selectedTab = TAB_HOME
@@ -2555,6 +2562,7 @@ private fun BitChordApp(
                         showAccountScrobbling -> "account_scrobbling"
                         showSources -> "sources"
                         showListenTogether -> "listen_together"
+                        showWearOs -> "wear_os"
                         showEqualizer -> "equalizer"
                         // Above Replay, not below it. The top bar's account
                         // button sets `showSettings` from every page including
@@ -2759,6 +2767,8 @@ private fun BitChordApp(
                             onEditSmb = { showSmbEditor = true },
                             onConfirmJioSaavn = { confirmJioSaavn = true },
                         )
+                    } else if (key == "wear_os") {
+                        WearOsScreen(contentPadding = listPadding)
                     } else if (key == "listen_together") {
                         ListenTogetherScreen(
                             signedIn = signedIn,
@@ -2810,6 +2820,10 @@ private fun BitChordApp(
                             onListenTogether = {
                                 settingsSubScreen = "listen_together"
                                 showListenTogether = true
+                            },
+                            onWearOs = {
+                                settingsSubScreen = "wear_os"
+                                showWearOs = true
                             },
                             onSpotifyCanvasAuth = { showSpotifyCanvasAuth = true },
                             onAppLanguage = { showAppLanguage = true },
@@ -3350,6 +3364,14 @@ private fun BitChordApp(
                             )
                         }
                     }
+                    "wear_os" -> {
+                        Surface(
+                            modifier = Modifier.fillMaxSize(),
+                            color = MaterialTheme.colorScheme.background,
+                        ) {
+                            WearOsScreen(contentPadding = listPadding)
+                        }
+                    }
                     "listen_together" -> {
                         Surface(
                             modifier = Modifier.fillMaxSize(),
@@ -3426,7 +3448,7 @@ private fun BitChordApp(
                         detail.type == BrowseType.PLAYLIST ||
                         detail.type == BrowseType.ARTIST) &&
                     !isLocalDetail && !showDiscord && !showHistory && !showSettings &&
-                    !showAccountScrobbling && !showSources && !showListenTogether && !showEqualizer && !showReplay
+                    !showAccountScrobbling && !showSources && !showListenTogether && !showWearOs && !showEqualizer && !showReplay
                 val chromePageColor = if (isDetailVisible) {
                     detailPalette.background
                 } else {
@@ -3471,6 +3493,7 @@ private fun BitChordApp(
                         showAccountScrobbling -> stringResource(R.string.account_scrobbling)
                         showSources -> stringResource(R.string.sources)
                         showListenTogether -> stringResource(R.string.listen_together)
+                        showWearOs -> stringResource(R.string.wear_os_page_title)
                         showEqualizer -> stringResource(R.string.equalizer)
                         showSettings -> stringResource(R.string.settings)
                         showReplay -> stringResource(R.string.replay)
@@ -3490,7 +3513,7 @@ private fun BitChordApp(
                     // Search has no large in-list header to hand the title back to —
                     // the field takes that space — so its bar title is always up.
                     scrolled = when {
-                        showSettings || showAccountScrobbling || showSources || showListenTogether ||
+                        showSettings || showAccountScrobbling || showSources || showListenTogether || showWearOs ||
                             showEqualizer ||
                             showDiscord || showHistory ||
                             (libraryShowAll != null && detail == null) ||
@@ -3509,10 +3532,26 @@ private fun BitChordApp(
                         showDiscord -> ({ showDiscord = false })
                         showHistory -> ({ showHistory = false })
                         libraryShowAll != null && detail == null -> ({ libraryShowAll = null })
-                        showAccountScrobbling -> ({ showAccountScrobbling = false })
-                        showSources -> ({ showSources = false })
-                        showListenTogether -> ({ showListenTogether = false })
-                        showEqualizer -> ({ showEqualizer = false })
+                        showAccountScrobbling -> ({
+                            showAccountScrobbling = false
+                            if (settingsSubScreen == "account_scrobbling") settingsSubScreen = null
+                        })
+                        showSources -> ({
+                            showSources = false
+                            if (settingsSubScreen == "sources") settingsSubScreen = null
+                        })
+                        showListenTogether -> ({
+                            showListenTogether = false
+                            if (settingsSubScreen == "listen_together") settingsSubScreen = null
+                        })
+                        showWearOs -> ({
+                            showWearOs = false
+                            if (settingsSubScreen == "wear_os") settingsSubScreen = null
+                        })
+                        showEqualizer -> ({
+                            showEqualizer = false
+                            if (settingsSubScreen == "equalizer") settingsSubScreen = null
+                        })
                         settingsSubScreen != null -> ({ settingsSubScreen = null })
                         showSettings -> ({ showSettings = false })
                         showReplay -> ({ showReplay = false })
@@ -3526,7 +3565,7 @@ private fun BitChordApp(
                     accessory = if (
                         selectedTab == TAB_SEARCH && detail == null && selectedMoodGenre == null &&
                         libraryShowAll == null && !showSettings && !showAccountScrobbling &&
-                        !showSources && !showListenTogether && !showEqualizer && !showDiscord &&
+                        !showSources && !showListenTogether && !showWearOs && !showEqualizer && !showDiscord &&
                         !showHistory && !showReplay
                     ) {
                         {
@@ -3620,7 +3659,7 @@ private fun BitChordApp(
                         }
                         // Only worth surfacing where there's room for it and it won't
                         // be mistaken for a per-page action — Home, at rest.
-                        if (!showSettings && !showAccountScrobbling && !showSources && !showListenTogether && !showEqualizer &&
+                        if (!showSettings && !showAccountScrobbling && !showSources && !showListenTogether && !showWearOs && !showEqualizer &&
                             detail == null && selectedTab == TAB_HOME
                         ) {
                             updateNotice?.let { update ->
@@ -3779,6 +3818,7 @@ private fun BitChordApp(
                     showAccountScrobbling = false
                     showSources = false
                     showListenTogether = false
+                    showWearOs = false
                     showEqualizer = false
                     showReplay = false
                     settingsSubScreen = null
