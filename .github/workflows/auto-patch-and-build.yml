@@ -1,0 +1,195 @@
+name: Auto Patch and Build TrueBit
+
+on:
+  schedule:
+    # Run every 6 hours to check for upstream BitChord releases
+    - cron: '0 */6 * * *'
+  workflow_dispatch:
+    inputs:
+      force_build:
+        description: 'Force build even if tag already exists'
+        required: false
+        type: boolean
+        default: false
+      custom_tag:
+        description: 'Specific upstream tag to build (leave blank for latest)'
+        required: false
+        type: string
+        default: ''
+
+jobs:
+  check-and-build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout TrueBit Repo (for patches & workflow)
+        uses: actions/checkout@v4
+        with:
+          path: truebit-repo
+
+      - name: Check for New Upstream Release
+        id: check_release
+        run: |
+          UPSTREAM_REPO="kushagrasinghx/BitChord"
+          MY_REPO="${{ github.repository }}"
+          
+          # 1. Determine upstream tag
+          if [ -n "${{ github.event.inputs.custom_tag }}" ]; then
+            TAG="${{ github.event.inputs.custom_tag }}"
+            echo "Using custom requested tag: $TAG"
+          else
+            LATEST_UPSTREAM=$(curl -s "https://api.github.com/repos/${UPSTREAM_REPO}/releases/latest" | jq -r .tag_name)
+            if [ -z "$LATEST_UPSTREAM" ] || [ "$LATEST_UPSTREAM" = "null" ]; then
+              # Fallback to tags if no official release yet
+              LATEST_UPSTREAM=$(curl -s "https://api.github.com/repos/${UPSTREAM_REPO}/tags" | jq -r '.[0].name')
+            fi
+            TAG="$LATEST_UPSTREAM"
+            echo "Latest upstream release tag: $TAG"
+          fi
+
+          if [ -z "$TAG" ] || [ "$TAG" = "null" ]; then
+            echo "Error: Could not determine upstream tag."
+            exit 1
+          fi
+
+          # 2. Check if this release already exists in TrueBit
+          TRUEBIT_TAG="${TAG}-truebit"
+          RELEASE_EXISTS=$(curl -s -o /dev/null -w "%{http_code}" "https://api.github.com/repos/${MY_REPO}/releases/tags/${TRUEBIT_TAG}")
+          
+          FORCE="${{ github.event.inputs.force_build }}"
+          if [ "$RELEASE_EXISTS" = "200" ] && [ "$FORCE" != "true" ]; then
+            echo "Release ${TRUEBIT_TAG} already exists on ${MY_REPO}. Skipping build."
+            echo "should_build=false" >> $GITHUB_OUTPUT
+          else
+            echo "Proceeding with build for ${TAG} (target release: ${TRUEBIT_TAG})"
+            echo "should_build=true" >> $GITHUB_OUTPUT
+            echo "upstream_tag=${TAG}" >> $GITHUB_OUTPUT
+            echo "truebit_tag=${TRUEBIT_TAG}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Clone Upstream BitChord at Tag
+        if: steps.check_release.outputs.should_build == 'true'
+        run: |
+          TAG="${{ steps.check_release.outputs.upstream_tag }}"
+          git clone --depth 1 --branch "$TAG" https://github.com/kushagrasinghx/BitChord.git build-dir
+          echo "Cloned BitChord at tag $TAG"
+
+      - name: Apply TrueBit Patches
+        if: steps.check_release.outputs.should_build == 'true'
+        run: |
+          cd build-dir
+          git config user.name "TrueBit Bot"
+          git config user.email "bot@truebit.local"
+
+          echo "Applying TrueBit patch suite..."
+          for patch in ../truebit-repo/.patches/*.patch; do
+            if [ -f "$patch" ]; then
+              patch_name=$(basename "$patch")
+              echo "==> Applying: $patch_name"
+              git apply --verbose "$patch" || {
+                echo "❌ Failed to apply $patch_name cleanly."
+                echo "Attempting 3-way merge apply..."
+                git apply -3 --verbose "$patch" || exit 1
+              }
+            fi
+          done
+          echo "✅ All patches applied successfully!"
+
+          # Stage and commit patched source code
+          git add -A
+          git commit -m "chore: apply TrueBit patches to ${{ steps.check_release.outputs.upstream_tag }}"
+          # Push tag back to TrueBit repository
+          git remote set-url origin "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git"
+          git tag "${{ steps.check_release.outputs.truebit_tag }}"
+          git push origin "${{ steps.check_release.outputs.truebit_tag }}" --force
+          echo "✅ Pushed tagged release commit to GitHub!"
+
+      - name: Setup JDK 17
+        if: steps.check_release.outputs.should_build == 'true'
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+          cache: 'gradle'
+
+      - name: Setup Android SDK
+        if: steps.check_release.outputs.should_build == 'true'
+        uses: android-actions/setup-android@v3
+
+      - name: Build Android Release APK
+        if: steps.check_release.outputs.should_build == 'true'
+        run: |
+          cd build-dir
+          chmod +x gradlew
+          # Build release APK
+          ./gradlew assembleRelease --no-daemon --stacktrace
+
+      - name: Sign APK (Keystore or Auto-Debug Key)
+        if: steps.check_release.outputs.should_build == 'true'
+        id: sign_apk
+        run: |
+          APK_PATH=$(find build-dir/app/build/outputs/apk/release -name "*.apk" | head -n 1)
+          if [ -z "$APK_PATH" ]; then
+            echo "Error: No release APK found!"
+            exit 1
+          fi
+
+          echo "Found APK: $APK_PATH"
+          SIGNED_APK="build-dir/TrueBit-${{ steps.check_release.outputs.upstream_tag }}.apk"
+
+          if [ -n "${{ secrets.KEYSTORE_BASE64 }}" ]; then
+            echo "Using custom signing keystore from secrets..."
+            echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > keystore.jks
+            
+            $ANDROID_HOME/build-tools/34.0.0/apksigner sign \
+              --ks keystore.jks \
+              --ks-key-alias "${{ secrets.KEY_ALIAS }}" \
+              --ks-pass "pass:${{ secrets.KEYSTORE_PASSWORD }}" \
+              --key-pass "pass:${{ secrets.KEY_PASSWORD }}" \
+              --out "$SIGNED_APK" \
+              "$APK_PATH"
+          else
+            echo "No custom keystore secret found. Generating consistent signing key for this build..."
+            keytool -genkeypair -v -keystore auto.keystore -alias truebit -keyalg RSA -keysize 2048 -validity 10000 \
+              -storepass "truebitpass" -keypass "truebitpass" -dname "CN=TrueBit, OU=Audio, O=TrueBit, L=HQ, S=Audio, C=US"
+            
+            BUILD_TOOLS=$(ls -d $ANDROID_HOME/build-tools/* | sort -V | tail -n 1)
+            $BUILD_TOOLS/apksigner sign \
+              --ks auto.keystore \
+              --ks-key-alias truebit \
+              --ks-pass pass:truebitpass \
+              --key-pass pass:truebitpass \
+              --out "$SIGNED_APK" \
+              "$APK_PATH"
+          fi
+
+          echo "Signed APK ready at $SIGNED_APK"
+          echo "apk_path=$SIGNED_APK" >> $GITHUB_OUTPUT
+
+      - name: Publish GitHub Release
+        if: steps.check_release.outputs.should_build == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.check_release.outputs.truebit_tag }}
+          name: "TrueBit ${{ steps.check_release.outputs.upstream_tag }} (BitChord Auto-Patched)"
+          body: |
+            ## 💎 TrueBit ${{ steps.check_release.outputs.upstream_tag }}
+            
+            Automatically patched and compiled from upstream **BitChord [${{ steps.check_release.outputs.upstream_tag }}](https://github.com/kushagrasinghx/BitChord/releases/tag/${{ steps.check_release.outputs.upstream_tag }})**.
+            
+            ### ✨ TrueBit Features Included
+            - 🌉 **Built-in Lossless Bridge**: Pre-configured Fly.io FLAC master resolver (up to 24-bit / 192kHz).
+            - 🎯 **Lossless-First Audio Routing**: Instant FLAC from 0:00 without lossy start.
+            - ⏩ **Predictive Lookahead**: Pre-resolves the next 4 tracks in queue (2s delay).
+            - 🎛️ **24-Bit PCM Audio Output**: Tailored for Chu II DSP and Type-C DACs.
+            - 📊 **Accurate Bitrate Display**: Genuine FLAC/PCM bitrate telemetry in Nerd Stats.
+            - 🎨 **TrueBit Custom Branding**: High-res squircle audio icon & revamped aesthetics.
+            
+            ---
+            *Built autonomously with GitHub Actions.*
+          files: ${{ steps.sign_apk.outputs.apk_path }}
+          make_latest: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

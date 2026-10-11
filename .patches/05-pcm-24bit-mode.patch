@@ -1,0 +1,36 @@
+diff --git a/app/src/main/java/com/music/bitchord/data/settings/AppSettings.kt b/app/src/main/java/com/music/bitchord/data/settings/AppSettings.kt
+index fecfc354..1e0b592d 100644
+--- a/app/src/main/java/com/music/bitchord/data/settings/AppSettings.kt
++++ b/app/src/main/java/com/music/bitchord/data/settings/AppSettings.kt
+@@ -55,6 +55,7 @@ fun AudioQuality.permits(kind: SourceKind): Boolean = when (this) {
+  */
+ enum class OutputPcmMode(val label: String) {
+     PCM_16("16-bit PCM"),
++    PCM_24("24-bit PCM"),
+     FLOAT_32("32-bit float"),
+ }
+ 
+diff --git a/app/src/main/java/com/music/bitchord/playback/audio/OutputNegotiator.kt b/app/src/main/java/com/music/bitchord/playback/audio/OutputNegotiator.kt
+index ebdf1e31..0c9b45ac 100644
+--- a/app/src/main/java/com/music/bitchord/playback/audio/OutputNegotiator.kt
++++ b/app/src/main/java/com/music/bitchord/playback/audio/OutputNegotiator.kt
+@@ -256,7 +256,8 @@ object OutputNegotiator {
+ 
+         // Priority 3B: Direct PCM24
+         val isSourceHighRes = (source.bitDepth ?: 16) > 16
+-        if (requestedMode != OutputPcmMode.PCM_16 && isSourceHighRes && directSupport.supportsPcm24 && delegateSupportsPcm24) {
++        val wantsDirect24 = requestedMode == OutputPcmMode.PCM_24 || (requestedMode != OutputPcmMode.PCM_16 && isSourceHighRes)
++        if (wantsDirect24 && directSupport.supportsPcm24 && delegateSupportsPcm24) {
+             val fallbackReason = if (requestedMode == OutputPcmMode.FLOAT_32 && !directSupport.supportsFloat) {
+                 FallbackReason.ROUTE_LIMITATION
+             } else {
+@@ -324,7 +325,8 @@ object OutputNegotiator {
+         }
+ 
+         // Check 24-bit advertised:
+-        if (requestedMode != OutputPcmMode.PCM_16 && isSourceHighRes && advertisesPcm24 && delegateSupportsPcm24) {
++        val wantsAdvertised24 = requestedMode == OutputPcmMode.PCM_24 || (requestedMode != OutputPcmMode.PCM_16 && isSourceHighRes)
++        if (wantsAdvertised24 && advertisesPcm24 && delegateSupportsPcm24) {
+             val fallbackReason = if (requestedMode == OutputPcmMode.FLOAT_32) {
+                 FallbackReason.ROUTE_LIMITATION
+             } else {

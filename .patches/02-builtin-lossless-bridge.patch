@@ -1,0 +1,60 @@
+diff --git a/app/src/main/java/com/music/bitchord/data/sources/SourceRegistry.kt b/app/src/main/java/com/music/bitchord/data/sources/SourceRegistry.kt
+index 6e9141f7..978d5b01 100644
+--- a/app/src/main/java/com/music/bitchord/data/sources/SourceRegistry.kt
++++ b/app/src/main/java/com/music/bitchord/data/sources/SourceRegistry.kt
+@@ -88,6 +88,9 @@ object SourceRegistry {
+ 
+     private const val TAG = "BitChord"
+ 
++    const val LOSSLESS_BRIDGE_ID = "truebit-lossless-bridge"
++    const val LOSSLESS_BRIDGE_URL = "https://lossless-bridge.fly.dev/sksalapur"
++
+     private lateinit var prefs: SharedPreferences
+ 
+     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
+@@ -140,8 +143,21 @@ object SourceRegistry {
+         // Seeded rather than persisted-on-first-write, so a build adding a new
+         // built-in kind picks it up for existing installs too. SourceConfig's
+         // default is the policy: JioSaavn off, YouTube on.
+-        val seeded = stored + BUILT_IN_KINDS
+-            .filter { kind -> stored.none { it.kind == kind } }
++        val bridgeConfig = SourceConfig(
++            id = LOSSLESS_BRIDGE_ID,
++            kind = SourceKind.ADDON,
++            label = "Lossless Bridge",
++            baseUrl = LOSSLESS_BRIDGE_URL,
++            enabled = true,
++        )
++        val withBridge = if (stored.none { it.id == LOSSLESS_BRIDGE_ID }) {
++            listOf(bridgeConfig) + stored
++        } else {
++            stored.map { if (it.id == LOSSLESS_BRIDGE_ID) it.copy(baseUrl = LOSSLESS_BRIDGE_URL, enabled = true) else it }
++        }
++
++        val seeded = withBridge + BUILT_IN_KINDS
++            .filter { kind -> withBridge.none { it.kind == kind } }
+             .map { SourceConfig(kind = it) }
+ 
+         // The retired built-in module is removed, while a custom module entered
+@@ -288,7 +304,7 @@ object SourceRegistry {
+ 
+     fun remove(configId: String) {
+         val target = config(configId) ?: return
+-        if (target.kind in BUILT_IN_KINDS) return
++        if (target.kind in BUILT_IN_KINDS || target.id == LOSSLESS_BRIDGE_ID) return
+         publish(configs.value.filterNot { it.id == configId })
+     }
+ 
+diff --git a/app/src/main/java/com/music/bitchord/ui/screens/SourcesScreen.kt b/app/src/main/java/com/music/bitchord/ui/screens/SourcesScreen.kt
+index 0f83242c..c2323f5a 100644
+--- a/app/src/main/java/com/music/bitchord/ui/screens/SourcesScreen.kt
++++ b/app/src/main/java/com/music/bitchord/ui/screens/SourcesScreen.kt
+@@ -247,7 +247,7 @@ fun SourcesScreen(
+                         // Anything the user configured is theirs to edit or
+                         // delete. JioSaavn and YouTube have no address to
+                         // change, so a tap on them would open an empty editor.
+-                        onClick = if (config.kind.needsServer) ({ onEditSource(config) }) else null,
++                        onClick = if (config.kind.needsServer && config.id != SourceRegistry.LOSSLESS_BRIDGE_ID) ({ onEditSource(config) }) else null,
+                         // YouTube gets no switch at all — see
+                         // [SourceRegistry.setEnabled] for why one would be a lie.
+                         onToggle = if (config.kind == SourceKind.YOUTUBE) {
