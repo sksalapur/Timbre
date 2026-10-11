@@ -1,7 +1,7 @@
 <h1 align="center">💎 TrueBit</h1>
 
 <p align="center">
-  <img src="Logo.png" alt="TrueBit Logo" width="180" style="border-radius: 28px;" />
+  <img src="assets/logo.png" alt="TrueBit Logo" width="180" style="border-radius: 28px;" />
 </p>
 
 <p align="center">
@@ -13,7 +13,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/sksalapur/TrueBit/releases/latest"><img src="https://img.shields.io/github/v/release/sksalapur/TrueBit?style=for-the-badge&label=Download%20APK&color=00D2FF&logo=android&logoColor=white" /></a>
+  <a href="https://github.com/sksalapur/TrueBit/releases"><img src="https://img.shields.io/badge/Download-TrueBit%20APK-00D2FF?style=for-the-badge&logo=android&logoColor=white" /></a>
   <img src="https://img.shields.io/badge/Audio-24--bit%20%2F%20192kHz%20FLAC-gold?style=for-the-badge&logo=audacity&logoColor=white" />
   <img src="https://img.shields.io/badge/Upstream-BitChord%20Auto--Synced-8A2BE2?style=for-the-badge&logo=github&logoColor=white" />
   <img src="https://img.shields.io/badge/License-GPLv3-brightgreen?style=for-the-badge" />
@@ -90,8 +90,8 @@ TrueBit never falls behind. A GitHub Actions CI pipeline monitors upstream `kush
 
 ## 📥 Download & Installation
 
-1. Go to the [**Latest Releases**](https://github.com/sksalapur/TrueBit/releases/latest) page.
-2. Download `TrueBit-release.apk`.
+1. Go to the [**Releases**](https://github.com/sksalapur/TrueBit/releases) page.
+2. Download the latest `TrueBit-release.apk`.
 3. Install the APK on your Android device (Android 8.0+ supported; Android 13+ recommended for bit-perfect direct output).
 4. Connect your favorite wired earphones or USB DAC, enable **24-bit PCM** in *Settings → Playback*, and enjoy uncompressed studio fidelity.
 
@@ -109,6 +109,7 @@ All modifications are maintained as atomic, surgical `.patch` files in the [`.pa
 | [`04-fix-bitrate-display.patch`](.patches/04-fix-bitrate-display.patch) | `PlaybackService.kt` | Prevents stale YouTube Opus bitrate from leaking into lossless stream telemetry. |
 | [`05-pcm-24bit-mode.patch`](.patches/05-pcm-24bit-mode.patch) | `AppSettings.kt`, `OutputNegotiator.kt` | Adds 24-bit integer PCM mode to settings enum and direct/external audio negotiation. |
 | [`06-truebit-app-icon.patch`](.patches/06-truebit-app-icon.patch) | `res/mipmap-*`, `Logo.png` | Complete aesthetic overhaul with high-res TrueBit neon squircle branding across all DPIs. |
+| [`07-rebrand-readme.patch`](.patches/07-rebrand-readme.patch) | `README.md` | Updates repository documentation for release tags. |
 
 ---
 
