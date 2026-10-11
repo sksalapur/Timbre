@@ -1,5 +1,29 @@
+diff --git a/app/build.gradle.kts b/app/build.gradle.kts
+index ca2ce59c..60c88ba5 100644
+--- a/app/build.gradle.kts
++++ b/app/build.gradle.kts
+@@ -75,7 +75,7 @@ android {
+     compileSdk = 37
+ 
+     defaultConfig {
+-        applicationId = "com.music.bitchord"
++        applicationId = "com.music.truebit"
+         // 26 keeps reach wide; real-time blur (RenderEffect) kicks in on API 31+,
+         // Haze falls back to a translucent scrim below that.
+         minSdk = 26
+@@ -118,8 +118,8 @@ android {
+     productFlavors {
+         create("dev") {
+             dimension = "env"
+-            applicationId = "com.dev.bitchord"
+-            resValue("string", "app_name", "BitChord Dev")
++            applicationId = "com.dev.truebit"
++            resValue("string", "app_name", "TrueBit Dev")
+         }
+         create("prod") {
+             dimension = "env"
 diff --git a/app/src/main/res/values/strings.xml b/app/src/main/res/values/strings.xml
-index 38ebd669..01f588a7 100644
+index c0021f4f..2b877856 100644
 --- a/app/src/main/res/values/strings.xml
 +++ b/app/src/main/res/values/strings.xml
 @@ -1,5 +1,5 @@

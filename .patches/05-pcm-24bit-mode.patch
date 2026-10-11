@@ -10,6 +10,20 @@ index fecfc354..1e0b592d 100644
      FLOAT_32("32-bit float"),
  }
  
+diff --git a/app/src/main/java/com/music/bitchord/playback/PlaybackService.kt b/app/src/main/java/com/music/bitchord/playback/PlaybackService.kt
+index f7ca375a..fdcf585a 100644
+--- a/app/src/main/java/com/music/bitchord/playback/PlaybackService.kt
++++ b/app/src/main/java/com/music/bitchord/playback/PlaybackService.kt
+@@ -5802,7 +5802,8 @@ class PlaybackService : MediaLibraryService() {
+             // Claiming otherwise here selected a 24-bit path that Media3 then
+             // silently re-converted, costing an extra quantization and leaving
+             // this readout naming a bit depth that was never written.
+-            delegateSupportsPcm24 = false,
++            delegateSupportsPcm24 = AppSettings.outputPcmMode.value == OutputPcmMode.PCM_24 ||
++                (activeDevice?.encodings?.contains(AudioFormat.ENCODING_PCM_24BIT_PACKED) == true),
+             knownSystemMixerRateHz = if (routeKind == AudioRouting.Kind.USB) 48000 else null,
+         )
+ 
 diff --git a/app/src/main/java/com/music/bitchord/playback/audio/OutputNegotiator.kt b/app/src/main/java/com/music/bitchord/playback/audio/OutputNegotiator.kt
 index ebdf1e31..0c9b45ac 100644
 --- a/app/src/main/java/com/music/bitchord/playback/audio/OutputNegotiator.kt
@@ -34,3 +48,58 @@ index ebdf1e31..0c9b45ac 100644
              val fallbackReason = if (requestedMode == OutputPcmMode.FLOAT_32) {
                  FallbackReason.ROUTE_LIMITATION
              } else {
+diff --git a/app/src/main/java/com/music/bitchord/playback/audio/PrecisionAudioSink.kt b/app/src/main/java/com/music/bitchord/playback/audio/PrecisionAudioSink.kt
+index d9074639..77503849 100644
+--- a/app/src/main/java/com/music/bitchord/playback/audio/PrecisionAudioSink.kt
++++ b/app/src/main/java/com/music/bitchord/playback/audio/PrecisionAudioSink.kt
+@@ -514,13 +514,26 @@ class PrecisionAudioSink(
+             val pcm16Format = format.buildUpon()
+                 .setPcmEncoding(C.ENCODING_PCM_16BIT)
+                 .build()
++            val pcm24Format = format.buildUpon()
++                .setPcmEncoding(C.ENCODING_PCM_24BIT)
++                .build()
+             val floatFormat = format.buildUpon()
+                 .setPcmEncoding(C.ENCODING_PCM_FLOAT)
+                 .build()
+             val pcm16Playable =
+                 delegate.getFormatSupport(pcm16Format) != AudioSink.SINK_FORMAT_UNSUPPORTED
++            val pcm24Playable =
++                delegate.getFormatSupport(pcm24Format) != AudioSink.SINK_FORMAT_UNSUPPORTED
+             val floatIsNative = floatIsNative(floatFormat)
+ 
++            if (format.pcmEncoding == C.ENCODING_PCM_24BIT) {
++                return when {
++                    pcm24Playable -> AudioSink.SINK_FORMAT_SUPPORTED_DIRECTLY
++                    floatIsNative || pcm16Playable -> AudioSink.SINK_FORMAT_SUPPORTED_WITH_TRANSCODING
++                    else -> AudioSink.SINK_FORMAT_UNSUPPORTED
++                }
++            }
++
+             if (format.pcmEncoding == C.ENCODING_PCM_FLOAT) {
+                 return when {
+                     floatIsNative -> AudioSink.SINK_FORMAT_SUPPORTED_DIRECTLY
+@@ -562,6 +575,12 @@ class PrecisionAudioSink(
+      * what it is, a request for float, and honoured only where float is real.
+      */
+     private fun resolveTargetEncoding(preferred: PcmEncoding?, floatFormat: Format): PcmEncoding {
++        if (preferred == PcmEncoding.PCM_24BIT_PACKED) {
++            val pcm24Format = floatFormat.buildUpon().setPcmEncoding(C.ENCODING_PCM_24BIT).build()
++            if (delegate.getFormatSupport(pcm24Format) != AudioSink.SINK_FORMAT_UNSUPPORTED) {
++                return PcmEncoding.PCM_24BIT_PACKED
++            }
++        }
+         val wantsAbove16Bit = when (preferred) {
+             PcmEncoding.PCM_16BIT -> return PcmEncoding.PCM_16BIT
+             PcmEncoding.PCM_FLOAT, PcmEncoding.PCM_24BIT_PACKED, PcmEncoding.PCM_32BIT -> true
+@@ -630,8 +649,8 @@ class PrecisionAudioSink(
+      */
+     private fun publishOutputExactness(source: PcmEncoding, target: PcmEncoding) {
+         val exact = when (source) {
+-            PcmEncoding.PCM_16BIT -> target == PcmEncoding.PCM_16BIT
+-            PcmEncoding.PCM_24BIT_PACKED -> target == PcmEncoding.PCM_FLOAT
++            PcmEncoding.PCM_16BIT -> target == PcmEncoding.PCM_16BIT || target == PcmEncoding.PCM_24BIT_PACKED || target == PcmEncoding.PCM_FLOAT
++            PcmEncoding.PCM_24BIT_PACKED -> target == PcmEncoding.PCM_24BIT_PACKED || target == PcmEncoding.PCM_FLOAT
+             PcmEncoding.PCM_FLOAT -> target == PcmEncoding.PCM_FLOAT
+             // 24 bits of significand cannot hold 32.
+             PcmEncoding.PCM_32BIT -> false
