@@ -55,7 +55,7 @@ jobs:
           fi
 
           # 2. Check if this release already exists in TrueBit
-          TRUEBIT_TAG="${TAG}-truebit"
+          TRUEBIT_TAG="${TAG}"
           RELEASE_EXISTS=$(curl -s -o /dev/null -w "%{http_code}" "https://api.github.com/repos/${MY_REPO}/releases/tags/${TRUEBIT_TAG}")
           
           FORCE="${{ github.event.inputs.force_build }}"
