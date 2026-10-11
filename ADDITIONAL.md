@@ -1,16 +1,8 @@
 # Additional Documentation
 
-Additional BitChord project and development information will be maintained here.
+Technical documentation and architecture details for TrueBit.
 
-## Project
-- [Listen Together Server Documentation](backend/README.md): Architecture, synchronization protocol, and deployment instructions for the party server.
-- [Lyrics Translation](docs/LYRICS_TRANSLATION.md): Pipeline documentation for on-demand lyrics translation, timing projection, and UI transitions.
-
-## Development
-Placeholder for project development notes and environment guides.
-
-## Technical Notes
-Placeholder for component-specific technical documentation and implementation notes.
-
-## Future Documentation
-Placeholder for future project and technical documentation.
+## Project Architecture
+- [Listen Together Go Server](backend/README.md): Architecture, WebSocket synchronization protocol, and deployment instructions for the party server.
+- [Lyrics Translation](docs/LYRICS_TRANSLATION.md): Pipeline documentation for on-demand lyrics translation and UI timing projection.
+- [TrueBit Patches](.patches/): Atomic patches maintaining cloud lossless routing, 24-bit PCM DAC output, and bitrate telemetry.

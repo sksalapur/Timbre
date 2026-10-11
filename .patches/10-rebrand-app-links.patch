@@ -1,0 +1,39 @@
+diff --git a/app/src/main/java/com/music/bitchord/data/discord/DiscordRPC.kt b/app/src/main/java/com/music/bitchord/data/discord/DiscordRPC.kt
+index 5da76754..5a485718 100644
+--- a/app/src/main/java/com/music/bitchord/data/discord/DiscordRPC.kt
++++ b/app/src/main/java/com/music/bitchord/data/discord/DiscordRPC.kt
+@@ -167,7 +167,7 @@ class DiscordRPC(
+          */
+         private const val APPLICATION_ID = "1411019391843172514"
+ 
+-        const val PROJECT_URL = "https://github.com/kushagrasinghx/BitChord"
++        const val PROJECT_URL = "https://github.com/sksalapur/TrueBit"
+ 
+         const val DEFAULT_BUTTON_1 = "Listen on YouTube Music"
+         const val DEFAULT_BUTTON_2 = "Visit BitChord"
+diff --git a/app/src/main/java/com/music/bitchord/data/scrobbling/LastFM.kt b/app/src/main/java/com/music/bitchord/data/scrobbling/LastFM.kt
+index 5e3a7099..2074dd35 100644
+--- a/app/src/main/java/com/music/bitchord/data/scrobbling/LastFM.kt
++++ b/app/src/main/java/com/music/bitchord/data/scrobbling/LastFM.kt
+@@ -86,7 +86,7 @@ object LastFM {
+         extra: Map<String, String> = emptyMap(),
+         format: String = "json",
+     ) {
+-        headers.append(HttpHeaders.UserAgent, "BitChord (https://github.com/kushagrasinghx/BitChord)")
++        headers.append(HttpHeaders.UserAgent, "TrueBit (https://github.com/sksalapur/TrueBit)")
+         val paramsForSig =
+             mutableMapOf(
+                 "method" to method,
+diff --git a/app/src/main/java/com/music/bitchord/ui/screens/SettingsSheet.kt b/app/src/main/java/com/music/bitchord/ui/screens/SettingsSheet.kt
+index b6c4fa04..a1a0ba42 100644
+--- a/app/src/main/java/com/music/bitchord/ui/screens/SettingsSheet.kt
++++ b/app/src/main/java/com/music/bitchord/ui/screens/SettingsSheet.kt
+@@ -1398,7 +1398,7 @@ fun SettingsScreen(
+                         textDecoration = TextDecoration.Underline,
+                     ),
+                 )
+-                withLink(LinkAnnotation.Url("https://github.com/kushagrasinghx/BitChord", linkStyles)) {
++                withLink(LinkAnnotation.Url("https://github.com/sksalapur/TrueBit", linkStyles)) {
+                     append("GitHub")
+                 }
+                 append("  ")
