@@ -229,6 +229,7 @@ fun SettingsScreen(
     val swipeToPlayNext by AppSettings.swipeToPlayNext.collectAsStateWithLifecycle()
     val dontRepeatSuggestions by AppSettings.dontRepeatSuggestions.collectAsStateWithLifecycle()
     val preferMusicOnly by AppSettings.preferMusicOnly.collectAsStateWithLifecycle()
+    val losslessTimeout by AppSettings.losslessTimeoutSeconds.collectAsStateWithLifecycle()
     val smartVersionAlignment by AppSettings.smartVersionAlignment.collectAsStateWithLifecycle()
     val filterNonMusicAudio by AppSettings.filterNonMusicAudio.collectAsStateWithLifecycle()
     val localMusicFolderUri by AppSettings.localMusicFolderUri.collectAsStateWithLifecycle()
@@ -575,6 +576,22 @@ fun SettingsScreen(
                     selectedIndex = OutputPcmMode.entries.indexOf(outputPcmMode),
                     onSelect = { AppSettings.setOutputPcmMode(OutputPcmMode.entries[it]) },
                     modifier = Modifier.padding(start = TEXT_INSET, end = ROW_INSET, bottom = 14.dp),
+                )
+            }
+            val losslessTimeoutTitle = "Lossless priority window"
+            row(losslessTimeoutTitle, "lossless", "timeout", "delay", "flac", "priority", "buffer", "window") {
+                SliderRow(
+                    icon = Icons.Rounded.Tune,
+                    title = losslessTimeoutTitle,
+                    subtitle = "Maximum time to wait for FLAC before falling back to YouTube Opus",
+                    value = "${losslessTimeout}s",
+                    sliderValue = losslessTimeout,
+                    onSliderValue = {
+                        val rounded = (Math.round(it * 2.0f) / 2.0f).coerceIn(0.5f, 5.0f)
+                        AppSettings.setLosslessTimeoutSeconds(rounded)
+                    },
+                    valueRange = 0.5f..5.0f,
+                    steps = 8,
                 )
             }
             val preferUsbDacTitle = stringResource(R.string.prefer_usb_dac)
@@ -1391,7 +1408,7 @@ fun SettingsScreen(
         if (searchQuery.isBlank()) {
         Text(
             text = buildAnnotatedString {
-                append("bitchord $version  ")
+                append("truebit $version  ")
                 val linkStyles = TextLinkStyles(
                     style = SpanStyle(
                         color = MaterialTheme.colorScheme.primary,
@@ -1402,15 +1419,11 @@ fun SettingsScreen(
                     append("GitHub")
                 }
                 append("  ")
-                withLink(LinkAnnotation.Url("https://github.com/kushagrasinghx", linkStyles)) {
+                withLink(LinkAnnotation.Url("https://github.com/sksalapur", linkStyles)) {
                     append("Developer")
                 }
                 append("  ")
-                withLink(LinkAnnotation.Url("https://discord.gg/pDdKfrdHY6", linkStyles)) {
-                    append("Discord")
-                }
-                append("  ")
-                withLink(LinkAnnotation.Url("https://bitchord.kushagrasingh.in/", linkStyles)) {
+                withLink(LinkAnnotation.Url("https://sksalapur.github.io/TrueBit/", linkStyles)) {
                     append("Website")
                 }
                 append("\n~YouTube Music & Listen Together Backend")

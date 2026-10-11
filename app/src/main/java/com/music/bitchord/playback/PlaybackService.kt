@@ -4676,7 +4676,10 @@ class PlaybackService : MediaLibraryService() {
         // are still looking — [lookup.isActive] below is what tells those
         // apart, which is the question the old head start answered by timing
         // out rather than by asking.
-        val quick: SourceStream? = select {
+        val timeoutMs = (AppSettings.losslessTimeoutSeconds.value * 1000f).toLong()
+        val quick: SourceStream? = kotlinx.coroutines.withTimeoutOrNull(timeoutMs) {
+            lookup.await()
+        } ?: select {
             lookup.onAwait { it }
             // A fallback that finished without a URL has not won anything.
             //

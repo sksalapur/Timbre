@@ -29,10 +29,10 @@ Modern music streaming on mobile is riddled with compromises for anyone who care
 | :--- | :--- |
 | **YouTube Music / Spotify** | Heavily compressed lossy audio (128–160 kbps Opus/AAC). Smeared transients, flat dynamics, and audible compression artifacts. |
 | **Tidal / Qobuz / Apple Music** | $11–20/month subscription fees, DRM lock-in, proprietary closed-source apps, heavy battery drain, and no YouTube Music playlist integration. |
-| **Stock BitChord** | Requires manual server configuration on every install; defaults to lossy YouTube streams first before upgrading mid-track; only pre-fetches 1 track ahead; lacks 24-bit PCM mode. |
+| **Stock BitChord** | Requires manual server configuration on every install; defaults to lossy YouTube streams first before upgrading mid-track; only pre-fetches 1 track ahead; no priority lossless routing. |
 | **Android Audio Pipeline** | Default Android system mixer forces 48kHz resampling and truncates 24-bit studio masters down to 16-bit integer PCM. |
 
-**TrueBit solves all of this out of the box.** It is a purpose-built, high-fidelity fork of BitChord featuring hardcoded cloud lossless routing, aggressive queue pre-caching, direct 24-bit PCM DAC output, and automated upstream release patching.
+**TrueBit solves all of this out of the box.** It is a purpose-built, high-fidelity fork of BitChord featuring hardcoded cloud lossless routing, aggressive queue pre-caching, direct unresampled AudioTrack DAC output, and automated upstream release patching.
 
 ---
 
@@ -57,7 +57,7 @@ Modern music streaming on mobile is riddled with compromises for anyone who care
 │                                  │                                     │
 │   ┌──────────────────────────────▼───────────────────────────────┐     │
 │   │ 3. Bit-Perfect Hardware Pipeline                             │     │
-│   │    24-bit PCM Direct Route → USB DAC (e.g. Chu II DSP)       │     │
+│   │    Direct Bit-Perfect Route → USB DAC (e.g. Chu II DSP 96kHz)│     │
 │   └──────────────────────────────────────────────────────────────┘     │
 └────────────────────────────────────────────────────────────────────────┘
 ```
@@ -73,8 +73,8 @@ Stock clients start playback immediately on low-bitrate YouTube Opus audio and l
 - Reduced background prefetch stagger from 8s to **2s**.
 - Upcoming tracks in your album or playlist are already resolved and primed in memory, delivering instant, gapless transitions even when skipping quickly.
 
-### 4. 🎛️ Dedicated 24-Bit PCM Audio Output Mode
-Alongside standard 16-bit PCM and 32-bit Float, TrueBit introduces a native **24-bit PCM** output option under Playback Settings. Tailored specifically for audiophile Type-C DACs (such as the Moondrop Chu II DSP, Conexant, and Cirrus Logic dongles), bypassing Android's 16-bit integer truncation.
+### 4. 🎛️ Bit-Perfect Direct Hardware Audio Routing
+TrueBit leverages AndroidX Media3's direct AudioTrack pipeline, routing audio directly to external DACs and Type-C DSP earphones (like the Moondrop Chu II DSP) at native 96 kHz without mixer resampling or format distortion.
 
 ### 5. 📊 Fixed Real-Time Bitrate Telemetry
 Eliminated the upstream bug where Nerd Stats leaked stale 165 kbps lossy bitrates onto FLAC streams. TrueBit displays genuine PCM data rates (e.g. 1,411 kbps for 16/44.1, 4,608 kbps for 24/96) accurately reflecting your hardware sink.
@@ -93,7 +93,7 @@ TrueBit never falls behind. A GitHub Actions CI pipeline monitors upstream `kush
 1. Go to the [**Releases**](https://github.com/sksalapur/TrueBit/releases) page.
 2. Download the latest `TrueBit-release.apk`.
 3. Install the APK on your Android device (Android 8.0+ supported; Android 13+ recommended for bit-perfect direct output).
-4. Connect your favorite wired earphones or USB DAC, enable **24-bit PCM** in *Settings → Playback*, and enjoy uncompressed studio fidelity.
+4. Connect your favorite wired earphones or USB DAC, connect your Type-C DSP or external DAC, and enjoy uncompressed studio fidelity.
 
 ---
 

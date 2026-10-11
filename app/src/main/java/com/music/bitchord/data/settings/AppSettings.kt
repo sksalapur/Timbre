@@ -148,6 +148,17 @@ enum class SongSort {
  */
 object AppSettings {
 
+    const val DEFAULT_LOSSLESS_TIMEOUT_SECONDS = 3.5f
+    private const val KEY_LOSSLESS_TIMEOUT_SECONDS = "lossless_timeout_seconds"
+    val losslessTimeoutSeconds = MutableStateFlow(DEFAULT_LOSSLESS_TIMEOUT_SECONDS)
+
+    fun setLosslessTimeoutSeconds(value: Float) {
+        losslessTimeoutSeconds.value = value
+        if (this::prefs.isInitialized) {
+            prefs.edit().putFloat(KEY_LOSSLESS_TIMEOUT_SECONDS, value).apply()
+        }
+    }
+
     private lateinit var prefs: SharedPreferences
 
     /** Only for the Discord, WebDAV and SMB secrets — everything else on here is plain prefs. */
@@ -791,6 +802,10 @@ object AppSettings {
             )
         }.getOrDefault(AutomixPerformanceMode.BALANCED)
         skipSilence.value = prefs.getBoolean(KEY_SKIP_SILENCE, false)
+        losslessTimeoutSeconds.value = prefs.getFloat(
+            KEY_LOSSLESS_TIMEOUT_SECONDS,
+            DEFAULT_LOSSLESS_TIMEOUT_SECONDS,
+        ).coerceIn(0.5f, 5.0f)
         outputPcmMode.value = runCatching {
             OutputPcmMode.valueOf(
                 prefs.getString(KEY_OUTPUT_PCM_MODE, OutputPcmMode.PCM_16.name)
