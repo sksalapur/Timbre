@@ -1,6 +1,6 @@
-# Contributing to BitChord
+# Contributing to TrueBit
 
-Thank you for contributing to BitChord. Follow these guidelines to ensure an efficient development and review process.
+Thank you for contributing to TrueBit. Follow these guidelines to ensure an efficient development and review process.
 
 ## Proposing Contributions
 - Substantial features, refactors, or UI redesigns should normally be discussed before implementation. Open an issue on GitHub to outline your proposal.
