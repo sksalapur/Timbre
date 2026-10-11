@@ -75,6 +75,9 @@ jobs:
           TAG="${{ steps.check_release.outputs.upstream_tag }}"
           git clone --depth 1 --branch "$TAG" https://github.com/kushagrasinghx/BitChord.git build-dir
           echo "Cloned BitChord at tag $TAG"
+          # Strip desktop targets so only Android and Go backend remain
+          rm -rf build-dir/desktopApp
+          echo "Stripped desktopApp targets"
 
       - name: Apply TrueBit Patches
         if: steps.check_release.outputs.should_build == 'true'
