@@ -254,6 +254,7 @@ import com.music.bitchord.ui.screens.SegmentedControl
 import com.music.bitchord.ui.components.SearchField
 import com.music.bitchord.sharedui.resources.Res as SharedRes
 import com.music.bitchord.sharedui.resources.search_hint
+import com.music.bitchord.sharedui.resources.search_addons_hint
 import com.music.bitchord.sharedui.resources.search_library_hint
 import com.music.bitchord.ui.components.TopBarDownloadButton
 import com.music.bitchord.ui.components.optimizedHazeEffect
@@ -728,6 +729,7 @@ private fun BitChordApp(
     val filter by viewModel.filter.collectAsStateWithLifecycle()
     val searchSource by viewModel.searchSource.collectAsStateWithLifecycle()
     val libraryResults by viewModel.libraryResults.collectAsStateWithLifecycle()
+    val addonResults by viewModel.addonResults.collectAsStateWithLifecycle()
     val signedIn by viewModel.signedIn.collectAsStateWithLifecycle()
     val incomingJamInvite by JamInviteLink.pending.collectAsStateWithLifecycle()
     var activeJamInviteCode by rememberSaveable { mutableStateOf<String?>(null) }
@@ -3218,6 +3220,7 @@ private fun BitChordApp(
                                     options = listOf(
                                         stringResource(R.string.search_source_youtube),
                                         stringResource(R.string.library),
+                                        stringResource(R.string.search_source_addons),
                                     ),
                                     selectedIndex = searchSource.ordinal,
                                     onSelect = { index -> onSearchSourceChange(SearchSource.entries[index]) },
@@ -3225,17 +3228,34 @@ private fun BitChordApp(
                             },
                             searchingLibrary = searchSource == SearchSource.LIBRARY,
                             libraryResults = libraryResults,
+                            searchingAddons = searchSource == SearchSource.ADDONS,
+                            addonResults = addonResults,
+                            addonHistory = viewModel.addonSearchHistory.collectAsStateWithLifecycle().value,
+                            onAddonHistoryClick = { term ->
+                                viewModel.onQueryChange(term)
+                                viewModel.submitSearch()
+                            },
+                            onAddonHistoryRemove = viewModel::removeAddonSearch,
+                            onAddonHistoryClear = viewModel::clearAddonSearchHistory,
                             // The same queue opening the Local Music folder and
                             // tapping the row there would give.
                             onLibrarySongClick = { songs, index ->
                                 playFrom(
                                     songs,
                                     index,
-                                    QueueSource(
-                                        context.getString(R.string.local_music),
-                                        PlaybackSourceType.BROWSE,
-                                        "local:all",
-                                    ),
+                                    if (searchSource == SearchSource.ADDONS) {
+                                        QueueSource(
+                                            context.getString(R.string.search_source_addons),
+                                            PlaybackSourceType.BROWSE,
+                                            "addons:search",
+                                        )
+                                    } else {
+                                        QueueSource(
+                                            context.getString(R.string.local_music),
+                                            PlaybackSourceType.BROWSE,
+                                            "local:all",
+                                        )
+                                    },
                                 )
                             },
                         )
@@ -3529,6 +3549,8 @@ private fun BitChordApp(
                                 placeholder = org.jetbrains.compose.resources.stringResource(
                                     if (searchSource == SearchSource.LIBRARY) {
                                         SharedRes.string.search_library_hint
+                                    } else if (searchSource == SearchSource.ADDONS) {
+                                        SharedRes.string.search_addons_hint
                                     } else {
                                         SharedRes.string.search_hint
                                     },

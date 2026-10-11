@@ -3202,12 +3202,6 @@ class PlaybackService : MediaLibraryService() {
         ) {
             return
         }
-        // An addon/JioSaavn stream gets one chance. If it fails after selection,
-        // retrying the ordinary item only lets the same deterministic lookup win
-        // again. Rebuild it as an explicit YouTube request instead. This also
-        // clears a DASH/HLS MIME left on an upgraded item, which otherwise makes
-        // Media3 parse YouTube's WebM bytes as a manifest forever.
-        if (fallbackFailedAlternativeToYouTube(item, uri, position)) return
         // A manifest read as audio is not a broken stream, and everything below
         // this line would treat it as one. Ahead of the verdict and the attempt
         // budget for the same reason as the local-file case above: this is not
@@ -3218,6 +3212,12 @@ class PlaybackService : MediaLibraryService() {
         ) {
             return
         }
+        // An addon/JioSaavn stream gets one chance. If it fails after selection,
+        // retrying the ordinary item only lets the same deterministic lookup win
+        // again. Rebuild it as an explicit YouTube request instead. This also
+        // clears a DASH/HLS MIME left on an upgraded item, which otherwise makes
+        // Media3 parse YouTube's WebM bytes as a manifest forever.
+        if (fallbackFailedAlternativeToYouTube(item, uri, position)) return
         // Giving up on the *retry*, not on everything below it.
         //
         // A track that has exhausted its attempts is not finished with.
@@ -3363,6 +3363,10 @@ class PlaybackService : MediaLibraryService() {
         position: Long,
     ): Boolean {
         val playbackUri = uri ?: return false
+        // A track the listener picked from an addon is that addon's or nothing:
+        // a YouTube Opus copy under it is a different, lesser recording they
+        // did not ask for. Let the ordinary retry/skip path deal with it.
+        if (playbackUri.authority == "source") return false
         val videoId = playbackUri.getQueryParameter("v")
         val substituted = videoId?.let(StreamChoice::isSubstitute) == true
         if (!PlaybackFallback.isAlternative(playbackUri.toString(), substituted)) return false
