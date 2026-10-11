@@ -121,7 +121,9 @@ jobs:
 
       - name: Setup Android SDK
         if: steps.check_release.outputs.should_build == 'true'
-        uses: android-actions/setup-android@v3
+        uses: android-actions/setup-android@v4
+        with:
+          packages: 'platform-tools'
 
       - name: Build Android Release APK
         if: steps.check_release.outputs.should_build == 'true'
