@@ -62,12 +62,8 @@ Modern music streaming on mobile is riddled with compromises for anyone who care
 └────────────────────────────────────────────────────────────────────────┘
 ```
 
-### 1. 🤖 Authenticated Lossless FLAC via Telegram Bot
-TrueBit resolves studio-quality 24-bit FLAC streams securely without third-party web dashboard logins. Get your private Addon URL directly from **[@TrueBitLosslessBot](https://t.me/TrueBitLosslessBot)**:
-1. Open [@TrueBitLosslessBot](https://t.me/TrueBitLosslessBot) on Telegram and send `/start`.
-2. Copy your private Addon URL.
-3. In TrueBit, open **Settings ➔ Sources ➔ Add Source ➔ Custom Addon** and paste your URL.
-4. Check your listening quota (250 songs / day) at any time directly in Telegram with `/quota`.
+### 1. 🎵 Pure Bit-Perfect Audio Pipeline
+TrueBit is engineered with an audiophile-grade, direct audio pipeline supporting uncompressed 24-bit studio FLAC streams and high-resolution playback. Audio data bypasses Android mixer resampling, routing uncompromised studio sound directly to external USB DACs, audiophile earphones, or Type-C DSP hardware.
 
 ### 2. 🎯 Lossless-First Routing (Zero Mid-Song Jumps)
 Stock clients start playback immediately on low-bitrate YouTube Opus audio and later perform a "seam swap" to FLAC mid-song. TrueBit flips this: it actively queries lossless sources *before* opening the audio stream. When a lossless copy exists, you hear pure FLAC from **0:00**.
@@ -120,7 +116,14 @@ All modifications are maintained as atomic, surgical `.patch` files in the [`.pa
 
 - **[BitChord](https://github.com/kushagrasinghx/BitChord)** — Created by [kushagrasinghx](https://github.com/kushagrasinghx). All core player architecture, audio pipelines, and UI belong to the original BitChord team.
 - **[Lossless Bridge](https://github.com/sksalapur/lossless-bridge)** — High-performance cloud proxy routing lossless FLAC streams.
-- **[TrueBit Lossless Bot](https://t.me/TrueBitLosslessBot)** — Authenticated Telegram bot gateway providing private FLAC addon endpoints with daily quota management.
+- **[TrueBit Community](https://t.me/+f3PaI9uPURthMDA1)** — Official Telegram community discussion group for audiophiles and user feedback.
+
+---
+
+## 💬 Community & Discussion
+
+Have questions, feedback, or want to discuss audiophile setups? Join our official community:
+👉 **[Join TrueBit Community on Telegram](https://t.me/+f3PaI9uPURthMDA1)**
 
 ---
 

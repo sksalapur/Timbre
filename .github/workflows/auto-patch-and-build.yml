@@ -145,37 +145,70 @@ jobs:
           # Build production release APK (skip unit tests)
           ./gradlew assembleProdRelease -x test --no-daemon --stacktrace
 
-      - name: Sign APK (Keystore or Auto-Debug Key)
+      - name: Sign APKs (Keystore or Auto-Debug Key)
         if: steps.check_release.outputs.should_build == 'true'
         id: sign_apk
         run: |
-          APK_PATH=$(find build-dir/app/build/outputs/apk -name "*.apk" | grep -v "unaligned" | head -n 1)
-          if [ -z "$APK_PATH" ]; then
-            echo "Error: No release APK found!"
-            exit 1
-          fi
-
-          echo "Found APK: $APK_PATH"
-          SIGNED_APK="build-dir/TrueBit-${{ steps.check_release.outputs.upstream_tag }}.apk"
-
+          mkdir -p signed-apks
+          TAG="${{ steps.check_release.outputs.upstream_tag }}"
           BUILD_TOOLS=$(ls -d $ANDROID_HOME/build-tools/* | sort -V | tail -n 1)
           echo "Using Android Build Tools: $BUILD_TOOLS"
 
           if [ -n "${{ secrets.KEYSTORE_BASE64 }}" ]; then
             echo "Using custom signing keystore from secrets..."
             echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > keystore.jks
-            
-            $BUILD_TOOLS/apksigner sign               --ks keystore.jks               --ks-key-alias "${{ secrets.KEY_ALIAS }}"               --ks-pass "pass:${{ secrets.KEYSTORE_PASSWORD }}"               --key-pass "pass:${{ secrets.KEY_PASSWORD }}"               --out "$SIGNED_APK"               "$APK_PATH"
+            KS_FILE="keystore.jks"
+            KS_ALIAS="${{ secrets.KEY_ALIAS }}"
+            KS_PASS="pass:${{ secrets.KEYSTORE_PASSWORD }}"
+            KEY_PASS="pass:${{ secrets.KEY_PASSWORD }}"
           else
             echo "No custom keystore secret found. Generating consistent signing key for this build..."
-            keytool -genkeypair -v -keystore auto.keystore -alias truebit -keyalg RSA -keysize 2048 -validity 10000               -storepass "truebitpass" -keypass "truebitpass" -dname "CN=TrueBit, OU=Audio, O=TrueBit, L=HQ, S=Audio, C=US"
-            
-            BUILD_TOOLS=$(ls -d $ANDROID_HOME/build-tools/* | sort -V | tail -n 1)
-            $BUILD_TOOLS/apksigner sign               --ks auto.keystore               --ks-key-alias truebit               --ks-pass pass:truebitpass               --key-pass pass:truebitpass               --out "$SIGNED_APK"               "$APK_PATH"
+            keytool -genkeypair -v -keystore auto.keystore -alias truebit -keyalg RSA -keysize 2048 -validity 10000 \
+              -storepass "truebitpass" -keypass "truebitpass" -dname "CN=TrueBit, OU=Audio, O=TrueBit, L=HQ, S=Audio, C=US"
+            KS_FILE="auto.keystore"
+            KS_ALIAS="truebit"
+            KS_PASS="pass:truebitpass"
+            KEY_PASS="pass:truebitpass"
           fi
 
-          echo "Signed APK ready at $SIGNED_APK"
-          echo "apk_path=$SIGNED_APK" >> $GITHUB_OUTPUT
+          found_count=0
+          while IFS= read -r raw_apk; do
+            if [ -n "$raw_apk" ]; then
+              filename=$(basename "$raw_apk")
+              echo "Processing APK: $filename ($raw_apk)"
+              
+              if [[ "$filename" == *"arm64-v8a"* ]]; then
+                out_name="TrueBit-${TAG}-arm64.apk"
+              elif [[ "$filename" == *"universal"* ]]; then
+                out_name="TrueBit-${TAG}.apk"
+              elif [[ "$filename" == *"armeabi-v7a"* ]]; then
+                out_name="TrueBit-${TAG}-armeabi-v7a.apk"
+              elif [[ "$filename" == *"x86_64"* ]]; then
+                out_name="TrueBit-${TAG}-x86_64.apk"
+              else
+                out_name="TrueBit-${TAG}-${filename}"
+              fi
+              
+              target="signed-apks/${out_name}"
+              echo "Signing $raw_apk -> $target"
+              $BUILD_TOOLS/apksigner sign \
+                --ks "$KS_FILE" \
+                --ks-key-alias "$KS_ALIAS" \
+                --ks-pass "$KS_PASS" \
+                --key-pass "$KEY_PASS" \
+                --out "$target" \
+                "$raw_apk"
+              found_count=$((found_count + 1))
+            fi
+          done < <(find build-dir/app/build/outputs/apk -name "*.apk" | grep -v "unaligned")
+
+          if [ "$found_count" -eq 0 ]; then
+            echo "Error: No release APKs found to sign!"
+            exit 1
+          fi
+
+          echo "✅ Successfully signed $found_count APKs:"
+          ls -lh signed-apks/
 
       - name: Generate TrueBit Rebadged Release Notes
         if: steps.check_release.outputs.should_build == 'true'
@@ -192,7 +225,7 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           name: "TrueBit ${{ steps.check_release.outputs.upstream_tag }} (BitChord Auto-Patched)"
           body_path: release_notes.md
-          files: ${{ steps.sign_apk.outputs.apk_path }}
+          files: signed-apks/*.apk
           make_latest: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

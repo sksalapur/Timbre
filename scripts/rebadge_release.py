@@ -62,7 +62,7 @@ def rebadge_release(tag, my_repo):
 > Streamlined mobile fork of [BitChord {tag}](https://github.com/kushagrasinghx/BitChord/releases/tag/{tag}).
 
 ### 💎 TrueBit Enhancements Included
-- 🤖 **Telegram-Authenticated Lossless Resolver**: Connect your private 24-bit FLAC addon endpoint from [@TrueBitLosslessBot](https://t.me/TrueBitLosslessBot) with daily quota management (250 songs/day).
+- 🎵 **Bit-Perfect Lossless Pipeline**: Uncompressed 24-bit audio playback with direct hardware routing to USB DACs and audiophile earphones.
 - 🎯 **Lossless-First Audio Routing**: Clean FLAC playback from 0:00 with tuned priority timeout (0.5s–5.0s slider).
 - ⏩ **Predictive Queue Lookahead**: Pre-resolves and buffers the next 4 tracks in queue (2s delay).
 - 🎛️ **Direct Bit-Perfect Hardware Routing**: Direct AudioTrack sink unconstrained by Android mixer resampling, ideal for Type-C DSPs and external DACs.
@@ -75,6 +75,11 @@ def rebadge_release(tag, my_repo):
 
     footer = f"""
 ---
+### 💬 Community & Support
+Join our official **[TrueBit Telegram Community](https://t.me/+f3PaI9uPURthMDA1)** for discussions, news, and setup assistance.
+
+---
+
 ### 📲 Install & Update
 - **ARM64** *(Recommended for most phones)*: Download **`TrueBit-{tag}-arm64.apk`**
 - **Universal** *(All devices)*: Download **`TrueBit-{tag}.apk`**
