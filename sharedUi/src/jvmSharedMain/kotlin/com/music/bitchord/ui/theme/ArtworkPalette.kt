@@ -152,6 +152,60 @@ fun rememberArtworkTopBandLuminance(
     artPx: Int = CARD_ART_PX,
 ): Float? = rememberArtworkSeed(imageUrl, artPx)?.topBandLuminance
 
+/**
+ * The pale tint the player sets its secondary text and glyphs in, or null
+ * until the artwork has been read — and for artwork with no colour worth
+ * echoing — so the player keeps its plain white rather than showing a
+ * placeholder grey that reads as the colour having gone wrong.
+ *
+ * Not [ArtworkPalette.onBackgroundVariant], though it is lifted the same way:
+ * that one always starts from the sleeve's most common colour, and on a cover
+ * that is mostly black that colour is a near-black whose hue nobody can see.
+ * HSL still gives it one — a black with a trace of red in it is "pink" at full
+ * saturation — and lifting it pale put a pink on the player that is nowhere
+ * on the cover. So the tint starts from the first colour that is actually
+ * visible: the dominant one if it has real chroma, else the accent.
+ */
+@Composable
+fun rememberPlayerTint(imageUrl: String?, artPx: Int = CARD_ART_PX): Color? {
+    val seed = rememberArtworkSeed(imageUrl, artPx)
+    return remember(seed) { seed?.playerTint() }
+}
+
+private fun Seed.playerTint(): Color? {
+    val source = listOf(dominant, vibrant).firstOrNull { it.chroma() >= TINT_MIN_CHROMA } ?: return null
+    // Much nearer white than an album page's secondary line: the player's
+    // backdrop is the artwork itself, often as bright and as coloured as the
+    // tint, and a tint at the page's 0.80 sank into it. This keeps a hint of
+    // the sleeve while staying a light text colour on any backdrop.
+    return source.withHsl(
+        saturation = { adaptedArtworkSaturation(it, minimum = 0.18f, maximum = PLAYER_TINT_MAX_SATURATION) },
+        lightness = { PLAYER_TINT_LIGHTNESS },
+    )
+}
+
+private const val PLAYER_TINT_LIGHTNESS = 0.88f
+private const val PLAYER_TINT_MAX_SATURATION = 0.40f
+
+/** Spread between the strongest and weakest channel — colour you can see, unlike HSL saturation. */
+private fun Color.chroma(): Float = maxOf(red, green, blue) - minOf(red, green, blue)
+
+/**
+ * A swatch with no visible colour, taken down to the true grey of the same
+ * lightness; anything with real chroma is returned as it is.
+ *
+ * [adaptedArtworkSaturation] already keeps a grey grey, but it judges by HSL
+ * saturation, and HSL rates a near-black's trace of colour as strongly
+ * saturated — a black with a little red and blue in it is a "purple" at 40%.
+ * Lifted to a page tint, that is the dark purple UTOPIA's black sleeve came out
+ * as. Chroma is the measure the eye agrees with.
+ */
+internal fun Color.neutralizedIfGrey(): Color =
+    if (chroma() >= TINT_MIN_CHROMA) this else withHsl(saturation = { 0f })
+
+/** Below this a swatch is black, white or grey to the eye, whatever hue HSL assigns it. */
+private const val TINT_MIN_CHROMA = 0.08f
+
 @Composable
 private fun rememberArtworkSeed(imageUrl: String?, artPx: Int): Seed? {
     val context = LocalPlatformContext.current
@@ -323,7 +377,10 @@ internal fun topBandScrimAlpha(artworkLuminance: Float?): Float {
 private const val PLAYER_STATUS_SCRIM_MIN_ALPHA = 0.16f
 private const val PLAYER_STATUS_SCRIM_MAX_ALPHA = 0.65f
 
-private fun Seed.toPalette(dark: Boolean): ArtworkPalette = if (dark) {
+private fun Seed.toPalette(dark: Boolean): ArtworkPalette =
+    copy(dominant = dominant.neutralizedIfGrey(), edge = edge.neutralizedIfGrey()).paletteFor(dark)
+
+private fun Seed.paletteFor(dark: Boolean): ArtworkPalette = if (dark) {
     ArtworkPalette(
         // Deep enough that white body text clears contrast on any sleeve, but
         // not so deep the hue is gone — the whole point is that the page is

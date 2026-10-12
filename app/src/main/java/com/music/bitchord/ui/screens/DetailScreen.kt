@@ -72,6 +72,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.BlurredEdgeTreatment
 import androidx.compose.ui.draw.blur
@@ -876,16 +877,23 @@ private fun ReleaseHeader(
                         size = RELEASE_SIDE_BUTTON,
                     )
                 } else {
-                    // Keeps Play in the middle for a guest.
-                    Spacer(Modifier.size(RELEASE_SIDE_BUTTON))
+                    // Shown but greyed out for a guest, rather than leaving a
+                    // hole beside Play.
+                    CircleIconButton(
+                        icon = BitChordIcons.Plus,
+                        contentDescription = stringResource(R.string.add_to_library),
+                        onClick = {},
+                        size = RELEASE_SIDE_BUTTON,
+                        enabled = false,
+                    )
                 }
             }
         }
     }
 }
 
+/**
  * The filter box, shown under the header while the top bar's search button is on.
- * The filter box, shown under the header while the search circle is lit.
  *
  * Live rather than submit-on-enter, and for the same reason the Local Music
  * one is (see `LocalSearchField`): the list it narrows is already in memory, so
@@ -1243,7 +1251,7 @@ private val SOFT_FOOT_BLUR = 48.dp
  * it out: a large Play circle with a small glass circle either side.
  *
  * The star is the page's existing subscribe toggle. Where the page offers none
- * (a guest) an empty slot of the same size keeps Play in the middle.
+ * (a guest) it stays, greyed out and untappable, so Play keeps the middle.
  */
 @Composable
 private fun ActionRow(
@@ -1289,7 +1297,13 @@ private fun ActionRow(
                 size = ARTIST_SIDE_BUTTON,
             )
         } else {
-            Spacer(Modifier.size(ARTIST_SIDE_BUTTON))
+            CircleIconButton(
+                icon = Icons.Rounded.StarBorder,
+                contentDescription = stringResource(R.string.subscribe),
+                onClick = {},
+                size = ARTIST_SIDE_BUTTON,
+                enabled = false,
+            )
         }
     }
     Spacer(Modifier.height(bottomSpace))
@@ -1402,15 +1416,22 @@ private fun CircleIconButton(
     onClick: () -> Unit,
     haptic: Haptic = Haptic.Tap,
     size: Dp = 50.dp,
+    /**
+     * False greys the button out and stops it taking taps, for an action the
+     * page offers but this user can't take — a guest's Add or Subscribe.
+     * Dimmed rather than dropped, so the row keeps its shape.
+     */
+    enabled: Boolean = true,
 ) {
     val haptics = rememberHaptics()
     Box(
         modifier = Modifier
             .size(size)
+            .alpha(if (enabled) 1f else DISABLED_ACTION_ALPHA)
             .clip(CircleShape)
             .background(Color.White.copy(alpha = LIGHT_FILL_ALPHA), CircleShape)
             .border(1.dp, Color.White.copy(alpha = TOP_RELEASE_EDGE_ALPHA), CircleShape)
-            .clickable {
+            .clickable(enabled = enabled) {
                 haptics.play(haptic)
                 onClick()
             },
@@ -1850,6 +1871,8 @@ private fun TopReleaseCard(
 
 /** The white veil under Apple-style containers and their buttons. */
 private const val LIGHT_FILL_ALPHA = 0.07f
+/** A side button this user can't use — a guest's Add or Subscribe. */
+private const val DISABLED_ACTION_ALPHA = 0.38f
 
 /** Brighter than the default 0.15 hairlines, as on Apple Music's own card. */
 private const val TOP_RELEASE_EDGE_ALPHA = 0.10f
@@ -1949,17 +1972,24 @@ private fun DetailPage.headerLines(trackCount: Int, playtime: String? = null): P
     val year = parts.lastOrNull { it.length == 4 && it.all(Char::isDigit) }
     val kind = parts.firstOrNull { it.lowercase(Locale.ROOT) in KIND_WORDS }
     val credit = parts.filter { it != year && it != kind }.joinToString(", ")
+    // Title case, "Playlist · 2022 · 10 Tracks · 38 min" — except the
+    // playtime, whose "min" and "1h 25m" are units, not words.
     val meta = listOfNotNull(
-        kind ?: type.localizedLabel(),
+        (kind ?: type.localizedLabel())?.capitalizeWords(),
         year,
         trackCount.takeIf { it > 0 }?.let {
-            pluralStringResource(R.plurals.track_count_plural, it, it)
+            pluralStringResource(R.plurals.track_count_plural, it, it).capitalizeWords()
         },
         playtime,
-    // Sentence case, as Apple Music sets it: "Album · 2022 · 10 tracks · 38 min".
     ).joinToString(" · ")
     return credit to meta
 }
+
+/** "10 tracks" → "10 Tracks", "playlist" → "Playlist". */
+private fun String.capitalizeWords(): String =
+    split(' ').joinToString(" ") { word ->
+        word.replaceFirstChar { it.titlecase(Locale.getDefault()) }
+    }
 
 /** Subtitle words that name what a page *is* rather than who made it. */
 private val KIND_WORDS = setOf(
