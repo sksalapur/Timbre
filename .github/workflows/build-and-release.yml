@@ -1,0 +1,159 @@
+name: Build and Release TrueBit
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'docs/**'
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Release Tag (e.g. v1.8)'
+        required: true
+        default: 'v1.8'
+
+jobs:
+  build-and-release:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout TrueBit Repo
+        uses: actions/checkout@v4
+
+      - name: Setup JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+          cache: 'gradle'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v4
+        with:
+          packages: 'platform-tools'
+
+      - name: Build Android Release APK
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleProdRelease -x test --no-daemon --stacktrace
+
+      - name: Sign APKs (Keystore or Auto-Debug Key)
+        id: sign_apk
+        run: |
+          mkdir -p signed-apks
+          TAG="${{ github.event.inputs.release_tag || 'v1.8' }}"
+          BUILD_TOOLS=$(ls -d $ANDROID_HOME/build-tools/* | sort -V | tail -n 1)
+          echo "Using Android Build Tools: $BUILD_TOOLS"
+
+          if [ -n "${{ secrets.KEYSTORE_BASE64 }}" ]; then
+            echo "Using custom signing keystore from secrets..."
+            echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > keystore.jks
+            KS_FILE="keystore.jks"
+            KS_ALIAS="${{ secrets.KEY_ALIAS }}"
+            KS_PASS="pass:${{ secrets.KEYSTORE_PASSWORD }}"
+            KEY_PASS="pass:${{ secrets.KEY_PASSWORD }}"
+          else
+            echo "Generating consistent signing key..."
+            keytool -genkeypair -v -keystore auto.keystore -alias truebit -keyalg RSA -keysize 2048 -validity 10000 \
+              -storepass "truebitpass" -keypass "truebitpass" -dname "CN=TrueBit, OU=Audio, O=TrueBit, L=HQ, S=Audio, C=US"
+            KS_FILE="auto.keystore"
+            KS_ALIAS="truebit"
+            KS_PASS="pass:truebitpass"
+            KEY_PASS="pass:truebitpass"
+          fi
+
+          found_count=0
+          while IFS= read -r raw_apk; do
+            if [ -n "$raw_apk" ]; then
+              filename=$(basename "$raw_apk")
+              echo "Processing APK: $filename ($raw_apk)"
+              
+              if [[ "$filename" == *"arm64-v8a"* ]]; then
+                out_name="TrueBit-${TAG}-arm64.apk"
+              elif [[ "$filename" == *"universal"* ]]; then
+                out_name="TrueBit-${TAG}.apk"
+              elif [[ "$filename" == *"armeabi-v7a"* ]]; then
+                out_name="TrueBit-${TAG}-armeabi-v7a.apk"
+              elif [[ "$filename" == *"x86_64"* ]]; then
+                out_name="TrueBit-${TAG}-x86_64.apk"
+              else
+                out_name="TrueBit-${TAG}-${filename}"
+              fi
+              
+              target="signed-apks/${out_name}"
+              echo "Signing $raw_apk -> $target"
+              $BUILD_TOOLS/apksigner sign \
+                --ks "$KS_FILE" \
+                --ks-key-alias "$KS_ALIAS" \
+                --ks-pass "$KS_PASS" \
+                --key-pass "$KEY_PASS" \
+                --out "$target" \
+                "$raw_apk"
+              found_count=$((found_count + 1))
+            fi
+          done < <(find app/build/outputs/apk -name "*.apk" | grep -v "unaligned")
+
+          if [ "$found_count" -eq 0 ]; then
+            echo "Error: No release APKs found to sign!"
+            exit 1
+          fi
+
+          echo "✅ Successfully signed $found_count APKs:"
+          ls -lh signed-apks/
+
+      - name: Generate TrueBit Release Notes
+        run: |
+          python3 scripts/rebadge_release.py "${{ github.event.inputs.release_tag || 'v1.8' }}" "${{ github.repository }}"
+
+      - name: Publish GitHub Release
+        id: publish_release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.inputs.release_tag || 'v1.8' }}
+          target_commitish: ${{ github.sha }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          name: "TrueBit ${{ github.event.inputs.release_tag || 'v1.8' }}"
+          body_path: release_notes.md
+          files: signed-apks/*.apk
+          make_latest: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Send Release Announcement to Telegram Group
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: "@TrueBit_Lossless"
+        run: |
+          python3 scripts/post_telegram_release.py "${{ github.event.inputs.release_tag || 'v1.8' }}" "${{ github.repository }}" "release_notes.md" "signed-apks"
+
+  deploy-pages:
+    name: Deploy GitHub Pages
+    runs-on: ubuntu-latest
+    needs: build-and-release
+    if: always() && (needs.build-and-release.result == 'success' || github.event_name == 'push')
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Checkout TrueBit Repo
+        uses: actions/checkout@v4
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages Artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: './docs'
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

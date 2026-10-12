@@ -5108,9 +5108,9 @@ class PlaybackService : MediaLibraryService() {
                 Pair(localBitrateCache[mediaId], TelemetryProvenance.AUTHORITATIVE)
             NerdStats.declaredFormat(mediaId)?.kbps != null ->
                 Pair(NerdStats.declaredFormat(mediaId)?.kbps, TelemetryProvenance.AUTHORITATIVE)
-            NerdStats.pickedBitrateKbps(mediaId) != null ->
+            !isLossless && NerdStats.pickedBitrateKbps(mediaId) != null ->
                 Pair(NerdStats.pickedBitrateKbps(mediaId), TelemetryProvenance.AUTHORITATIVE)
-            dsd == null && isRawPcm && pcmDataRate != null ->
+            dsd == null && (isLossless || isRawPcm) && pcmDataRate != null ->
                 Pair(pcmDataRate, TelemetryProvenance.DERIVED)
             else ->
                 Pair(null, TelemetryProvenance.UNKNOWN)
