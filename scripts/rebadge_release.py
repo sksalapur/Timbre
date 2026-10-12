@@ -56,7 +56,7 @@ def rebadge_release(tag, my_repo):
     clean_body = clean_body.replace('kushagrasinghx/Timbre', my_repo)
     clean_body = clean_body.replace('kushagrasinghx/timbre', my_repo)
 
-    header = f\"\"\"![Timbre Banner](https://raw.githubusercontent.com/{my_repo}/main/Banner.png)
+    header = f"""![Timbre Banner](https://raw.githubusercontent.com/{my_repo}/main/Banner.png)
 
 # Timbre {tag}
 > **Bit-Perfect High-Resolution Audio Streaming for Android**  
@@ -72,21 +72,21 @@ def rebadge_release(tag, my_repo):
 - 🚀 **Streamlined Mobile Performance**: Stripped desktop/TV runtime bloat for battery-efficient mobile performance.
 
 ---
-\"\"\"
+"""
 
-    footer = f\"\"\"
+    footer = f"""
 ---
 ### 💬 Community & Support
-Join our official **[Telegram Community](https://t.me/TrueBit_Lossless)** for discussions, updates, and setup assistance.
+Join our official **[Telegram Community](https://t.me/Timbre_Community)** for discussions, updates, and setup assistance.
 
 ---
 
 ### 📲 Install & Update
-- **ARM64** *(Recommended for most phones)*: Download **Timbre-{tag}-arm64.apk**
-- **Universal** *(All devices)*: Download **Timbre-{tag}.apk**
+- **ARM64** *(Recommended for most phones)*: Download **`Timbre-{tag}-arm64.apk`**
+- **Universal** *(All devices)*: Download **`Timbre-{tag}.apk`**
 
 > 💡 **Desktop or TV user?** Timbre is engineered specifically for Android mobile devices. If you need Windows, Linux, macOS, or Android TV builds, please check upstream [BitChord {tag}](https://github.com/kushagrasinghx/BitChord/releases/tag/{tag}).
-\"\"\"
+"""
     final_notes = header + (clean_body if clean_body else "See upstream BitChord release for detailed changes.") + footer
     with open("release_notes.md", "w", encoding="utf-8") as f:
         f.write(final_notes)
