@@ -138,15 +138,15 @@ object TvSettings {
     }
 
     fun getProfilePin(profileId: String): String? {
-        return if (this::prefs.isInitialized) prefs.getString("tv_profile_pin_$profileId", null) else null
+        return if (this::prefs.isInitialized) prefs.getString("$KEY_PROFILE_PIN_PREFIX$profileId", null) else null
     }
 
     fun setProfilePin(profileId: String, pin: String?) {
         save {
             if (pin.isNullOrBlank()) {
-                remove("tv_profile_pin_$profileId")
+                remove("$KEY_PROFILE_PIN_PREFIX$profileId")
             } else {
-                putString("tv_profile_pin_$profileId", pin)
+                putString("$KEY_PROFILE_PIN_PREFIX$profileId", pin)
             }
         }
     }
@@ -160,10 +160,12 @@ object TvSettings {
         if (!this::prefs.isInitialized) return
         save {
             prefs.all.keys
-                .filter { it.startsWith("tv_profile_pin_") }
+                .filter { it.startsWith(KEY_PROFILE_PIN_PREFIX) }
                 .forEach { key -> remove(key) }
         }
     }
+
+    private const val KEY_PROFILE_PIN_PREFIX = "tv_profile_pin_"
 
     private const val KEY_TV_REFRESH_RATE = "tv_refresh_rate"
     private const val KEY_TV_NICKNAME = "tv_nickname"

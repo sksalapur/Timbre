@@ -114,11 +114,12 @@ object BrowserSession {
                 // Both the host-only and the domain-wide form: a cookie set on
                 // `.google.com` is not removed by expiring it on the host, and
                 // which of the two a given cookie used is not recorded here.
-                manager.setCookie(origin, "$name=; Max-Age=0; Path=/")
-                manager.setCookie(origin, "$name=; Max-Age=0; Path=/; Domain=$host")
-                manager.setCookie(origin, "$name=; Max-Age=0; Path=/; Domain=.$host")
-                manager.setCookie(origin, "$name=; Max-Age=0; Path=/accounts")
-                manager.setCookie(origin, "$name=; Max-Age=0; Path=/ServiceLogin")
+                val expired = "$name=; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Max-Age=0"
+                manager.setCookie(origin, "$expired; Path=/")
+                manager.setCookie(origin, "$expired; Path=/; Domain=$host")
+                manager.setCookie(origin, "$expired; Path=/; Domain=.$host")
+                manager.setCookie(origin, "$expired; Path=/accounts")
+                manager.setCookie(origin, "$expired; Path=/ServiceLogin")
                 cleared++
             }
         }

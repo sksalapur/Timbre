@@ -131,7 +131,6 @@ fun TvApp(
         }
     }
 
-    var onSignOutAction by remember { mutableStateOf<(() -> Unit)?>(null) }
 
     Box(
         modifier = modifier
@@ -185,10 +184,6 @@ fun TvApp(
             TvAccountDialog(
                 viewModel = viewModel,
                 onDismiss = { showAccountDialog = false },
-                onSignOut = {
-                    onSignOutAction?.invoke()
-                    showAccountDialog = false
-                },
                 allowPhoneSignIn = false,
             )
         }
@@ -254,15 +249,22 @@ private fun TvMainShell(
     // The card each pushed page was opened from, so Back can hand focus back to it.
     val returnFocus = remember { mutableListOf<FocusRequester?>() }
 
-    val openAccount: () -> Unit = {
-        if (detailStack.isNotEmpty()) {
+    val signedIn by viewModel.signedIn.collectAsState()
+    val activeProfileId by viewModel.activeProfileId.collectAsState()
+    LaunchedEffect(signedIn, activeProfileId) {
+        if (!signedIn) {
+            if (detailStack.isNotEmpty()) {
+                detailStack.clear()
+                returnFocus.clear()
+                viewModel.clearDetail()
+            }
+            chrome.contentScrolled = false
+            destination = TvDestination.HOME
+        } else if (detailStack.isNotEmpty()) {
             detailStack.clear()
             returnFocus.clear()
             viewModel.clearDetail()
         }
-        chrome.contentScrolled = false
-        destination = TvDestination.HOME
-        onOpenAccount()
     }
 
     val select: (TvDestination) -> Unit = { next ->
@@ -393,7 +395,7 @@ private fun TvMainShell(
                                 playerState = playerState,
                                 onNavigateToDetail = openDetail,
                                 onNavigateToNowPlaying = openNowPlaying,
-                                onOpenAccount = openAccount,
+                                onOpenAccount = onOpenAccount,
                             )
                             TvDestination.SEARCH -> TvSearchScreen(
                                 viewModel = viewModel,
@@ -403,7 +405,7 @@ private fun TvMainShell(
                             )
                             TvDestination.SETTINGS -> TvSettingsScreen(
                                 viewModel = viewModel,
-                                onOpenAccount = openAccount,
+                                onOpenAccount = onOpenAccount,
                                 onRunSetupAgain = onRunSetupAgain,
                             )
                         }
@@ -444,7 +446,7 @@ private fun TvMainShell(
                 contentFocus = if (activeDetail != null) detailFocus else contentFocus,
                 onSelect = select,
                 onOpenNowPlaying = openNowPlaying,
-                onOpenAccount = openAccount,
+                onOpenAccount = onOpenAccount,
                 modifier = Modifier
                     .align(Alignment.TopCenter)
                     .zIndex(10f)
@@ -474,8 +476,19 @@ private fun TvTopBar(
     onOpenAccount: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val googleAccounts by viewModel.googleAccounts.collectAsState()
+    val activeAccountId by viewModel.activeAccountId.collectAsState()
+    val activeProfileId by viewModel.activeProfileId.collectAsState()
     val account by viewModel.account.collectAsState()
     val signedIn by viewModel.signedIn.collectAsState()
+
+    val avatarUrl = remember(googleAccounts, activeAccountId, activeProfileId, account) {
+        googleAccounts.firstOrNull { it.accountId == activeAccountId }
+            ?.profiles?.firstOrNull { it.profileId == activeProfileId }
+            ?.avatar
+            ?: account?.thumbnailUrl
+    }
+
     // Pages fill the screen from its top edge so they can scroll under this bar,
     // which puts them outside a plain "below" search from a tab. Point Down at them.
     val downToContent = Modifier.focusProperties { down = contentFocus }
@@ -496,7 +509,7 @@ private fun TvTopBar(
                 .aspectRatio(730f / 484f),
         )
         TvAvatarButton(
-            imageUrl = if (signedIn) account?.thumbnailUrl else null,
+            imageUrl = if (signedIn) avatarUrl else null,
             onClick = onOpenAccount,
             modifier = Modifier.align(Alignment.CenterEnd).then(downToContent),
         )
@@ -576,7 +589,7 @@ private fun TvAvatarButton(
                 modifier = Modifier.size(18.dp),
             )
         } else {
-            TvArtwork(url = imageUrl, px = 120, shape = CircleShape, modifier = Modifier.fillMaxSize())
+            TvArtwork(url = imageUrl, px = 256, shape = CircleShape, modifier = Modifier.fillMaxSize())
         }
     }
 }

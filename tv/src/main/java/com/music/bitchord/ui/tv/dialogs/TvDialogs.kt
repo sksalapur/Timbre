@@ -409,7 +409,7 @@ private fun TvProfileCard(
             if (!profile.avatar.isNullOrBlank()) {
                 TvArtwork(
                     url = profile.avatar,
-                    px = 180,
+                    px = 512,
                     shape = CircleShape,
                     modifier = Modifier.fillMaxSize(),
                 )

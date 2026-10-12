@@ -72,7 +72,7 @@ class AuthStore(context: Context) {
         val existing = sessions
         val index = existing.indexOfFirst { it.accountId == session.accountId }
         val next = if (index >= 0) {
-            existing.toMutableList().apply { set(index, session) }
+            existing.toMutableList().also { it[index] = session }
         } else {
             existing + session
         }

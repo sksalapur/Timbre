@@ -248,9 +248,14 @@ fun String?.durationMillis(): Long {
 }
 
 /** As [Song.artworkAt], for artwork that isn't a track's. */
-fun String?.artworkAt(px: Int): String? = this?.replace(SIZE_HINT, "w$px-h$px")
+fun String?.artworkAt(px: Int): String? {
+    if (this == null) return null
+    return this.replace(SIZE_HINT, "w$px-h$px")
+        .replace(PARAM_SIZE_HINT, "=s$px")
+}
 
 private val SIZE_HINT = Regex("""w\d+-h\d+""")
+private val PARAM_SIZE_HINT = Regex("""=s\d+""")
 
 /**
  * Artwork for a list row — 52dp at most, so about 140px on a 3x screen.
