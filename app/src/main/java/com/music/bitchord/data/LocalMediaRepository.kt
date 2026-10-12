@@ -226,6 +226,7 @@ object LocalMediaRepository {
             MediaStore.Audio.Media.DATA,
             MediaStore.Audio.Media.DATE_ADDED,
             MediaStore.Audio.Media.DATE_MODIFIED,
+            MediaStore.Audio.Media.TRACK,
         )
 
         val filterNonMusic = AppSettings.filterNonMusicAudio.value
@@ -277,6 +278,7 @@ object LocalMediaRepository {
                 val dataCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATA)
                 val dateAddedCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATE_ADDED)
                 val dateModifiedCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATE_MODIFIED)
+                val trackCol = cursor.getColumnIndex(MediaStore.Audio.Media.TRACK)
 
                 val albumArtBaseUri = Uri.parse("content://media/external/audio/albumart")
 
@@ -301,6 +303,11 @@ object LocalMediaRepository {
                     val albumName = rawAlbum.takeUnless { it.isNullOrBlank() || it == "<unknown>" }
                     val artworkUrl = if (albumId > 0) ContentUris.withAppendedId(albumArtBaseUri, albumId).toString() else null
                     val durationText = durationMs.takeIf { it > 0 }?.let(::formatDuration)
+                    val trackNumber = if (trackCol >= 0 && !cursor.isNull(trackCol)) {
+                        trackNumberFromMediaStore(cursor.getInt(trackCol))
+                    } else {
+                        null
+                    }
 
                     songs.add(
                         Song(
@@ -314,6 +321,7 @@ object LocalMediaRepository {
                             localPath = path,
                             localDateAddedSeconds = cursor.getLong(dateAddedCol),
                             localDateModifiedSeconds = cursor.getLong(dateModifiedCol),
+                            trackNumber = trackNumber,
                         )
                     )
                 }
@@ -412,6 +420,7 @@ object LocalMediaRepository {
         var artist = "Unknown Artist"
         var albumName: String? = null
         var durationText: String? = null
+        var trackNumber: Int? = null
 
         runCatching {
             val retriever = MediaMetadataRetriever()
@@ -420,11 +429,13 @@ object LocalMediaRepository {
             val metaArtist = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ARTIST)
             val metaAlbum = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ALBUM)
             val metaDur = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull()
+            val metaTrack = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_CD_TRACK_NUMBER)
 
             if (!metaTitle.isNullOrBlank()) title = metaTitle
             if (!metaArtist.isNullOrBlank()) artist = metaArtist
             albumName = metaAlbum.cleanTag()
             if (metaDur != null && metaDur > 0) durationText = formatDuration(metaDur)
+            trackNumber = trackNumberFromTag(metaTrack)
             retriever.release()
         }
 
@@ -438,7 +449,28 @@ object LocalMediaRepository {
             localUri = uriStr,
             localDateAddedSeconds = scanned?.dateAddedSeconds,
             localDateModifiedSeconds = scanned?.dateModifiedSeconds,
+            trackNumber = trackNumber,
         )
+    }
+
+    /**
+     * MediaStore packs the disc into the same int (`disc * 1000 + track`), so
+     * 1003 is disc 1 track 3 rather than track 1003. Unpacks it; null when the
+     * scanner wrote nothing usable.
+     */
+    internal fun trackNumberFromMediaStore(raw: Int?): Int? {
+        if (raw == null || raw <= 0) return null
+        val track = if (raw >= 1000) raw % 1000 else raw
+        return track.takeIf { it in 1..999 }
+    }
+
+    /**
+     * `CD_TRACK_NUMBER` arrives as `"3"` or `"3/12"`. Takes the head; null when
+     * it isn't a number.
+     */
+    internal fun trackNumberFromTag(raw: String?): Int? {
+        val head = raw?.substringBefore('/')?.trim() ?: return null
+        return head.toIntOrNull()?.takeIf { it in 1..999 }
     }
 
     private fun formatDuration(ms: Long): String {

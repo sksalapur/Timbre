@@ -176,6 +176,8 @@
     <string name="japanese">יפנית</string>
     <string name="russian">רוסית</string>
     <string name="chinese">סינית (מפושטת)</string>
+    <string name="chinese_simplified">סינית (מפושטת)</string>
+    <string name="chinese_traditional">סינית (מסורתית)</string>
     <string name="italian">איטלקית</string>
     <string name="turkish">טורקית</string>
     <string name="thai">תאית</string>

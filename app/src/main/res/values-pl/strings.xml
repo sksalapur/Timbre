@@ -177,6 +177,8 @@
     <string name="japanese">Japoński</string>
     <string name="russian">Rosyjski</string>
     <string name="chinese">Chiński (uproszczony)</string>
+    <string name="chinese_simplified">Chiński (uproszczony)</string>
+    <string name="chinese_traditional">Chiński (tradycyjny)</string>
     <string name="italian">Włoski</string>
     <string name="turkish">Turecki</string>
     <string name="thai">Tajski</string>

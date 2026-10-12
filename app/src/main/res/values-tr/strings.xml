@@ -187,6 +187,8 @@
     <string name="japanese">Japonca</string>
     <string name="russian">Rusça</string>
     <string name="chinese">Çince (Basitleştirilmiş)</string>
+    <string name="chinese_simplified">Çince (Basitleştirilmiş)</string>
+    <string name="chinese_traditional">Çince (Geleneksel)</string>
     <string name="hebrew">İbranice</string>
     <string name="italian">İtalyanca</string>
     <string name="turkish">Türkçe</string>

@@ -191,6 +191,8 @@
     <string name="japanese">Tiếng Nhật</string>
     <string name="russian">Tiếng Nga</string>
     <string name="chinese">Tiếng Trung (Giản thể)</string>
+    <string name="chinese_simplified">Tiếng Trung (Giản thể)</string>
+    <string name="chinese_traditional">Tiếng Trung (Phồn thể)</string>
     <string name="hebrew">Tiếng Do Thái</string>
     <string name="italian">Tiếng Ý</string>
     <string name="turkish">Tiếng Thổ Nhĩ Kỳ</string>
