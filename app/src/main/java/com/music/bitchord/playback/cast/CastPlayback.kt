@@ -193,8 +193,28 @@ class CastPlayback(
     }
 
     fun onSessionBegan(newSession: CastSession, resumed: Boolean) {
-        val remote = newSession.remoteMediaClient ?: return
-        if (active && remote === client) return
+        try {
+            beginSession(newSession, resumed)
+        } catch (t: Throwable) {
+            // This runs inside the framework's callback; an exception here ends
+            // the app. A receiver that could not be set up is a failed cast.
+            CastLog.e("onSessionBegan threw", t)
+            release()
+            say(R.string.cast_connect_failed)
+        }
+    }
+
+    private fun beginSession(newSession: CastSession, resumed: Boolean) {
+        val remote = newSession.remoteMediaClient
+        if (remote == null) {
+            CastLog.w("onSessionBegan: session has no RemoteMediaClient; nothing to drive")
+            return
+        }
+        if (active && remote === client) {
+            CastLog.d("onSessionBegan: already driving this client")
+            return
+        }
+        CastLog.d("onSessionBegan: resumed=$resumed localPlayer=${localPlayer() != null} status=${remote.mediaStatus?.playerState}")
         release()
         session = newSession
         client = remote
@@ -207,6 +227,7 @@ class CastPlayback(
             val wasPlaying = player.playWhenReady && player.playbackState != Player.STATE_ENDED
             val position = player.currentPosition.coerceAtLeast(0L)
             val currentId = player.currentMediaItem?.mediaId
+            CastLog.d("handing over: item=$currentId position=${position}ms wasPlaying=$wasPlaying queue=${player.mediaItemCount}")
             // The phone goes quiet first, whatever happens next, so the two
             // are never both audible.
             player.pause()
@@ -256,6 +277,7 @@ class CastPlayback(
             if (resume) player.play()
         }
         Log.i(TAG, "session ended: error=$error resumeHere=$resume")
+        CastLog.d("playback released: error=$error resumeHere=$resume at=${endPositionMs}ms item=$endMediaId")
         sink?.onRemoteRouteChanged()
         sink?.onRemotePlaybackChanged()
     }
@@ -328,6 +350,7 @@ class CastPlayback(
         val remote = client ?: return
         val status = remote.mediaStatus ?: return
         val state = status.playerState
+        CastLog.d("receiver status: state=$state idle=${status.idleReason} item=${status.currentItemId} queue=${status.queueItemCount}")
         // Whatever the phone last asked for has been answered by now.
         requestedAt = 0L
 
@@ -346,6 +369,7 @@ class CastPlayback(
                     wantsPlay = false
                     onReceiverFinished()
                 } else if (status.idleReason == MediaStatus.IDLE_REASON_ERROR) {
+                    CastLog.w("receiver reported a playback ERROR for item=${status.currentItemId}")
                     wantsPlay = false
                     loading = false
                     say(R.string.cast_track_unsupported)
@@ -397,9 +421,26 @@ class CastPlayback(
         requestedAt = SystemClock.elapsedRealtime()
         sink?.onRemotePlaybackChanged()
 
+        CastLog.d("load: item=${item?.mediaId} position=${positionMs}ms play=$play generation=$generation")
         loadJob = scope.launch {
+            try {
+                loadNow(item, positionMs, play, generation, remote)
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (t: Throwable) {
+                CastLog.e("load threw", t)
+                loading = false
+                wantsPlay = false
+                say(R.string.cast_connect_failed)
+                sink?.onRemotePlaybackChanged()
+            }
+        }
+    }
+
+    private suspend fun loadNow(item: MediaItem?, positionMs: Long, play: Boolean, generation: Int, remote: RemoteMediaClient) {
+        run {
             val queueItem = item?.let { buildQueueItem(it, play) }
-            if (generation != loadGeneration || !active) return@launch
+            if (generation != loadGeneration || !active) return@run
             if (queueItem == null) {
                 // Nothing to play, so nothing to wait for. The receiver is left
                 // as it was; only the phone's idea of it is corrected.
@@ -407,7 +448,7 @@ class CastPlayback(
                 wantsPlay = false
                 if (item != null) say(R.string.cast_track_unsupported)
                 sink?.onRemotePlaybackChanged()
-                return@launch
+                return@run
             }
             val repeat = receiverRepeat(localPlayer()?.repeatMode ?: Player.REPEAT_MODE_OFF)
             val request = MediaLoadRequestData.Builder()
@@ -422,15 +463,18 @@ class CastPlayback(
                 .setAutoplay(play)
                 .setCurrentTime(positionMs)
                 .build()
-            val result = remote.load(request).await()
-            if (generation != loadGeneration || !active) return@launch
+            CastLog.d("sending LOAD to receiver (repeat=$repeat start=${positionMs}ms autoplay=$play)")
+            val result = remote.load(request).awaitResult()
+            CastLog.d("LOAD answered: success=${result.status.isSuccess} code=${result.status.statusCode} msg=${result.status.statusMessage}")
+            if (generation != loadGeneration || !active) return@run
             if (!result.status.isSuccess) {
                 Log.w(TAG, "load failed: ${result.status.statusCode}")
+                CastLog.w("load FAILED: code=${result.status.statusCode} ${result.status.statusMessage}")
                 loading = false
                 wantsPlay = false
                 say(R.string.cast_track_unsupported)
                 sink?.onRemotePlaybackChanged()
-                return@launch
+                return@run
             }
             lastItemId = remote.mediaStatus?.currentItemId ?: lastItemId
             loading = false
@@ -451,7 +495,15 @@ class CastPlayback(
                 // Let the receiver's own status catch up with whatever just
                 // changed it; reading its queue earlier reads the old one.
                 delay(RECONCILE_DELAY_MS)
-                if (active && !loading) reconcileOnce()
+                if (active && !loading) {
+                    try {
+                        reconcileOnce()
+                    } catch (e: kotlinx.coroutines.CancellationException) {
+                        throw e
+                    } catch (t: Throwable) {
+                        CastLog.e("reconcile threw", t)
+                    }
+                }
             } while (reconcileAgain && active)
         }
     }
@@ -483,12 +535,12 @@ class CastPlayback(
         if (kept == remoteAhead.size && kept == wanted.size) return
 
         if (kept < remoteAhead.size) {
-            remote.queueRemoveItems(remoteAhead.drop(kept).map { it.itemId }.toIntArray(), null).await()
+            remote.queueRemoveItems(remoteAhead.drop(kept).map { it.itemId }.toIntArray(), null).awaitResult()
         }
         for (next in wanted.drop(kept)) {
             val queueItem = buildQueueItem(next, autoplay = true) ?: break
             if (!active) return
-            remote.queueInsertItems(arrayOf(queueItem), MediaQueueItem.INVALID_ITEM_ID, null).await()
+            remote.queueInsertItems(arrayOf(queueItem), MediaQueueItem.INVALID_ITEM_ID, null).awaitResult()
         }
     }
 
@@ -497,8 +549,14 @@ class CastPlayback(
             resolve(item)
         } catch (e: Exception) {
             Log.w(TAG, "could not resolve ${item.mediaId} for casting", e)
+            CastLog.w("could not resolve ${item.mediaId} for casting", e)
             null
-        } ?: return null
+        }
+        if (stream == null) {
+            CastLog.w("resolve gave no castable stream for ${item.mediaId} (local file, header-bound source, or resolver failed)")
+            return null
+        }
+        CastLog.d("resolved ${item.mediaId}: ${CastLog.url(stream.url)} mime=${stream.mimeType}")
 
         val metadata = item.mediaMetadata
         val music = MediaMetadata(MediaMetadata.MEDIA_TYPE_MUSIC_TRACK).apply {
@@ -548,7 +606,12 @@ class CastPlayback(
             MediaStatus.REPEAT_MODE_REPEAT_OFF
         }
 
-    private suspend fun <R : Result> PendingResult<R>.await(): R =
+    /**
+     * Not named `await`: [PendingResult] has a blocking member of that name,
+     * and a member always beats an extension — so the blocking one ran, on the
+     * main thread, and threw.
+     */
+    private suspend fun <R : Result> PendingResult<R>.awaitResult(): R =
         suspendCancellableCoroutine { continuation ->
             setResultCallback { continuation.resume(it) }
             continuation.invokeOnCancellation { cancel() }
