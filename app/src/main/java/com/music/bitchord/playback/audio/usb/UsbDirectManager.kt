@@ -19,6 +19,8 @@ import android.hardware.usb.UsbConstants
 import android.hardware.usb.UsbDevice
 import android.hardware.usb.UsbEndpoint
 import android.hardware.usb.UsbInterface
+import android.app.PendingIntent
+import android.content.Intent
 import android.hardware.usb.UsbManager
 import android.util.Log
 
@@ -195,5 +197,47 @@ object UsbDirectManager {
             }
         }
         return Pair(isViable, reason)
+    }
+
+    const val ACTION_USB_PERMISSION = "com.music.bitchord.USB_PERMISSION"
+
+    /**
+     * Triggers the Android OS permission dialog for the first connected USB Audio DAC.
+     * Returns a pair of (wasPromptShown, statusMessage).
+     */
+    fun requestUsbPermission(context: Context): Pair<Boolean, String> {
+        val usbManager = context.getSystemService(Context.USB_SERVICE) as? UsbManager
+            ?: return Pair(false, "USB Manager unavailable")
+
+        val deviceList = runCatching { usbManager.deviceList }.getOrNull()
+        if (deviceList.isNullOrEmpty()) {
+            return Pair(false, "No USB DAC connected. Direct Mode will activate automatically upon connection.")
+        }
+
+        for (device in deviceList.values) {
+            for (i in 0 until device.interfaceCount) {
+                val iface = device.getInterface(i)
+                if (iface.interfaceClass == UsbConstants.USB_CLASS_AUDIO) {
+                    if (usbManager.hasPermission(device)) {
+                        return Pair(true, "Permission already granted for ${device.productName ?: "USB DAC"}")
+                    }
+                    val flags = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+                        PendingIntent.FLAG_MUTABLE
+                    } else {
+                        0
+                    }
+                    val intent = PendingIntent.getBroadcast(
+                        context,
+                        0,
+                        Intent(ACTION_USB_PERMISSION).setPackage(context.packageName),
+                        flags
+                    )
+                    usbManager.requestPermission(device, intent)
+                    return Pair(true, "Requesting exclusive USB access for ${device.productName ?: "USB DAC"}…")
+                }
+            }
+        }
+
+        return Pair(false, "No USB Audio Class DAC found among connected devices.")
     }
 }

@@ -47,6 +47,11 @@
         android:name="android.permission.WRITE_EXTERNAL_STORAGE"
         android:maxSdkVersion="28" />
 
+    <!-- USB Host access for Direct Bit-Perfect Mode to external USB DACs -->
+    <uses-feature
+        android:name="android.hardware.usb.host"
+        android:required="false" />
+
     <application
         android:name=".BitChordApplication"
         android:allowBackup="true"

@@ -58,6 +58,24 @@ enum class OutputPcmMode(val label: String) {
     FLOAT_32("32-bit float"),
 }
 
+enum class PrewarmNetworkMode(val label: String) {
+    OFF("Off"),
+    WIFI_ONLY("Wi-Fi Only"),
+    ANY_NETWORK("Any Network"),
+}
+
+enum class AudioBufferMode(val label: String, val multiplier: Float, val approxMs: Int) {
+    LOW_LATENCY("Low (250ms)", 0.5f, 250),
+    STANDARD("Standard", 1.0f, 500),
+    AUDIOPHILE_STABLE("Stable (1.5s)", 3.0f, 1500),
+}
+
+enum class ReplayGainMode(val label: String) {
+    BIT_PERFECT_OFF("Bit-Perfect"),
+    REPLAY_GAIN_TRACK("ReplayGain"),
+    DYNAMIC_NORMALIZATION("Peak Normal"),
+}
+
 /**
  * What to keep when a track is saved to the device.
  *
@@ -253,6 +271,18 @@ object AppSettings {
 
     /** Prefer an attached USB audio output over the system's normal route. */
     val preferUsbDac = MutableStateFlow(false)
+
+    // --- Timbre Studio Audiophile Suite ---
+    val timbreStudioPlayerBadge = MutableStateFlow(true)
+    val directBitPerfectMode = MutableStateFlow(false)
+    val puristMode = MutableStateFlow(false)
+    val audioBufferSizing = MutableStateFlow(AudioBufferMode.STANDARD)
+    val queueLookaheadCount = MutableStateFlow(6)
+    val wifiPrewarming = MutableStateFlow(true)
+    val prewarmNetworkMode = MutableStateFlow(PrewarmNetworkMode.WIFI_ONLY)
+    val prewarmSongCount = MutableStateFlow(10)
+    val bitPerfectRateSwitching = MutableStateFlow(true)
+    val flacReplayGainMode = MutableStateFlow(ReplayGainMode.BIT_PERFECT_OFF)
 
     /**
      * Level every track to the same loudness, using YouTube's own
@@ -805,7 +835,7 @@ object AppSettings {
         losslessTimeoutSeconds.value = prefs.getFloat(
             KEY_LOSSLESS_TIMEOUT_SECONDS,
             DEFAULT_LOSSLESS_TIMEOUT_SECONDS,
-        ).coerceIn(0.5f, 5.0f)
+        ).coerceIn(0.5f, 8.0f)
         outputPcmMode.value = runCatching {
             OutputPcmMode.valueOf(
                 prefs.getString(KEY_OUTPUT_PCM_MODE, OutputPcmMode.PCM_16.name)
@@ -813,6 +843,31 @@ object AppSettings {
             )
         }.getOrDefault(OutputPcmMode.PCM_16)
         preferUsbDac.value = prefs.getBoolean(KEY_PREFER_USB_DAC, false)
+        timbreStudioPlayerBadge.value = prefs.getBoolean(KEY_TIMBRE_STUDIO_PLAYER_BADGE, true)
+        directBitPerfectMode.value = prefs.getBoolean(KEY_DIRECT_BIT_PERFECT_MODE, false)
+        puristMode.value = prefs.getBoolean(KEY_PURIST_MODE, false)
+        audioBufferSizing.value = runCatching {
+            AudioBufferMode.valueOf(
+                prefs.getString(KEY_AUDIO_BUFFER_SIZING, AudioBufferMode.STANDARD.name)
+                    ?: AudioBufferMode.STANDARD.name
+            )
+        }.getOrDefault(AudioBufferMode.STANDARD)
+        queueLookaheadCount.value = prefs.getInt(KEY_QUEUE_LOOKAHEAD_COUNT, 6).coerceIn(3, 20)
+        wifiPrewarming.value = prefs.getBoolean(KEY_WIFI_PREWARMING, true)
+        prewarmNetworkMode.value = runCatching {
+            PrewarmNetworkMode.valueOf(
+                prefs.getString(KEY_PREWARM_NETWORK_MODE, PrewarmNetworkMode.WIFI_ONLY.name)
+                    ?: PrewarmNetworkMode.WIFI_ONLY.name
+            )
+        }.getOrDefault(PrewarmNetworkMode.WIFI_ONLY)
+        prewarmSongCount.value = prefs.getInt(KEY_PREWARM_SONG_COUNT, 10).coerceIn(3, 50)
+        bitPerfectRateSwitching.value = prefs.getBoolean(KEY_BIT_PERFECT_RATE_SWITCHING, true)
+        flacReplayGainMode.value = runCatching {
+            ReplayGainMode.valueOf(
+                prefs.getString(KEY_FLAC_REPLAY_GAIN_MODE, ReplayGainMode.BIT_PERFECT_OFF.name)
+                    ?: ReplayGainMode.BIT_PERFECT_OFF.name
+            )
+        }.getOrDefault(ReplayGainMode.BIT_PERFECT_OFF)
         loudnessNormalization.value = prefs.getBoolean(KEY_LOUDNESS_NORMALIZATION, true)
         loudnessOffOnSpeaker.value = prefs.getBoolean(KEY_LOUDNESS_OFF_ON_SPEAKER, true)
         dolbyAtmos.value = prefs.getBoolean(KEY_DOLBY_ATMOS, true)
@@ -1505,6 +1560,58 @@ object AppSettings {
         prefs.edit().putBoolean(KEY_PREFER_USB_DAC, value).apply()
     }
 
+    fun setTimbreStudioPlayerBadge(value: Boolean) {
+        timbreStudioPlayerBadge.value = value
+        if (this::prefs.isInitialized) prefs.edit().putBoolean(KEY_TIMBRE_STUDIO_PLAYER_BADGE, value).apply()
+    }
+
+    fun setDirectBitPerfectMode(value: Boolean) {
+        directBitPerfectMode.value = value
+        if (this::prefs.isInitialized) prefs.edit().putBoolean(KEY_DIRECT_BIT_PERFECT_MODE, value).apply()
+    }
+
+    fun setPuristMode(value: Boolean) {
+        puristMode.value = value
+        if (this::prefs.isInitialized) prefs.edit().putBoolean(KEY_PURIST_MODE, value).apply()
+    }
+
+    fun setAudioBufferSizing(value: AudioBufferMode) {
+        audioBufferSizing.value = value
+        if (this::prefs.isInitialized) prefs.edit().putString(KEY_AUDIO_BUFFER_SIZING, value.name).apply()
+    }
+
+    fun setQueueLookaheadCount(value: Int) {
+        val clamped = value.coerceIn(3, 20)
+        queueLookaheadCount.value = clamped
+        if (this::prefs.isInitialized) prefs.edit().putInt(KEY_QUEUE_LOOKAHEAD_COUNT, clamped).apply()
+    }
+
+    fun setWifiPrewarming(value: Boolean) {
+        wifiPrewarming.value = value
+        if (this::prefs.isInitialized) prefs.edit().putBoolean(KEY_WIFI_PREWARMING, value).apply()
+    }
+
+    fun setPrewarmNetworkMode(value: PrewarmNetworkMode) {
+        prewarmNetworkMode.value = value
+        if (this::prefs.isInitialized) prefs.edit().putString(KEY_PREWARM_NETWORK_MODE, value.name).apply()
+    }
+
+    fun setPrewarmSongCount(value: Int) {
+        val clamped = value.coerceIn(3, 50)
+        prewarmSongCount.value = clamped
+        if (this::prefs.isInitialized) prefs.edit().putInt(KEY_PREWARM_SONG_COUNT, clamped).apply()
+    }
+
+    fun setBitPerfectRateSwitching(value: Boolean) {
+        bitPerfectRateSwitching.value = value
+        if (this::prefs.isInitialized) prefs.edit().putBoolean(KEY_BIT_PERFECT_RATE_SWITCHING, value).apply()
+    }
+
+    fun setFlacReplayGainMode(value: ReplayGainMode) {
+        flacReplayGainMode.value = value
+        if (this::prefs.isInitialized) prefs.edit().putString(KEY_FLAC_REPLAY_GAIN_MODE, value.name).apply()
+    }
+
     fun setLoudnessOffOnSpeaker(value: Boolean) {
         loudnessOffOnSpeaker.value = value
         prefs.edit().putBoolean(KEY_LOUDNESS_OFF_ON_SPEAKER, value).apply()
@@ -1945,6 +2052,16 @@ object AppSettings {
     private const val KEY_SKIP_SILENCE = "skip_silence"
     private const val KEY_OUTPUT_PCM_MODE = "output_pcm_mode"
     private const val KEY_PREFER_USB_DAC = "prefer_usb_dac"
+    private const val KEY_TIMBRE_STUDIO_PLAYER_BADGE = "timbre_studio_player_badge"
+    private const val KEY_DIRECT_BIT_PERFECT_MODE = "direct_bit_perfect_mode"
+    private const val KEY_PURIST_MODE = "purist_mode"
+    private const val KEY_AUDIO_BUFFER_SIZING = "audio_buffer_sizing"
+    private const val KEY_QUEUE_LOOKAHEAD_COUNT = "queue_lookahead_count"
+    private const val KEY_WIFI_PREWARMING = "wifi_prewarming"
+    private const val KEY_PREWARM_NETWORK_MODE = "prewarm_network_mode"
+    private const val KEY_PREWARM_SONG_COUNT = "prewarm_song_count"
+    private const val KEY_BIT_PERFECT_RATE_SWITCHING = "bit_perfect_rate_switching"
+    private const val KEY_FLAC_REPLAY_GAIN_MODE = "flac_replay_gain_mode"
     private const val KEY_LOUDNESS_NORMALIZATION = "loudness_normalization"
     private const val KEY_LOUDNESS_OFF_ON_SPEAKER = "loudness_off_on_speaker"
     private const val KEY_DOLBY_ATMOS = "dolby_atmos"

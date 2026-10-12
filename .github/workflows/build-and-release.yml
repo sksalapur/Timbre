@@ -123,7 +123,7 @@ jobs:
 
       - name: Send Release Announcement to Telegram
         env:
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN || '8851295493:AAGc1sLYeu23iS43OL5dF6fXkkeQXGAxF1c' }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID || '@Timbre_Community' }}
         run: |
           TAG="${{ github.event.inputs.release_tag || github.ref_name || 'v1.8' }}"

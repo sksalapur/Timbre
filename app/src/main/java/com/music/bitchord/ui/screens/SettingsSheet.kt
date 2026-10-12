@@ -10,6 +10,9 @@ import android.widget.Toast
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -29,11 +32,25 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.ScrollState
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Equalizer
+import androidx.compose.material.icons.automirrored.rounded.QueueMusic
 import androidx.compose.material.icons.automirrored.rounded.Notes
 import androidx.compose.material.icons.automirrored.rounded.VolumeOff
 import androidx.compose.material.icons.rounded.Animation
 import androidx.compose.material.icons.rounded.BarChart
 import androidx.compose.material.icons.rounded.AutoAwesome
+import androidx.compose.material.icons.rounded.Diamond
+import androidx.compose.material.icons.rounded.Bolt
+import androidx.compose.material.icons.rounded.Block
+import androidx.compose.material.icons.rounded.Timer
+import androidx.compose.material.icons.rounded.SwapHoriz
+import androidx.compose.material.icons.rounded.FastForward
+import androidx.compose.material.icons.rounded.CloudDone
+import androidx.compose.material.icons.rounded.Info
+import androidx.compose.material.icons.rounded.Memory
+import com.music.bitchord.data.settings.AudioBufferMode
+import com.music.bitchord.data.settings.PrewarmNetworkMode
+import com.music.bitchord.data.settings.ReplayGainMode
 import androidx.compose.material.icons.rounded.BlurOff
 import androidx.compose.material.icons.rounded.BlurOn
 import androidx.compose.material.icons.rounded.Brightness4
@@ -119,6 +136,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withLink
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -218,6 +236,41 @@ fun SettingsScreen(
     val outputStatus by AudioOutputStatus.current.collectAsStateWithLifecycle()
     val playingFormat by NerdStats.current.collectAsStateWithLifecycle()
     val playingDolbyAtmos = playingFormat?.isDolbyAtmos == true
+
+    val timbreStudioPlayerBadge by AppSettings.timbreStudioPlayerBadge.collectAsStateWithLifecycle()
+    val directBitPerfect by AppSettings.directBitPerfectMode.collectAsStateWithLifecycle()
+    val puristMode by AppSettings.puristMode.collectAsStateWithLifecycle()
+    val audioBufferMode by AppSettings.audioBufferSizing.collectAsStateWithLifecycle()
+    val queueLookahead by AppSettings.queueLookaheadCount.collectAsStateWithLifecycle()
+    val prewarmNetworkMode by AppSettings.prewarmNetworkMode.collectAsStateWithLifecycle()
+    val prewarmSongCount by AppSettings.prewarmSongCount.collectAsStateWithLifecycle()
+    val bitPerfectRateSwitching by AppSettings.bitPerfectRateSwitching.collectAsStateWithLifecycle()
+    val flacReplayGainMode by AppSettings.flacReplayGainMode.collectAsStateWithLifecycle()
+    val losslessTimeoutSeconds by AppSettings.losslessTimeoutSeconds.collectAsStateWithLifecycle()
+
+    var activeInfoItem by remember { mutableStateOf<TimbreInfoItem?>(null) }
+    var edgeLatencyMs by remember { mutableStateOf<Long?>(null) }
+    var edgeHealthy by remember { mutableStateOf<Boolean?>(null) }
+
+    LaunchedEffect(Unit) {
+        val activeAddon = com.music.bitchord.data.sources.SourceRegistry.configs.value.firstOrNull { it.kind.isUserAdded && it.enabled }
+        if (activeAddon != null && activeAddon.baseUrl.isNotBlank()) {
+            val start = android.os.SystemClock.elapsedRealtime()
+            val probe = runCatching {
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    val url = if (activeAddon.baseUrl.endsWith("/manifest.json")) activeAddon.baseUrl else "${activeAddon.baseUrl.trimEnd('/')}/manifest.json"
+                    val req = okhttp3.Request.Builder().url(url).build()
+                    val client = okhttp3.OkHttpClient.Builder()
+                        .connectTimeout(3, java.util.concurrent.TimeUnit.SECONDS)
+                        .readTimeout(3, java.util.concurrent.TimeUnit.SECONDS)
+                        .build()
+                    client.newCall(req).execute().use { resp -> resp.isSuccessful }
+                }
+            }
+            edgeLatencyMs = android.os.SystemClock.elapsedRealtime() - start
+            edgeHealthy = probe.getOrDefault(false)
+        }
+    }
     val cacheLimitBytes by AppSettings.audioCacheLimitBytes.collectAsStateWithLifecycle()
     val showCacheFolder by AppSettings.showCacheFolder.collectAsStateWithLifecycle()
     val downloadQuality by AppSettings.downloadQuality.collectAsStateWithLifecycle()
@@ -229,7 +282,6 @@ fun SettingsScreen(
     val swipeToPlayNext by AppSettings.swipeToPlayNext.collectAsStateWithLifecycle()
     val dontRepeatSuggestions by AppSettings.dontRepeatSuggestions.collectAsStateWithLifecycle()
     val preferMusicOnly by AppSettings.preferMusicOnly.collectAsStateWithLifecycle()
-    val losslessTimeout by AppSettings.losslessTimeoutSeconds.collectAsStateWithLifecycle()
     val smartVersionAlignment by AppSettings.smartVersionAlignment.collectAsStateWithLifecycle()
     val filterNonMusicAudio by AppSettings.filterNonMusicAudio.collectAsStateWithLifecycle()
     val localMusicFolderUri by AppSettings.localMusicFolderUri.collectAsStateWithLifecycle()
@@ -536,6 +588,264 @@ fun SettingsScreen(
             }
         }
 
+        SearchableSettingsGroup(search, header = "Timbre Studio") {
+            row("Cloudflare Edge Health", "latency", "health", "worker", "ping") {
+                SettingsRow(
+                    icon = Icons.Rounded.CloudDone,
+                    title = "Cloudflare Edge Health",
+                    subtitle = when {
+                        edgeHealthy == true -> "Connected • Latency: ${edgeLatencyMs}ms (Ultra-Low Latency)"
+                        edgeHealthy == false -> "Unreachable • Check network or worker status"
+                        else -> "Probing edge worker latency…"
+                    },
+                    badge = when {
+                        edgeHealthy == true -> "${edgeLatencyMs}ms"
+                        edgeHealthy == false -> "Offline"
+                        else -> "Probing"
+                    },
+                )
+            }
+            row("Player Hi-Res Pill Badge", "pill", "badge", "player", "pipeline") {
+                SettingsRow(
+                    icon = Icons.Rounded.Equalizer,
+                    title = "Player Hi-Res Pill Badge",
+                    subtitle = "Interactive frosted pill badge below seekbar. Tap to inspect live audio pipeline.",
+                    trailing = {
+                        Switch(
+                            checked = timbreStudioPlayerBadge,
+                            onCheckedChange = AppSettings::setTimbreStudioPlayerBadge,
+                            colors = SwitchDefaults.colors(
+                                checkedTrackColor = MaterialTheme.colorScheme.primary,
+                                checkedBorderColor = MaterialTheme.colorScheme.primary,
+                            ),
+                        )
+                    },
+                    onClick = { AppSettings.setTimbreStudioPlayerBadge(!timbreStudioPlayerBadge) },
+                )
+            }
+            row("Direct Bit-Perfect Mode", "usb", "dac", "bit-perfect", "direct") {
+                SettingsRow(
+                    icon = Icons.Rounded.Bolt,
+                    title = "Direct Bit-Perfect Mode",
+                    subtitle = "Exclusive USB DAC hardware access. Bypasses Android AudioFlinger OS mixer and DSP.",
+                    onInfoClick = {
+                        activeInfoItem = TimbreInfoItem(
+                            title = "Direct Bit-Perfect Mode",
+                            description = "Bypasses the Android AudioFlinger OS mixer by directly interfacing with your external USB DAC. Delivers untouched bitstreams up to 32-bit / 384 kHz and native DSD.\n\nAndroid will prompt for exclusive USB device access when a DAC is connected.",
+                            recommendation = "Enable if you connect a USB DAC / Dongle to avoid Android 48 kHz forced resampling."
+                        )
+                    },
+                    trailing = {
+                        Switch(
+                            checked = directBitPerfect,
+                            onCheckedChange = { checked ->
+                                AppSettings.setDirectBitPerfectMode(checked)
+                                if (checked) {
+                                    val (_, msg) = com.music.bitchord.playback.audio.usb.UsbDirectManager.requestUsbPermission(context)
+                                    android.widget.Toast.makeText(context, msg, android.widget.Toast.LENGTH_LONG).show()
+                                }
+                            },
+                            colors = SwitchDefaults.colors(
+                                checkedTrackColor = MaterialTheme.colorScheme.primary,
+                                checkedBorderColor = MaterialTheme.colorScheme.primary,
+                            ),
+                        )
+                    },
+                    onClick = {
+                        val next = !directBitPerfect
+                        AppSettings.setDirectBitPerfectMode(next)
+                        if (next) {
+                            val (_, msg) = com.music.bitchord.playback.audio.usb.UsbDirectManager.requestUsbPermission(context)
+                            android.widget.Toast.makeText(context, msg, android.widget.Toast.LENGTH_LONG).show()
+                        }
+                    },
+                )
+            }
+            row("Purist Mode", "purist", "flac", "strict", "fallback", "lossless") {
+                SettingsRow(
+                    icon = Icons.Rounded.Block,
+                    title = "Purist Mode",
+                    subtitle = "(Lossless or Nothing) - Never fall back to lossy audio when a bit-perfect FLAC stream cannot be resolved.",
+                    onInfoClick = {
+                        activeInfoItem = TimbreInfoItem(
+                            title = "Purist Mode (Lossless or Nothing)",
+                            description = "By default, if a lossless FLAC stream takes too long or fails to resolve, Timbre falls back to compressed YouTube Opus audio to keep playback moving.\n\nPurist Mode strictly halts lossy fallback. If bit-perfect FLAC is not found, playback halts rather than playing compressed audio.",
+                            recommendation = "Enable if listening on reference audiophile equipment and you only want bit-perfect FLAC audio."
+                        )
+                    },
+                    trailing = {
+                        Switch(
+                            checked = puristMode,
+                            onCheckedChange = AppSettings::setPuristMode,
+                            colors = SwitchDefaults.colors(
+                                checkedTrackColor = MaterialTheme.colorScheme.primary,
+                                checkedBorderColor = MaterialTheme.colorScheme.primary,
+                            ),
+                        )
+                    },
+                    onClick = { AppSettings.setPuristMode(!puristMode) },
+                )
+            }
+            row("Priority Resolution Window", "timeout", "resolution", "wait", "priority") {
+                SliderRow(
+                    icon = Icons.Rounded.Timer,
+                    title = "Priority Resolution Window",
+                    subtitle = "Max duration to wait for Cloudflare FLAC stream before proceeding",
+                    value = "${(losslessTimeoutSeconds * 10).roundToInt() / 10.0}s",
+                    sliderValue = losslessTimeoutSeconds,
+                    onSliderValue = AppSettings::setLosslessTimeoutSeconds,
+                    valueRange = 0.5f..8.0f,
+                    steps = 74,
+                    onInfoClick = {
+                        activeInfoItem = TimbreInfoItem(
+                            title = "Priority Resolution Window",
+                            description = "Controls how long Timbre waits for your Cloudflare edge worker to match and return a 24-bit FLAC stream.\n\nShorter windows reduce track start latency, while longer windows allow deeper catalog searches across edge databases.",
+                            recommendation = "3.0s to 4.0s is optimal for fast mobile or home Wi-Fi connections."
+                        )
+                    },
+                )
+            }
+            row("Audio Buffer Sizing", "buffer", "latency", "stutter", "doze") {
+                SettingsRow(
+                    icon = Icons.Rounded.Memory,
+                    title = "Audio Buffer Sizing",
+                    subtitle = "Controls AudioTrack PCM sink memory buffer length",
+                    onInfoClick = {
+                        activeInfoItem = TimbreInfoItem(
+                            title = "Audio Buffer Sizing",
+                            description = "• Low Latency (~250ms): Fastest response to seeks and pause/resume.\n• Standard (~500ms): Recommended for general listening.\n• Audiophile Stable (~1500ms): Allocates a deep buffer immune to micro-stutters during Android backgrounding or heavy Doze power-saving.",
+                            recommendation = "Use Audiophile Stable if you experience occasional audio pops when the screen turns off."
+                        )
+                    },
+                )
+                SegmentedControl(
+                    options = AudioBufferMode.entries.map { it.label },
+                    selectedIndex = AudioBufferMode.entries.indexOf(audioBufferMode),
+                    onSelect = { AppSettings.setAudioBufferSizing(AudioBufferMode.entries[it]) },
+                    modifier = Modifier.padding(start = ROW_INSET, end = ROW_INSET, bottom = 14.dp),
+                )
+            }
+            row("Bit-Perfect Rate Switching", "sample rate", "switching", "reinit", "khz") {
+                SettingsRow(
+                    icon = Icons.Rounded.SwapHoriz,
+                    title = "Bit-Perfect Rate Switching",
+                    subtitle = "Reconfigures hardware sink to match each track's native sample rate (44.1 / 96 / 192 kHz).",
+                    onInfoClick = {
+                        activeInfoItem = TimbreInfoItem(
+                            title = "Bit-Perfect Rate Switching",
+                            description = "Android typically locks playback to 48 kHz, causing the OS resampler to alter 44.1 kHz (CD quality) and 96/192 kHz (Hi-Res) streams.\n\nWhen enabled, Timbre re-initializes AudioTrack whenever the incoming track has a different sample rate, ensuring bit-exact hardware output.",
+                            recommendation = "Enabled by default for audiophiles."
+                        )
+                    },
+                    trailing = {
+                        Switch(
+                            checked = bitPerfectRateSwitching,
+                            onCheckedChange = AppSettings::setBitPerfectRateSwitching,
+                            colors = SwitchDefaults.colors(
+                                checkedTrackColor = MaterialTheme.colorScheme.primary,
+                                checkedBorderColor = MaterialTheme.colorScheme.primary,
+                            ),
+                        )
+                    },
+                    onClick = { AppSettings.setBitPerfectRateSwitching(!bitPerfectRateSwitching) },
+                )
+            }
+            row("Queue Lookahead", "lookahead", "prefetch", "queue", "advance") {
+                SliderRow(
+                    icon = Icons.Rounded.FastForward,
+                    title = "Queue Lookahead",
+                    subtitle = "Upcoming songs resolved in advance for instant skips",
+                    value = "$queueLookahead tracks",
+                    sliderValue = queueLookahead.toFloat(),
+                    onSliderValue = { AppSettings.setQueueLookaheadCount(it.roundToInt()) },
+                    valueRange = 3f..20f,
+                    steps = 16,
+                    onInfoClick = {
+                        activeInfoItem = TimbreInfoItem(
+                            title = "Queue Lookahead",
+                            description = "Determines how many upcoming songs in your play queue have their lossless streams pre-resolved in the background.\n\nHigher numbers (e.g. 10–20 tracks) eliminate buffering pauses when skipping through playlists rapidly.",
+                            recommendation = "6 to 10 tracks provides the perfect balance between zero-latency skips and light memory footprint."
+                        )
+                    },
+                )
+            }
+            row("Lossless Pre-warming", "wifi", "pre-warm", "bandwidth", "data", "cache") {
+                val isPrewarmEnabled = prewarmNetworkMode != PrewarmNetworkMode.OFF
+                SettingsRow(
+                    icon = Icons.Rounded.Wifi,
+                    title = "Lossless Pre-warming",
+                    subtitle = when (prewarmNetworkMode) {
+                        PrewarmNetworkMode.OFF -> "Background caching of upcoming lossless tracks is disabled"
+                        PrewarmNetworkMode.WIFI_ONLY -> "Prefetches up to $prewarmSongCount upcoming FLAC tracks on Wi-Fi"
+                        PrewarmNetworkMode.ANY_NETWORK -> "Prefetches up to $prewarmSongCount upcoming FLAC tracks on any network"
+                    },
+                    trailing = {
+                        Switch(
+                            checked = isPrewarmEnabled,
+                            onCheckedChange = { checked ->
+                                AppSettings.setPrewarmNetworkMode(
+                                    if (checked) PrewarmNetworkMode.WIFI_ONLY else PrewarmNetworkMode.OFF
+                                )
+                            },
+                            colors = SwitchDefaults.colors(
+                                checkedTrackColor = MaterialTheme.colorScheme.primary,
+                                checkedBorderColor = MaterialTheme.colorScheme.primary,
+                            ),
+                        )
+                    },
+                    onClick = {
+                        AppSettings.setPrewarmNetworkMode(
+                            if (isPrewarmEnabled) PrewarmNetworkMode.OFF else PrewarmNetworkMode.WIFI_ONLY
+                        )
+                    },
+                    onInfoClick = {
+                        activeInfoItem = TimbreInfoItem(
+                            title = "Lossless Pre-warming",
+                            description = "Prefetches full FLAC stream bytes for upcoming tracks in your queue before they start playing.\n\n• Off: Conserves all background bandwidth.\n• Wi-Fi Only: Caches FLAC tracks only when connected to unmetered Wi-Fi.\n• Any Network: Aggressively pre-buffers lossless tracks on Wi-Fi and mobile data.",
+                            recommendation = "Wi-Fi Only is recommended to prevent excessive mobile carrier data usage."
+                        )
+                    },
+                )
+                SegmentedControl(
+                    options = PrewarmNetworkMode.entries.map { it.label },
+                    selectedIndex = PrewarmNetworkMode.entries.indexOf(prewarmNetworkMode),
+                    onSelect = { AppSettings.setPrewarmNetworkMode(PrewarmNetworkMode.entries[it]) },
+                    modifier = Modifier.padding(start = ROW_INSET, end = ROW_INSET, bottom = 12.dp),
+                )
+                SliderRow(
+                    icon = Icons.AutoMirrored.Rounded.QueueMusic,
+                    title = "Pre-cached Songs Count",
+                    subtitle = "Number of upcoming tracks cached in advance into memory",
+                    value = "$prewarmSongCount tracks",
+                    sliderValue = prewarmSongCount.toFloat(),
+                    onSliderValue = { AppSettings.setPrewarmSongCount(it.roundToInt()) },
+                    valueRange = 3f..50f,
+                    steps = 46,
+                    enabled = isPrewarmEnabled,
+                )
+            }
+            row("FLAC Dynamic Normalization", "replaygain", "normalization", "volume", "gain") {
+                SettingsRow(
+                    icon = Icons.Rounded.VolumeUp,
+                    title = "FLAC Dynamic Normalization",
+                    subtitle = "Volume matching across recordings of different mastering eras",
+                    onInfoClick = {
+                        activeInfoItem = TimbreInfoItem(
+                            title = "FLAC Normalization & ReplayGain",
+                            description = "• Bit-Perfect: Disables all gain adjustments. Decoded PCM reaches DAC at bit-exact loudness.\n• ReplayGain: Equalizes volume between tracks using metadata gain tags.\n• Peak Normal: Prevents inter-sample clipping on modern loud masters.",
+                            recommendation = "Bit-Perfect for purists, or ReplayGain for mixed playlists with legacy recordings."
+                        )
+                    },
+                )
+                SegmentedControl(
+                    options = ReplayGainMode.entries.map { it.label },
+                    selectedIndex = ReplayGainMode.entries.indexOf(flacReplayGainMode),
+                    onSelect = { AppSettings.setFlacReplayGainMode(ReplayGainMode.entries[it]) },
+                    modifier = Modifier.padding(start = ROW_INSET, end = ROW_INSET, bottom = 14.dp),
+                )
+            }
+        }
+
         SearchableSettingsGroup(search, header = stringResource(R.string.playback)) {
             val preferMusicOnlyTitle = stringResource(R.string.prefer_music_only)
             row(preferMusicOnlyTitle, "video", "audio", "music video") {
@@ -578,22 +888,7 @@ fun SettingsScreen(
                     modifier = Modifier.padding(start = TEXT_INSET, end = ROW_INSET, bottom = 14.dp),
                 )
             }
-            val losslessTimeoutTitle = "Lossless priority window"
-            row(losslessTimeoutTitle, "lossless", "timeout", "delay", "flac", "priority", "buffer", "window") {
-                SliderRow(
-                    icon = Icons.Rounded.Tune,
-                    title = losslessTimeoutTitle,
-                    subtitle = "Maximum time to wait for FLAC before falling back to YouTube Opus",
-                    value = "${losslessTimeout}s",
-                    sliderValue = losslessTimeout,
-                    onSliderValue = {
-                        val rounded = (Math.round(it * 2.0f) / 2.0f).coerceIn(0.5f, 5.0f)
-                        AppSettings.setLosslessTimeoutSeconds(rounded)
-                    },
-                    valueRange = 0.5f..5.0f,
-                    steps = 8,
-                )
-            }
+
             val preferUsbDacTitle = stringResource(R.string.prefer_usb_dac)
             row(preferUsbDacTitle, "headphone", "output") {
                 SettingsSubRow(
@@ -1401,6 +1696,40 @@ fun SettingsScreen(
         // what makes this an accurate "nothing here" rather than a guess.
         if (!search.anyMatch) {
             MessageState(stringResource(R.string.settings_search_empty, searchQuery))
+        }
+
+        if (activeInfoItem != null) {
+            AlertDialog(
+                onDismissRequest = { activeInfoItem = null },
+                title = {
+                    Text(
+                        text = activeInfoItem!!.title,
+                        style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                    )
+                },
+                text = {
+                    Column {
+                        Text(
+                            text = activeInfoItem!!.description,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        if (activeInfoItem!!.recommendation != null) {
+                            Spacer(Modifier.height(12.dp))
+                            Text(
+                                text = "Recommendation: ${activeInfoItem!!.recommendation}",
+                                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
+                                color = MaterialTheme.colorScheme.primary,
+                            )
+                        }
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = { activeInfoItem = null }) {
+                        Text(stringResource(R.string.done))
+                    }
+                },
+            )
         }
 
         // The version line is the page's colophon, not a setting: it belongs to
@@ -2299,6 +2628,7 @@ internal fun SettingsRow(
     enabled: Boolean = true,
     iconPainter: Painter? = null,
     onClick: (() -> Unit)? = null,
+    onInfoClick: (() -> Unit)? = null,
     trailing: (@Composable () -> Unit)? = null,
 ) {
     Row(
@@ -2332,9 +2662,26 @@ internal fun SettingsRow(
                     text = title,
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onBackground,
-                    maxLines = 1,
+                    maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false),
                 )
+                if (onInfoClick != null) {
+                    Spacer(Modifier.width(6.dp))
+                    Box(
+                        modifier = Modifier
+                            .size(20.dp)
+                            .clickable(onClick = onInfoClick),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Info,
+                            contentDescription = "Info",
+                            tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.85f),
+                            modifier = Modifier.size(16.dp),
+                        )
+                    }
+                }
                 if (badge != null) {
                     Spacer(Modifier.width(8.dp))
                     Badge(badge)
@@ -2395,8 +2742,9 @@ internal fun SettingsSubRow(
                     text = title,
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onBackground,
-                    maxLines = 1,
+                    maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false),
                 )
                 if (badge != null) {
                     Spacer(Modifier.width(8.dp))
@@ -2459,13 +2807,19 @@ internal fun SliderRow(
     valueRange: ClosedFloatingPointRange<Float>,
     steps: Int,
     subtitle: String? = null,
+    enabled: Boolean = true,
+    onInfoClick: (() -> Unit)? = null,
 ) {
     val colors = SliderDefaults.colors(
         thumbColor = MaterialTheme.colorScheme.primary,
         activeTrackColor = MaterialTheme.colorScheme.primary,
         inactiveTrackColor = MaterialTheme.colorScheme.outline,
     )
-    Column(Modifier.padding(start = ROW_INSET, end = ROW_INSET, top = 12.dp, bottom = 4.dp)) {
+    Column(
+        Modifier
+            .alpha(if (enabled) 1f else 0.45f)
+            .padding(start = ROW_INSET, end = ROW_INSET, top = 12.dp, bottom = 4.dp)
+    ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(
                 imageVector = icon,
@@ -2475,11 +2829,32 @@ internal fun SliderRow(
             )
             Spacer(Modifier.width(ICON_GAP))
             Column(Modifier.weight(1f)) {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onBackground,
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = title,
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onBackground,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false),
+                    )
+                    if (onInfoClick != null) {
+                        Spacer(Modifier.width(6.dp))
+                        Box(
+                            modifier = Modifier
+                                .size(20.dp)
+                                .clickable(onClick = onInfoClick),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Info,
+                                contentDescription = "Info",
+                                tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.85f),
+                                modifier = Modifier.size(16.dp),
+                            )
+                        }
+                    }
+                }
                 if (subtitle != null) {
                     Text(
                         text = subtitle,
@@ -2500,6 +2875,7 @@ internal fun SliderRow(
             onValueChange = onSliderValue,
             valueRange = valueRange,
             steps = steps,
+            enabled = enabled,
             colors = colors,
             // Bare track: the step ticks and the end-stop dot are noise when the
             // value is already spelled out on the line above.
@@ -2548,35 +2924,32 @@ internal fun SegmentedControl(
     enabled: Boolean = true,
 ) {
     val haptics = LocalHapticFeedback.current
+    val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
+    val containerBg = if (isDark) Color(0xFF1E2124) else Color(0xFFE9EEF4)
+    val containerBorder = if (isDark) Color.White.copy(alpha = 0.08f) else Color(0xFFD2D8DF)
+    val chosenPillBg = if (isDark) Color(0xFF2E343B) else Color.White
+    val chosenPillBorder = if (isDark) Color.White.copy(alpha = 0.15f) else Color(0xFFCBD2D9)
+    val unchosenLabelColor = if (isDark) Color(0xFF8E959E) else Color(0xFF57606A)
+    val chosenLabelColor = if (isDark) Color.White else Color(0xFF1A1C1E)
+
     Row(
         modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(10.dp))
-            .background(MaterialTheme.colorScheme.outline)
-            // Enough of a margin for the track to read as a track. At 2dp the
-            // selected pill sat all but flush against the container's own edge,
-            // so the two rounded rectangles merged into one shape and the
-            // control stopped looking like something with a position in it.
-            .padding(4.dp),
+            .background(containerBg)
+            .border(1.dp, containerBorder, RoundedCornerShape(10.dp))
+            .padding(3.dp),
         horizontalArrangement = Arrangement.spacedBy(2.dp),
     ) {
         options.forEachIndexed { index, label ->
             val chosen = index == selectedIndex
             val pill by animateColorAsState(
-                targetValue = if (chosen) {
-                    MaterialTheme.colorScheme.primary
-                } else {
-                    Color.Transparent
-                },
+                targetValue = if (chosen) chosenPillBg else Color.Transparent,
                 animationSpec = tween(160),
                 label = "segmentPill",
             )
             val labelColor by animateColorAsState(
-                targetValue = if (chosen) {
-                    MaterialTheme.colorScheme.onPrimary
-                } else {
-                    MaterialTheme.colorScheme.onSurfaceVariant
-                },
+                targetValue = if (chosen) chosenLabelColor else unchosenLabelColor,
                 animationSpec = tween(160),
                 label = "segmentLabel",
             )
@@ -2585,22 +2958,37 @@ internal fun SegmentedControl(
                     .weight(1f)
                     .clip(RoundedCornerShape(8.dp))
                     .background(pill)
+                    .then(
+                        if (chosen) Modifier.border(1.dp, chosenPillBorder, RoundedCornerShape(8.dp))
+                        else Modifier
+                    )
                     .clickable(enabled = enabled) {
                         if (!chosen) {
                             haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                             onSelect(index)
                         }
                     }
-                    .padding(vertical = 9.dp),
+                    .padding(vertical = 8.dp, horizontal = 2.dp),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
                     text = label,
-                    style = MaterialTheme.typography.labelMedium,
+                    style = MaterialTheme.typography.labelMedium.copy(
+                        fontWeight = if (chosen) FontWeight.SemiBold else FontWeight.Normal,
+                        fontSize = 11.5.sp,
+                    ),
                     color = labelColor,
                     maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
             }
         }
     }
 }
+
+
+data class TimbreInfoItem(
+    val title: String,
+    val description: String,
+    val recommendation: String? = null,
+)

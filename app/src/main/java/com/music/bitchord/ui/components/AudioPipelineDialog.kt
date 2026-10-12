@@ -9,7 +9,9 @@ import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Box
@@ -235,8 +237,91 @@ fun AudioPipelineDialog(
                 .fillMaxWidth()
                 .onGloballyPositioned { columnCoordinates = it },
         ) {
+            // Bit-Exact Certification Badge
+            val isDsdSource = nerdStats?.takeIf { it.mimeType?.startsWith("audio/dsd") == true } != null
+            val isDspStageActive = eqEnabled || spatialAudio || (loudnessNormalization && outputStatus.loudnessGainDb != null)
+            val isBluetoothRoute = outputStatus.routeKind == com.music.bitchord.playback.AudioRouting.Kind.BLUETOOTH
+            val isBitPerfectPath = !isDsdSource && !isDspStageActive && outputStatus.outputExact && !isBluetoothRoute
+
+            val certTagColor = when {
+                isBitPerfectPath -> Color(0xFF00E676)
+                isBluetoothRoute -> Color(0xFFFFD54F)
+                isDspStageActive -> Color(0xFFFFB74D)
+                else -> Color(0xFFFFD54F)
+            }
+
+            val certTagTitle = when {
+                isBitPerfectPath -> "🟢 BIT-PERFECT: Bit-Exact Signal Path"
+                isBluetoothRoute -> {
+                    val bt = outputStatus.bluetoothTelemetry
+                    val codec = if (bt != null && bt.hasNamedCodec) bt.codecName else "A2DP"
+                    "🟡 Framework Mixed ($codec)"
+                }
+                isDspStageActive -> "🟡 DSP Modified Signal Path"
+                outputStatus.systemMixerRateHz != null -> "🟡 Framework Mixed (AudioFlinger)"
+                else -> "🟡 Downstream Converted"
+            }
+
+            val certTagSubtitle = when {
+                isBitPerfectPath -> "Source bit-depth and sample-rate delivered untouched to output device"
+                isBluetoothRoute -> {
+                    val bt = outputStatus.bluetoothTelemetry
+                    val codec = if (bt != null && bt.hasNamedCodec) bt.codecName else "Bluetooth A2DP"
+                    val rate = bt?.sampleRateHz?.let { " • ${rateText(it)}" }.orEmpty()
+                    val bits = bt?.bitDepth?.let { " • $it-bit" }.orEmpty()
+                    "Active Bluetooth codec: $codec$bits$rate"
+                }
+                isDspStageActive -> when {
+                    eqEnabled -> "Equalizer active (altering decoded audio samples)"
+                    spatialAudio -> "Spatial audio processor active (stereo expansion)"
+                    else -> "Loudness normalization active (altering digital gain)"
+                }
+                outputStatus.systemMixerRateHz != null -> {
+                    val rateStr = outputStatus.systemMixerRateHz?.let(::rateText) ?: "48 kHz"
+                    "Resampled by Android system mixer to $rateStr"
+                }
+                else -> outputStatus.outputExactDetail ?: "Decoded stream converted downstream"
+            }
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 6.dp)
+                    .background(
+                        color = certTagColor.copy(alpha = 0.12f),
+                        shape = RoundedCornerShape(10.dp),
+                    )
+                    .border(
+                        width = 1.dp,
+                        color = certTagColor.copy(alpha = 0.35f),
+                        shape = RoundedCornerShape(10.dp),
+                    )
+                    .padding(horizontal = 14.dp, vertical = 8.dp),
+            ) {
+                Column {
+                    Text(
+                        text = certTagTitle,
+                        style = MaterialTheme.typography.labelMedium.copy(
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 0.4.sp,
+                        ),
+                        color = certTagColor,
+                    )
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        text = certTagSubtitle,
+                        style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
+                        color = Color.White.copy(alpha = 0.7f),
+                    )
+                }
+            }
+
             // 1. Track Info Stage
-            val sourceName = nerdStats?.sourceName ?: "—"
+            val rawSourceName = nerdStats?.sourceName ?: "—"
+            val sourceName = if (rawSourceName.contains("TrueBit", ignoreCase = true)) {
+                rawSourceName.replace("TrueBit Lossless (FLAC)", "Timbre Cloudflare Edge (FLAC)", ignoreCase = true)
+                    .replace("TrueBit", "Timbre", ignoreCase = true)
+            } else rawSourceName
             // DSD is the one source whose own rate is not the rate the
             // rest of the pipeline runs at: DsdExtractor hands the
             // renderer 176.4 kHz PCM, so every stage after this one has

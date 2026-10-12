@@ -62,10 +62,16 @@ data class SourceConfig(
 
     /** What the sources screen and the player show. Never blank. */
     val displayName: String
-        get() = label.ifBlank {
-            baseUrl.takeIf { it.isNotBlank() }
-                ?.let { runCatching { Uri.parse(it).host }.getOrNull() }
-                ?: kind.label
+        get() {
+            val sanitized = if (label.contains("TrueBit", ignoreCase = true)) {
+                label.replace("TrueBit Lossless (FLAC)", "Timbre Cloudflare Edge (FLAC)", ignoreCase = true)
+                    .replace("TrueBit", "Timbre", ignoreCase = true)
+            } else label
+            return sanitized.ifBlank {
+                baseUrl.takeIf { it.isNotBlank() }
+                    ?.let { runCatching { Uri.parse(it).host }.getOrNull() }
+                    ?: kind.label
+            }
         }
 
     /** Whether this has enough filled in to be worth contacting at all. */
@@ -148,7 +154,12 @@ object SourceRegistry {
         // by the user is preserved.
         return seeded
             .filterNot { it.kind == SourceKind.MODULE }
-            .map { config ->
+            .map { rawConfig ->
+                val cleanLabel = if (rawConfig.label.contains("TrueBit", ignoreCase = true)) {
+                    rawConfig.label.replace("TrueBit Lossless (FLAC)", "Timbre Cloudflare Edge (FLAC)", ignoreCase = true)
+                        .replace("TrueBit", "Timbre", ignoreCase = true)
+                } else rawConfig.label
+                val config = if (cleanLabel != rawConfig.label) rawConfig.copy(label = cleanLabel) else rawConfig
                 when {
                     config.kind == SourceKind.YOUTUBE && !config.enabled -> config.copy(enabled = true)
                     config.kind == SourceKind.JIOSAAVN && forceJioSaavnOff -> config.copy(enabled = false)
