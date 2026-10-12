@@ -1,9 +1,10 @@
-﻿import os
+import os
 import sys
 import json
 import urllib.request
 import urllib.error
 import html
+import re
 
 DEFAULT_BOT_TOKEN = "8851295493:AAGc1sLYeu23iS43OL5dF6fXkkeQXGAxF1c"
 DEFAULT_CHAT_ID = "@Timbre_Community"
@@ -22,30 +23,49 @@ def send_telegram_release(tag, repo=DEFAULT_REPO, notes_file="release_notes.md",
 
     # Extract highlights or changelog if available
     changelog_section = ""
-    if "## Changelog" in body_text:
+    if "Timbre Studio: All Features" in body_text:
+        parts = re.split(r"Timbre Studio:\s*All Features[^
+]*", body_text, maxsplit=1)
+        if len(parts) > 1:
+            changelog_section = parts[1].split("---")[0].strip()
+    elif "## Changelog" in body_text:
         parts = body_text.split("## Changelog", 1)
         changelog_section = parts[1].split("---")[0].strip()
-    elif "### \U0001F48E Timbre Enhancements Included" in body_text:
-        parts = body_text.split("### \U0001F48E Timbre Enhancements Included", 1)
+    elif "Timbre Enhancements Included" in body_text:
+        parts = re.split(r"Timbre Enhancements Included", body_text, maxsplit=1)
         changelog_section = parts[1].split("---")[0].strip()
     elif "## Top Features" in body_text:
         parts = body_text.split("## Top Features", 1)
         changelog_section = parts[1].split("---")[0].strip()
 
     clean_lines = []
-    for line in changelog_section.splitlines()[:15]:
-        line = line.strip()
-        if not line or line.startswith("![") or line.startswith("#"):
-            continue
-        clean_lines.append(html.escape(line))
+    if changelog_section:
+        for line in changelog_section.splitlines()[:15]:
+            line = line.strip()
+            if not line or line.startswith("![") or line.startswith("#"):
+                continue
+            # Keep bullets short
+            if ":" in line and len(line) > 100:
+                line = line[:97] + "..."
+            clean_lines.append(html.escape(line))
 
-    changelog_snippet = "\n".join(clean_lines)
+    changelog_snippet = "
+".join(clean_lines[:10])
     if not changelog_snippet:
         changelog_snippet = (
-            "• Bit-Perfect uncompressed 24-bit/192kHz playback\n"
-            "• Direct hardware AudioTrack routing for external DACs\n"
-            "• Predictive 4-track lookahead queue buffering\n"
-            "• Lossless-first streaming priority window"
+            "• 💎 <b>Bit-Exact Certification</b> & direct hardware DAC routing
+"
+            "• 📶 <b>Bluetooth Telemetry</b>: Real-time LDAC 990k / aptX / AAC readout
+"
+            "• 🛡️ <b>Purist Mode</b>: 'Lossless or Nothing' gatekeeper with auto-skip
+"
+            "• ⏱️ <b>Priority Window</b>: 0.5s–8.0s slider with instant fallback race
+"
+            "• 🧠 <b>Buffer Sizing</b> & bit-perfect rate switching (44.1–192kHz)
+"
+            "• ⏩ <b>Concurrent Lookahead</b>: 3–20 track parallel pre-warming
+"
+            "• 💾 <b>True FLAC Disk Cache</b>: #alt-noatmos alignment & retention"
         )
 
     arm64_url = f"https://github.com/{repo}/releases/download/{tag}/Timbre-{tag}-arm64.apk"
@@ -54,27 +74,37 @@ def send_telegram_release(tag, repo=DEFAULT_REPO, notes_file="release_notes.md",
     website_url = "https://sksalapur.github.io/Timbre/"
 
     caption_text = (
-        f"\U0001F680 <b>Timbre {tag} Released!</b>\n"
-        f"<i>Bit-Perfect High-Resolution Audio Streaming for Android</i>\n\n"
-        f"\u2728 <b>Release Highlights:</b>\n"
-        f"{changelog_snippet}\n\n"
-        f"\U0001F4F2 <b>Direct Downloads:</b>\n"
-        f"• <b>ARM64</b> (Recommended): <a href=\"{arm64_url}\">Timbre-{tag}-arm64.apk</a>\n"
-        f"• <b>Universal</b> (All devices): <a href=\"{universal_url}\">Timbre-{tag}.apk</a>"
+        f"🚀 <b>Timbre {tag} Released!</b>
+"
+        f"<i>Introducing the Timbre Studio Audiophile Suite</i>
+
+"
+        f"✨ <b>Release Highlights:</b>
+"
+        f"{changelog_snippet}
+
+"
+        f"📲 <b>Direct Downloads:</b>
+"
+        f"• <b>ARM64</b> (Recommended): <a href="{arm64_url}">Timbre-{tag}-arm64.apk</a>
+"
+        f"• <b>Universal</b> (All devices): <a href="{universal_url}">Timbre-{tag}.apk</a>"
     )
 
     if len(caption_text) > 1020:
-        caption_text = caption_text[:1000] + "...\n\n<i>Check GitHub for full changelog.</i>"
+        caption_text = caption_text[:1000] + "...
+
+<i>Check GitHub for full changelog.</i>"
 
     reply_markup = {
         "inline_keyboard": [
             [
-                {"text": "\U0001F4E5 Download ARM64 APK", "url": arm64_url},
-                {"text": "\U0001F310 Universal APK", "url": universal_url}
+                {"text": "📥 Download ARM64 APK", "url": arm64_url},
+                {"text": "🌐 Universal APK", "url": universal_url}
             ],
             [
-                {"text": "\U0001F419 GitHub Release", "url": release_url},
-                {"text": "\U0001F3A7 Official Website", "url": website_url}
+                {"text": "🐙 GitHub Release", "url": release_url},
+                {"text": "🎧 Timbre Studio Docs", "url": f"{website_url}#studio"}
             ]
         ]
     }
@@ -87,30 +117,38 @@ def send_telegram_release(tag, repo=DEFAULT_REPO, notes_file="release_notes.md",
             body = []
 
             body.append(f"--{boundary}".encode("utf-8"))
-            body.append(b'Content-Disposition: form-data; name="chat_id"\r\n')
+            body.append(b'Content-Disposition: form-data; name="chat_id"
+')
             body.append(chat_id.encode("utf-8"))
 
             body.append(f"--{boundary}".encode("utf-8"))
-            body.append(b'Content-Disposition: form-data; name="caption"\r\n')
+            body.append(b'Content-Disposition: form-data; name="caption"
+')
             body.append(caption_text.encode("utf-8"))
 
             body.append(f"--{boundary}".encode("utf-8"))
-            body.append(b'Content-Disposition: form-data; name="parse_mode"\r\n')
+            body.append(b'Content-Disposition: form-data; name="parse_mode"
+')
             body.append(b"HTML")
 
             body.append(f"--{boundary}".encode("utf-8"))
-            body.append(b'Content-Disposition: form-data; name="reply_markup"\r\n')
+            body.append(b'Content-Disposition: form-data; name="reply_markup"
+')
             body.append(json.dumps(reply_markup).encode("utf-8"))
 
             with open(banner_path, "rb") as f:
                 photo_bytes = f.read()
 
             body.append(f"--{boundary}".encode("utf-8"))
-            body.append(b'Content-Disposition: form-data; name="photo"; filename="Banner.png"\r\nContent-Type: image/png\r\n')
+            body.append(b'Content-Disposition: form-data; name="photo"; filename="Banner.png"
+Content-Type: image/png
+')
             body.append(photo_bytes)
-            body.append(f"--{boundary}--\r\n".encode("utf-8"))
+            body.append(f"--{boundary}--
+".encode("utf-8"))
 
-            payload_data = b"\r\n".join(body)
+            payload_data = b"
+".join(body)
 
             send_url = f"https://api.telegram.org/bot{token}/sendPhoto"
             req = urllib.request.Request(
@@ -131,14 +169,24 @@ def send_telegram_release(tag, repo=DEFAULT_REPO, notes_file="release_notes.md",
     # Fallback to sendMessage
     if not posted_successfully:
         fallback_text = (
-            f"\U0001F680 <b>Timbre {tag} Released!</b>\n"
-            f"<i>Bit-Perfect High-Resolution Audio Streaming for Android</i>\n\n"
-            f"\u2728 <b>Release Highlights:</b>\n"
-            f"{changelog_snippet}\n\n"
-            f"\U0001F4F2 <b>Direct APK Downloads:</b>\n"
-            f"• <b>ARM64</b> (Recommended): <a href=\"{arm64_url}\">Timbre-{tag}-arm64.apk</a>\n"
-            f"• <b>Universal</b> (All devices): <a href=\"{universal_url}\">Timbre-{tag}.apk</a>\n\n"
-            f"\U0001F3A7 <a href=\"{website_url}\">Official Website</a> | \U0001F419 <a href=\"{release_url}\">GitHub Release</a>"
+            f"🚀 <b>Timbre {tag} Released!</b>
+"
+            f"<i>Introducing the Timbre Studio Audiophile Suite</i>
+
+"
+            f"✨ <b>Release Highlights:</b>
+"
+            f"{changelog_snippet}
+
+"
+            f"📲 <b>Direct APK Downloads:</b>
+"
+            f"• <b>ARM64</b> (Recommended): <a href="{arm64_url}">Timbre-{tag}-arm64.apk</a>
+"
+            f"• <b>Universal</b> (All devices): <a href="{universal_url}">Timbre-{tag}.apk</a>
+
+"
+            f"🎧 <a href="{website_url}#studio">Timbre Studio Docs</a> | 🐙 <a href="{release_url}">GitHub Release</a>"
         )
         payload = {
             "chat_id": chat_id,
