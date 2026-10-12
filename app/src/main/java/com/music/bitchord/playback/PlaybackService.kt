@@ -706,9 +706,8 @@ class PlaybackService : MediaLibraryService() {
     private var boundedContextRequest: BoundedContextRequests.Request? = null
     private var boundedContinuationJob: Job? = null
     private var boundedTopUpJob: Job? = null
-    private var boundedTopUpPending = false
-    /** Latest requested shuffle mode while CrossfadeController is not settled. */
-    private var boundedDeferredShuffle: Boolean? = null
+    /** Coalesced bounded edits waiting for CrossfadeController settlement. */
+    private var boundedEditState = BoundedQueueEditState()
 
     private val localBitrateCache = ConcurrentHashMap<String, Int>()
 
@@ -1786,7 +1785,7 @@ class PlaybackService : MediaLibraryService() {
                 loudnessB.setBlendTrim(trim)
             },
             onSettled = {
-                if (boundedTopUpPending || boundedDeferredShuffle != null) {
+                if (boundedEditState.hasPendingEdits) {
                     scope.launch {
                         applyDeferredBoundedQueueEdit()
                     }
@@ -2397,8 +2396,11 @@ class PlaybackService : MediaLibraryService() {
     private fun toggleShuffleFromSession() {
         val window = boundedContextWindow
         if (window != null && !ListenTogether.state.value.inParty) {
-            val target = !(boundedDeferredShuffle ?: window.isShuffleEnabled)
-            boundedDeferredShuffle = target
+            val target = !(boundedEditState.desiredShuffle ?: window.isShuffleEnabled)
+            boundedEditState = BoundedQueueEdits.requestShuffle(
+                boundedEditState,
+                desiredShuffle = target,
+            )
             if (crossfade?.isTransitioning() != true) applyDeferredBoundedQueueEdit()
             return
         }
@@ -2415,19 +2417,22 @@ class PlaybackService : MediaLibraryService() {
         val exoPlayer = player ?: return
         val window = boundedContextWindow ?: return
         if (ListenTogether.state.value.inParty || crossfade?.isTransitioning() == true) return
-        val target = boundedDeferredShuffle
-        boundedDeferredShuffle = null
+        val settlement = BoundedQueueEdits.settle(
+            state = boundedEditState,
+            settledGeneration = boundedEditState.contextGeneration,
+        )
+        val edit = settlement.edit ?: return
+        boundedEditState = settlement.state
         boundedContextAnchor(exoPlayer)?.let { anchor ->
             if (window.currentCanonicalIndex != anchor) window.jumpTo(anchor)
         }
-        if (target != null) {
-            window.setShuffle(target)
-            QueueShuffle.setEnabled(target)
-            AppSettings.setShuffleEnabled(target)
+        if (edit.desiredShuffle != null) {
+            window.setShuffle(edit.desiredShuffle)
+            QueueShuffle.setEnabled(edit.desiredShuffle)
+            AppSettings.setShuffleEnabled(edit.desiredShuffle)
             replaceBoundedUpcoming(exoPlayer, window)
         }
-        if (boundedTopUpPending) {
-            boundedTopUpPending = false
+        if (edit.topUp) {
             applyBoundedContextTopUp()
         }
         refreshCustomLayouts()
@@ -2447,7 +2452,8 @@ class PlaybackService : MediaLibraryService() {
             .associateBy { QueueWindowEntry(it.canonicalIndex ?: -1, it.contextCycleId ?: window.cycleId) }
         val context = window.upcoming(
             WINDOW_AHEAD,
-            repeatAll = exoPlayer.repeatMode == Player.REPEAT_MODE_ALL,
+            repeatAll = exoPlayer.repeatMode == Player.REPEAT_MODE_ALL &&
+                BoundedQueuePlanner.canRepeat(snapshot.continuationState),
         ).map { entry ->
             existingContext[entry] ?: boundedMediaItem(
                 snapshot.songs[entry.canonicalIndex], entry.canonicalIndex, entry.cycleId,
@@ -2474,6 +2480,7 @@ class PlaybackService : MediaLibraryService() {
             BoundedContextRequests.discard(requestToken)
             return
         }
+        boundedEditState = BoundedQueueEdits.invalidateContext(boundedEditState)
 
         val source = request.source
         val requestedSongs = request.songs
@@ -2507,7 +2514,6 @@ class PlaybackService : MediaLibraryService() {
         boundedContextToken = contextToken
         boundedContextSource = source
         boundedContextRequest = request
-        boundedTopUpPending = false
         BoundedContextRequests.publish(request, registered)
 
         val currentIndex = exoPlayer.currentMediaItemIndex
@@ -2550,6 +2556,7 @@ class PlaybackService : MediaLibraryService() {
 
     /** Clears local bounded state before a non-context queue replaces the player. */
     private fun clearBoundedContext() {
+        boundedEditState = BoundedQueueEdits.invalidateContext(boundedEditState)
         boundedContextRequest?.handoffToken?.let(BoundedContextRequests::discard)
         boundedContinuationJob?.cancel()
         boundedContinuationJob = null
@@ -2566,7 +2573,6 @@ class PlaybackService : MediaLibraryService() {
         boundedContextToken = null
         boundedContextSource = null
         boundedContextRequest = null
-        boundedTopUpPending = false
         QueueShuffle.clearCanonicalContext()
     }
 
@@ -2602,13 +2608,11 @@ class PlaybackService : MediaLibraryService() {
 
     private fun scheduleBoundedContextTopUp() {
         if (boundedContextWindow == null || boundedContextToken == null) return
-        boundedTopUpPending = true
+        boundedEditState = BoundedQueueEdits.requestTopUp(boundedEditState)
         if (boundedTopUpJob?.isActive == true) return
         boundedTopUpJob = scope.launch {
-            boundedTopUpPending = false
             if (ListenTogether.state.value.inParty) return@launch
             if (crossfade?.isTransitioning() == true) {
-                boundedTopUpPending = true
                 return@launch
             }
             applyBoundedContextTopUp()
