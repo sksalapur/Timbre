@@ -172,8 +172,14 @@ class PrecisionAudioSink(
                     .setPcmEncoding(targetEncoding.toMedia3PcmEncoding())
                     .build()
 
+                val bufferMultiplier = com.music.bitchord.data.settings.AppSettings.audioBufferSizing.value.multiplier
+                val overrideBuf = audioSinkConfig.preferredBufferSizeOverride
+                val scaledBufferSize = if (bufferMultiplier != 1.0f && overrideBuf > 0) {
+                    (overrideBuf * bufferMultiplier).toInt()
+                } else overrideBuf
+
                 val delegateConfig = AudioSink.AudioSinkConfig.Builder(delegateFormat)
-                    .setPreferredBufferSizeOverride(audioSinkConfig.preferredBufferSizeOverride)
+                    .setPreferredBufferSizeOverride(scaledBufferSize)
                     .setOutputChannelMapping(audioSinkConfig.outputChannelMapping)
                     .setTimeline(audioSinkConfig.timeline)
                     .setMediaPeriodId(audioSinkConfig.mediaPeriodId)

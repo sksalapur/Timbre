@@ -212,8 +212,17 @@ object AppUpdateChecker {
 
     private fun parseVersion(raw: String): ParsedVersion {
         val dash = raw.indexOf('-')
-        val base = if (dash >= 0) raw.substring(0, dash) else raw
-        return ParsedVersion(base.split(".").map { it.toIntOrNull() ?: 0 }, dash >= 0)
+        val suffix = if (dash >= 0) raw.substring(dash + 1) else ""
+        val isNumericRevision = suffix.isNotEmpty() && suffix.all { it.isDigit() }
+        val isPre = dash >= 0 && !isNumericRevision
+        val base = if (isNumericRevision) {
+            raw.replace('-', '.')
+        } else if (dash >= 0) {
+            raw.substring(0, dash)
+        } else {
+            raw
+        }
+        return ParsedVersion(base.split(".").map { it.toIntOrNull() ?: 0 }, isPre)
     }
 
     /**

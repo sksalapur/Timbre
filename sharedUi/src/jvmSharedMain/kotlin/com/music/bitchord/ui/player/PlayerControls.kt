@@ -46,6 +46,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -220,12 +221,15 @@ internal fun PlayerScrubber(
             modifier = Modifier
                 .fillMaxWidth()
                 // The slider's touch target extends well past the drawn bar,
-                // so pull the labels back up under it.
-                .offset(y = (-9).dp),
+                // so pull the labels back up under it gently without clipping.
+                .offset(y = (-5).dp),
         ) {
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(32.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
                     text = formatTime((shown * durationMs).toLong()),
@@ -246,6 +250,7 @@ internal fun PlayerScrubber(
                 modifier = Modifier
                     .matchParentSize()
                     .graphicsLayer { alpha = 1f - mixPulse.cover },
+                contentAlignment = Alignment.Center,
             ) {
                 centerLabel()
             }
@@ -288,31 +293,124 @@ private const val MIXING_LABEL_REST = 0.5f
 internal fun PlaybackQualityLabel(
     song: Song,
     isLoading: Boolean,
+    onQualityClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
-    val wifiQuality by PlayerSettings.audioQualityWifi.collectAsStateWithLifecycle()
-    val cellularQuality by PlayerSettings.audioQualityCellular.collectAsStateWithLifecycle()
-    val metered by PlayerSettings.meteredConnection.collectAsStateWithLifecycle()
+    val showTimbreStudioBadge by PlayerSettings.timbreStudioPlayerBadge.collectAsStateWithLifecycle()
+    if (showTimbreStudioBadge) {
+        TimbreStudioPlayerBadge(
+            song = song,
+            isLoading = isLoading,
+            onClick = onQualityClick ?: {},
+            modifier = modifier,
+        )
+    } else {
+        val wifiQuality by PlayerSettings.audioQualityWifi.collectAsStateWithLifecycle()
+        val cellularQuality by PlayerSettings.audioQualityCellular.collectAsStateWithLifecycle()
+        val metered by PlayerSettings.meteredConnection.collectAsStateWithLifecycle()
+        val nerdStats by NerdStats.current.collectAsStateWithLifecycle()
+        val effectiveQuality = if (metered == true) cellularQuality else wifiQuality
+        val racingLossless by NerdStats.racingLossless.collectAsStateWithLifecycle()
+        LosslessOrStats(
+            isLoading = isLoading,
+            stillRacing = song.videoId in racingLossless,
+            losslessRequested = effectiveQuality == AudioQuality.LOSSLESS,
+            effectiveQuality = effectiveQuality,
+            nerdStats = nerdStats,
+            modifier = modifier,
+        )
+    }
+}
+
+/**
+ * Distinct frosted pill badge on the player (Timbre Studio).
+ * Located between the seekbar timestamps, with an animated shimmering glass sweep.
+ * Clicking opens the live Audio Pipeline inspection sheet.
+ */
+@Composable
+internal fun TimbreStudioPlayerBadge(
+    song: Song,
+    isLoading: Boolean = false,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val nerdStats by NerdStats.current.collectAsStateWithLifecycle()
-    // Whether this playback session is even asking for a lossless stream — the
-    // same computation SourceResolver.requestForNow() makes, mirrored here so
-    // "Loading lossless" only appears when a lossless fetch is actually in
-    // flight, not on every buffering YouTube track.
-    val effectiveQuality = if (metered == true) cellularQuality else wifiQuality
-    // Whether a module is still racing YouTube for this exact track — see
-    // [NerdStats.racingLossless]. YouTube can win that race and already be
-    // playing while the module lookup is still running detached, and the badge
-    // should keep saying "loading" through that stretch rather than going
-    // blank only to possibly say "loading" again a moment later.
     val racingLossless by NerdStats.racingLossless.collectAsStateWithLifecycle()
-    LosslessOrStats(
-        isLoading = isLoading,
-        stillRacing = song.videoId in racingLossless,
-        losslessRequested = effectiveQuality == AudioQuality.LOSSLESS,
-        effectiveQuality = effectiveQuality,
-        nerdStats = nerdStats,
-        modifier = modifier,
-    )
+
+    val isStillRacing = (song.videoId in racingLossless && nerdStats?.isLossless != true) ||
+        (isLoading && nerdStats == null)
+    val isLossless = nerdStats?.isLossless == true
+    val isHiRes = nerdStats?.isHiRes == true
+    val isHiQuality = nerdStats?.isHiQuality == true
+
+    val badgeText = when {
+        isStillRacing -> if (isHiQuality) "Resolving FLAC (HQ Active)" else "Resolving Lossless FLAC…"
+        isLossless -> {
+            val depth = nerdStats?.bitDepth ?: nerdStats?.claimed?.bitDepth
+            val rate = nerdStats?.sampleRateHz ?: nerdStats?.claimed?.sampleRateHz
+            val rateStr = rate?.let {
+                val khz = it / 1000.0
+                if (it % 1000 == 0) " • ${it / 1000} kHz" else " • ${khz} kHz"
+            }.orEmpty()
+            val depthStr = depth?.let { " • $it-bit" }.orEmpty()
+            if (isHiRes) "Hi-Res Lossless$depthStr$rateStr" else "Lossless FLAC$depthStr$rateStr"
+        }
+        isHiQuality -> "High Quality • 320 kbps"
+        else -> nerdStats?.describe() ?: "Audio Pipeline"
+    }
+
+    val dotColor = when {
+        isHiRes -> Color(0xFF00E676) // Emerald green
+        isLossless -> Color(0xFF64B5F6) // Cyan / Blue
+        isStillRacing -> Color(0xFFFFB74D) // Amber / Gold
+        isHiQuality -> Color(0xFF81C784) // Soft green
+        else -> Color.White.copy(alpha = 0.7f)
+    }
+
+    val isShimmer = isLossless || isHiRes
+
+    Box(
+        modifier = modifier
+            .clip(CircleShape)
+            .background(Color.Black.copy(alpha = 0.55f))
+            .border(1.dp, Color.White.copy(alpha = 0.22f), CircleShape)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 9.dp, vertical = 3.5.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center,
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(6.dp)
+                    .background(dotColor, CircleShape)
+            )
+            Spacer(Modifier.width(6.dp))
+            if (isShimmer) {
+                ShimmerText(
+                    text = badgeText,
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        fontWeight = FontWeight.SemiBold,
+                        letterSpacing = 0.2.sp,
+                    ),
+                    baseAlpha = 0.85f,
+                )
+            } else {
+                Text(
+                    text = badgeText,
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        fontWeight = FontWeight.SemiBold,
+                        letterSpacing = 0.2.sp,
+                    ),
+                    color = Color.White.copy(alpha = 0.92f),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+    }
 }
 
 /**

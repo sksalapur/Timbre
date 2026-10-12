@@ -294,8 +294,12 @@ object NerdStats {
 
     fun recordSource(mediaId: String?, source: String?) {
         if (mediaId.isNullOrBlank() || source.isNullOrBlank()) return
+        val sanitized = if (source.contains("TrueBit", ignoreCase = true)) {
+            source.replace("TrueBit Lossless (FLAC)", "Timbre Cloudflare Edge (FLAC)", ignoreCase = true)
+                .replace("TrueBit", "Timbre", ignoreCase = true)
+        } else source
         if (sources.size >= MAX_REMEMBERED) sources.clear()
-        sources[mediaId] = source
+        sources[mediaId] = sanitized
     }
 
     fun exactSourceFor(mediaId: String?): String? = mediaId?.let { sources[it] }

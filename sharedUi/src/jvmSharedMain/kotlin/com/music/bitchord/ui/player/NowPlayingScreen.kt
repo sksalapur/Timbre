@@ -1901,6 +1901,7 @@ fun NowPlayingScreen(
                                 PlaybackQualityLabel(
                                     song = song,
                                     isLoading = isLoading,
+                                    onQualityClick = { showAudioPipeline = true },
                                     modifier = Modifier
                                         .align(Alignment.Center)
                                         .padding(horizontal = 8.dp),
@@ -3540,6 +3541,7 @@ fun NowPlayingScreen(
                 PlaybackQualityLabel(
                     song = song,
                     isLoading = isLoading,
+                    onQualityClick = { showAudioPipeline = true },
                     modifier = Modifier
                         .align(Alignment.Center)
                         .padding(horizontal = 8.dp),

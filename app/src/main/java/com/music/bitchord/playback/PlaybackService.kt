@@ -1418,55 +1418,23 @@ class PlaybackService : MediaLibraryService() {
             // the middle of an MP4 ended up appended to a WebM. See
             // [StreamChoice].
             StreamChoice.of(videoId)?.let { serving ->
-                // What the stream claims to be, restated on every open rather
-                // than only on the one that chose it.
-                //
-                // The race below is what used to report this, and it was enough
-                // while the race was the only way a substitution could be made.
-                // Read-ahead now pins one before the track is reached, so a
-                // warmed track arrives *here* on its very first open and never
-                // reaches the race at all — leaving the player with a 320kbps
-                // stream and nothing on record saying so, and the quality badge
-                // reading blank until the decoder got far enough to measure it
-                // for itself.
-                //
-                // Only when the format states something. A plain YouTube choice
-                // is remembered with an empty one, and writing that over a
-                // claim some other path made would be worse than saying nothing.
-                val sourceName = serving.sourceConfigId?.let { SourceRegistry.config(it)?.displayName }
-                    ?: if (StreamChoice.isSubstitute(videoId)) "Module" else "YouTube"
-                if (serving.format != StreamFormat()) {
-                    NerdStats.onSourceStream(videoId, serving.format, sourceName)
+                val wantsLossless = SourceResolver.canSubstituteForYouTube() &&
+                    SourceResolver.requestForNow() is com.music.bitchord.data.sources.StreamRequest.Lossless
+                if (serving.format.isLossless != true && wantsLossless) {
+                    // Do not serve a stale lossy choice directly; let it respect the Priority Resolution Window!
+                    StreamChoice.forget(videoId)
+                } else {
+                    val sourceName = serving.sourceConfigId?.let { SourceRegistry.config(it)?.displayName }
+                        ?: if (StreamChoice.isSubstitute(videoId)) "Module" else "YouTube"
+                    if (serving.format != StreamFormat()) {
+                        NerdStats.onSourceStream(videoId, serving.format, sourceName)
+                    }
+                    NerdStats.recordSource(videoId, sourceName)
+                    return@Resolver dataSpec.buildUpon()
+                        .setUri(Uri.parse(serving.url))
+                        .setHttpRequestHeaders(serving.headers)
+                        .build()
                 }
-                NerdStats.recordSource(videoId, sourceName)
-                // Read-ahead can pin JioSaavn's quick 320kbps answer before
-                // this track becomes current.  It is the right answer for an
-                // immediate start, but it is not the final quality verdict:
-                // returning here used to bypass [resolveWithModulePriority],
-                // the only path which calls [QualityUpgrade.settledForLess].
-                // Consequently a warmed track displayed its high-quality
-                // source but never kept the upgrading state or asked the
-                // module for its lossless copy.
-                //
-                // Only substituted, non-lossless choices need this. A pinned
-                // YouTube URL has no source result to promote, and a lossless
-                // module result already satisfies the request.
-                if (StreamChoice.isSubstitute(videoId) &&
-                    serving.format.isLossless != true &&
-                    QualityUpgrade.couldStillUpgrade(videoId, dataSpec.uri)
-                ) {
-                    val pending = QualityUpgrade.settledForLess(
-                        mediaId = videoId,
-                        target = SourceResolver.targetIn(dataSpec.uri),
-                        playing = serving.format,
-                        servedBy = serving.sourceConfigId,
-                    )
-                    if (!pending) NerdStats.onLosslessRaceEnd(videoId)
-                }
-                return@Resolver dataSpec.buildUpon()
-                    .setUri(Uri.parse(serving.url))
-                    .setHttpRequestHeaders(serving.headers)
-                    .build()
             }
             // A track queued from YouTube may be held by a source the user
             // ranked above it — see [SourceResolver.substituteForYouTube] and
@@ -3202,6 +3170,11 @@ class PlaybackService : MediaLibraryService() {
         ) {
             return
         }
+        if (AppSettings.puristMode.value) {
+            TrackLog.w("BitChord", "$mediaId: Purist mode active and FLAC unavailable; skipping to next track", about = mediaId)
+            skipPastUnplayable(mediaId, "Purist mode: Lossless FLAC stream unavailable")
+            return
+        }
         // An addon/JioSaavn stream gets one chance. If it fails after selection,
         // retrying the ordinary item only lets the same deterministic lookup win
         // again. Rebuild it as an explicit YouTube request instead. This also
@@ -3362,6 +3335,7 @@ class PlaybackService : MediaLibraryService() {
         uri: Uri?,
         position: Long,
     ): Boolean {
+        if (AppSettings.puristMode.value) return false
         val playbackUri = uri ?: return false
         val videoId = playbackUri.getQueryParameter("v")
         val substituted = videoId?.let(StreamChoice::isSubstitute) == true
@@ -4668,7 +4642,11 @@ class PlaybackService : MediaLibraryService() {
         // that need it, and an async that fails without ever being awaited is
         // an unhandled exception in this service's scope.
         val fallback = scope.async(Dispatchers.IO + TrackLog.about(videoId)) {
-            runCatching { StreamResolver.resolve(videoId) }
+            if (AppSettings.puristMode.value) {
+                Result.failure(java.io.IOException("Purist mode"))
+            } else {
+                runCatching { StreamResolver.resolve(videoId) }
+            }
         }
 
         // First past the post. A null because [lookup] won is a module miss; a
@@ -4679,19 +4657,6 @@ class PlaybackService : MediaLibraryService() {
         val timeoutMs = (AppSettings.losslessTimeoutSeconds.value * 1000f).toLong()
         val quick: SourceStream? = kotlinx.coroutines.withTimeoutOrNull(timeoutMs) {
             lookup.await()
-        } ?: select {
-            lookup.onAwait { it }
-            // A fallback that finished without a URL has not won anything.
-            //
-            // This clause used to yield null unconditionally, which treats "the
-            // YouTube walk is over" as "YouTube has a URL" — true only while
-            // failing was the slow outcome. It no longer is: [StreamResolver]
-            // now answers a known-unplayable track immediately, so the losing
-            // leg crosses the line first and, before this, took the track down
-            // with it while a module lookup that was about to succeed was still
-            // running. Exactly the case in the report — an age-gated track that
-            // YouTube would never serve and a catalogue that had it all along.
-            fallback.onAwait { resolved -> if (resolved.isSuccess) null else lookup.await() }
         }
 
         // A manifest cannot be substituted here, however good it is. This
@@ -4742,20 +4707,16 @@ class PlaybackService : MediaLibraryService() {
         }
 
         if (quick != null) {
-            // The modules got there first, so the YouTube walk is genuinely
-            // spare work now. Cancelling drops only this service's wait on it;
-            // [StreamResolver] parents the walk itself elsewhere and lets it
-            // finish into its own cache.
             fallback.cancel()
-            // Everything that was asked for, ahead of the fallback: the
-            // ordinary good case, and the one with no seam in it.
-            if (!quick.belowRequest) {
+            if (!quick.belowRequest || quick.format.isLossless == true) {
                 NerdStats.onLosslessRaceEnd(videoId)
                 return Resolved.Module(quick)
             }
-            // Less than was asked for — but a lossy copy from a module still
-            // beats going back to YouTube for one. Worth a second look, and
-            // with this lookup already finished that look starts from scratch.
+            // If purist mode is active, reject lossy module answers
+            if (AppSettings.puristMode.value) {
+                NerdStats.onLosslessRaceEnd(videoId)
+                throw java.io.IOException("Purist mode: Lossless FLAC stream could not be resolved for '${target.title}'")
+            }
             val settled = QualityUpgrade.settledForLess(
                 mediaId = videoId,
                 target = target,
@@ -4766,6 +4727,21 @@ class PlaybackService : MediaLibraryService() {
             return Resolved.Module(quick)
         }
 
+        if (AppSettings.puristMode.value) {
+            NerdStats.onLosslessRaceEnd(videoId)
+            throw java.io.IOException("Purist mode: Lossless FLAC stream could not be resolved for '${target.title}'")
+        }
+        if (lookup.isActive) {
+            val winner = kotlinx.coroutines.selects.select<Any?> {
+                lookup.onAwait { it }
+                fallback.onAwait { it }
+            }
+            if (winner is SourceStream && (winner.format.isLossless == true || !winner.belowRequest)) {
+                fallback.cancel()
+                NerdStats.onLosslessRaceEnd(videoId)
+                return Resolved.Module(winner)
+            }
+        }
         val url = fallback.await().getOrThrow()
         // Marked pending only here, with the fallback's own bitrate in hand:
         // that figure is the answer to "better than what?" the second look

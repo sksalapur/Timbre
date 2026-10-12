@@ -243,6 +243,10 @@ object SourceResolver {
      */
     suspend fun youtubeFallback(target: TrackMatcher.Target): SourceStream? {
         if (target.title.isBlank() || target.isVideo) return null
+        if (AppSettings.puristMode.value) {
+            TrackLog.d(TAG, "Purist mode: refusing lossy YouTube fallback for '${target.title}'")
+            return null
+        }
         val youtube = SourceRegistry.activeForPlayback()
             .firstOrNull { it.kind == SourceKind.YOUTUBE }
             ?: return null
@@ -288,7 +292,11 @@ object SourceResolver {
         val youtube = active.firstOrNull { it.kind == SourceKind.YOUTUBE } ?: return null
         val quick = rankedAbove(youtube.configId, active).filter { it.kind.worthPrefetching }
         if (quick.isEmpty()) return null
-        val (source, stream) = bestAcross(quick, target, requestForNow()) ?: return null
+        val request = requestForNow()
+        val (source, stream) = bestAcross(quick, target, request) ?: return null
+        if (request is StreamRequest.Lossless && stream.format.isLossless != true) {
+            return null
+        }
         TrackLog.d(
             TAG,
             "warmed: '${target.title}' from ${source.displayName} at ${stream.format.summary}",
@@ -804,11 +812,13 @@ object SourceResolver {
                     if (isBetter(stream.format, best?.second?.format)) best = source to stream
                 }
                 // Playback needs the first usable answer so sound can start.
-                // An upgrade is different: it runs while audio is already
-                // playing, and its caller explicitly requested every source's
-                // patient result. Let every source finish so a fast lower tier
-                // cannot cancel a later, better rendition.
-                if (best != null && !waitForAll) break
+                // However, when Lossless is requested, a quick lossy tier (e.g. 320kbps AAC)
+                // must NOT cut off a lossless source that is still searching.
+                val satisfiesRequest = best?.second?.let {
+                    if (request is StreamRequest.Lossless) it.format.isLossless == true else !it.belowRequest
+                } ?: false
+                if (satisfiesRequest) break
+                if (best != null && !waitForAll && running.isEmpty()) break
             }
         } finally {
             running.forEach { it.cancel() }
