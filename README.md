@@ -1,7 +1,7 @@
-<h1 align="center">💎 TrueBit</h1>
+﻿<h1 align="center">💎 Timbre</h1>
 
 <p align="center">
-  <img src="Logo.png?v=2" alt="TrueBit Logo" width="180" style="border-radius: 28px;" />
+  <img src="Logo.png?v=2" alt="Timbre Logo" width="180" style="border-radius: 28px;" />
 </p>
 
 <p align="center">
@@ -9,38 +9,38 @@
 </p>
 
 <p align="center">
-  <em>Pure uncompressed 24-bit/192kHz studio masters. Built-in cloud lossless bridge. Autonomous upstream synchronization. The player your DAC was built for.</em>
+  <em>Pure uncompressed 24-bit/192kHz studio masters. Cloudflare Edge Hi-Res lossless routing. Direct AudioTrack hardware DAC output. The player your earphones were built for.</em>
 </p>
 
 <p align="center">
-  <a href="https://github.com/sksalapur/TrueBit/releases"><img src="https://img.shields.io/badge/Download-TrueBit%20APK-00D2FF?style=for-the-badge&logo=android&logoColor=white" /></a>
+  <a href="https://github.com/sksalapur/Timbre/releases"><img src="https://img.shields.io/badge/Download-Timbre%20APK-00D2FF?style=for-the-badge&logo=android&logoColor=white" /></a>
   <img src="https://img.shields.io/badge/Audio-24--bit%20%2F%20192kHz%20FLAC-gold?style=for-the-badge&logo=audacity&logoColor=white" />
-  <img src="https://img.shields.io/badge/Upstream-BitChord%20Auto--Synced-8A2BE2?style=for-the-badge&logo=github&logoColor=white" />
+  <a href="https://t.me/TrueBit_Lossless"><img src="https://img.shields.io/badge/Telegram-Community-26A5E4?style=for-the-badge&logo=telegram&logoColor=white" /></a>
   <img src="https://img.shields.io/badge/License-GPLv3-brightgreen?style=for-the-badge" />
 </p>
 
-> ### 💡 What is TrueBit?
-> **TrueBit** is a specialized, bit-perfect audiophile fork built upon the exceptional foundation of [**BitChord**](https://github.com/kushagrasinghx/BitChord). This project would not be possible without the brilliant player architecture, sleek UI, and open-source contributions of BitChord and its creator, [kushagrasinghx](https://github.com/kushagrasinghx).
+> ### 💖 Foundation & Upstream Credit
+> **Timbre** is an audiophile-focused fork built upon the magnificent foundation of [**BitChord**](https://github.com/kushagrasinghx/BitChord). This project would **not be possible without BitChord** and its creator, [**Kushagra Singh**](https://github.com/kushagrasinghx). We extend our deepest heartfelt gratitude to Kushagra and the BitChord community for their brilliant open-source engineering, sleek player architecture, and beautiful modern UI.
 
 ---
 
-## 🛠️ My Changes to BitChord
+## ⚡ My Changes to BitChord
 
-TrueBit injects precision hardware routing, uncompressed lossless streaming, and mobile-first enhancements into BitChord:
+Timbre focuses specifically on maximizing Android mobile audio fidelity and eliminating all lossy compression bottlenecks:
 
-- 🎵 **Lossless-First Audio Routing (0:00)**: Directs streams to studio 24-bit FLAC sources from the very first second. Includes a customizable **Lossless Priority Window slider (0.5s–5.0s)** in Settings to balance connection speed with audio purity.
-- ⏩ **Predictive 4-Track Lookahead**: Quadruples queue lookahead buffering (from 1 track to 4 tracks), pre-resolving audio streams in the background for zero-latency gapless playback.
-- 🎛️ **Direct Bit-Perfect Hardware Routing**: Connects unresampled AudioTrack sinks unconstrained by Android's default 48kHz audio mixer, delivering pure 24-bit / 96kHz / 192kHz PCM to external USB DACs and Type-C DSP earphones (like Moondrop Chu II DSP).
-- 📊 **Accurate Live Bitrate Telemetry**: Live FLAC and PCM bitrate monitoring in Nerd Stats instead of zeroed metrics.
-- ⚡ **TrueBit Audio Wave Vector Identity**: Replaces BitChord marks across UI headings, Replay cards, and status-bar notifications with TrueBit's signature audio waveform silhouette.
-- 📱 **Streamlined Mobile Architecture**: Stripped desktop/TV modules and runtime bloat to deliver a battery-efficient, high-performance pure Android mobile player.
-- 🔒 **Private Edge Token Gate**: Direct integration with TrueBit's private Cloudflare Edge Worker & D1 database via `@TrueBitLosslessBot`, providing sustainable quota-enforced Hi-Res streaming with zero browser login.
+- 🎛️ **Lossless-First Audio Routing (0:00)**: Directs playback queries to studio 24-bit FLAC sources from the very first second. Includes a customizable **Lossless Priority Window slider (0.5s – 5.0s)** in Settings to balance connection speed with audio purity before falling back.
+- ⏩ **Predictive 4-Track Lookahead**: Quadrupled queue lookahead buffer (from 1 track to 4 tracks), pre-resolving and caching audio streams in the background for instant, zero-latency gapless playback.
+- 🔌 **Direct Bit-Perfect Hardware Routing**: AndroidX Media3 direct AudioTrack pipeline completely unconstrained by Android's default 48kHz audio mixer resampling, delivering pristine 24-bit / 96kHz / 192kHz PCM directly to external USB DACs and Type-C DSP earphones (such as Moondrop Chu II DSP).
+- 📊 **Accurate Live Bitrate Telemetry**: Shows genuine decoded PCM data rates (e.g. 1,411 kbps for 16/44.1, 4,608 kbps for 24/96) in Nerd Stats matching physical DAC throughput.
+- 🎵 **Timbre Audio Wave Vector Identity**: Modern vector waveform styling across in-app headings, status bar notifications, and Replay cards.
+- 🚀 **Streamlined Mobile Architecture**: Stripped desktop/TV modules and runtime bloat to deliver a responsive, battery-efficient pure Android mobile player.
+- ☁️ **Cloudflare Edge Addon Integration**: Native integration with Cloudflare-hosted Hi-Res audio services for sustainable, high-speed lossless streaming.
 
 ---
 
-## 🎧 The Problem
+## 🎯 The Problem
 
-Modern music streaming on mobile is riddled with compromises for anyone who cares about audio quality:
+Modern music streaming on mobile is riddled with compromises for anyone who cares about audio fidelity:
 
 | Platform | Limitation |
 | :--- | :--- |
@@ -49,21 +49,21 @@ Modern music streaming on mobile is riddled with compromises for anyone who care
 | **Stock BitChord** | Requires manual server configuration on every install; defaults to lossy YouTube streams first before upgrading mid-track; only pre-fetches 1 track ahead; no priority lossless routing. |
 | **Android Audio Pipeline** | Default Android system mixer forces 48kHz resampling and truncates 24-bit studio masters down to 16-bit integer PCM. |
 
-**TrueBit solves all of this out of the box.** It is a purpose-built, high-fidelity fork of BitChord featuring hardcoded cloud lossless routing, aggressive queue pre-caching, direct unresampled AudioTrack DAC output, and automated upstream release patching.
+**Timbre solves all of this out of the box.** It is a purpose-built, high-fidelity player featuring Cloudflare edge lossless routing, aggressive queue pre-caching, direct unresampled AudioTrack DAC output, and automated standalone releases.
 
 ---
 
-## ⚡ What Makes TrueBit Different
+## 🔬 How Timbre Routes Audio
 
-```
+```text
 ┌────────────────────────────────────────────────────────────────────────┐
-│                        TrueBit (Android Player)                        │
+│                        Timbre (Android Player)                         │
 │                                                                        │
 │   Track Requested: "Hotel California" (Eagles)                         │
 │         │                                                              │
 │         ▼                                                              │
 │   ┌──────────────────────────────────────────────────────────────┐     │
-│   │ 1. Built-in Lossless Bridge (Queried First)                  │     │
+│   │ 1. Cloudflare Edge Addon (Queried First)                     │     │
 │   │    Direct match found: 24-bit / 192kHz FLAC Master           │     │
 │   └──────────────────────────────┬───────────────────────────────┘     │
 │                                  │                                     │
@@ -74,78 +74,43 @@ Modern music streaming on mobile is riddled with compromises for anyone who care
 │                                  │                                     │
 │   ┌──────────────────────────────▼───────────────────────────────┐     │
 │   │ 3. Bit-Perfect Hardware Pipeline                             │     │
-│   │    Direct Bit-Perfect Route → USB DAC (e.g. Chu II DSP 96kHz)│     │
+│   │    Direct AudioTrack Route ──► USB DAC (e.g. Chu II DSP 96k) │     │
 │   └──────────────────────────────────────────────────────────────┘     │
 └────────────────────────────────────────────────────────────────────────┘
 ```
 
-### 1. 🎵 Pure Bit-Perfect Audio Pipeline
-TrueBit is engineered with an audiophile-grade, direct audio pipeline supporting uncompressed 24-bit studio FLAC streams and high-resolution playback. Audio data bypasses Android mixer resampling, routing uncompromised studio sound directly to external USB DACs, audiophile earphones, or Type-C DSP hardware.
+---
 
-### 2. 🎯 Lossless-First Routing (Zero Mid-Song Jumps)
-Stock clients start playback immediately on low-bitrate YouTube Opus audio and later perform a "seam swap" to FLAC mid-song. TrueBit flips this: it actively queries lossless sources *before* opening the audio stream. When a lossless copy exists, you hear pure FLAC from **0:00**.
+## 📱 Hardware Compatibility
 
-### 3. ⏩ 4-Track Predictive Queue Pre-Resolving
-- Increased queue lookahead from 1 track to **4 tracks**.
-- Reduced background prefetch stagger from 8s to **2s**.
-- Upcoming tracks in your album or playlist are already resolved and primed in memory, delivering instant, gapless transitions even when skipping quickly.
-
-### 4. 🎛️ Bit-Perfect Direct Hardware Audio Routing
-TrueBit leverages AndroidX Media3's direct AudioTrack pipeline, routing audio directly to external DACs and Type-C DSP earphones (like the Moondrop Chu II DSP) at native 96 kHz without mixer resampling or format distortion.
-
-### 5. 📊 Fixed Real-Time Bitrate Telemetry
-Eliminated the upstream bug where Nerd Stats leaked stale 165 kbps lossy bitrates onto FLAC streams. TrueBit displays genuine PCM data rates (e.g. 1,411 kbps for 16/44.1, 4,608 kbps for 24/96) accurately reflecting your hardware sink.
-
-### 6. 🔄 Autonomous Upstream Synchronization
-TrueBit never falls behind. A GitHub Actions CI pipeline monitors upstream `kushagrasinghx/BitChord` daily. Whenever upstream releases an update:
-1. The workflow pulls the new tag.
-2. Applies TrueBit's surgical patches via `git apply`.
-3. Builds and signs the release APK.
-4. Automatically publishes the update to [TrueBit Releases](https://github.com/sksalapur/TrueBit/releases).
+Verified bit-perfect unresampled digital output across:
+- **Type-C DSP IEMs**: Moondrop Chu II DSP (Native 24-bit/96kHz), Moondrop Free DSP, Tanchjim Tanya DSP.
+- **Portable USB DAC/Amps**: Fiio KA11, KA13, KA17, Moondrop Dawn Pro, Apple USB-C Dongle, Questyle M15.
+- **Desktop DACs**: Topping E30/E50/DX3 Pro+, SMSL SU-1/DO100, Schiit Modi+.
 
 ---
 
-## 📥 Download & Installation
+## 📲 Install & Update
 
-1. Go to the [**Releases**](https://github.com/sksalapur/TrueBit/releases) page.
-2. Download the latest `TrueBit-release.apk`.
-3. Install the APK on your Android device (Android 8.0+ supported; Android 13+ recommended for bit-perfect direct output).
-4. Connect your favorite wired earphones or USB DAC, connect your Type-C DSP or external DAC, and enjoy uncompressed studio fidelity.
+Download signed APKs directly from [**GitHub Releases**](https://github.com/sksalapur/Timbre/releases):
 
----
-
-## 🛠️ Patch Suite Architecture
-
-All modifications are maintained as atomic, surgical `.patch` files in the [`.patches/`](.patches/) directory:
-
-| Patch | Target Component | Description |
+| Build | Target Architecture | Recommendation |
 | :--- | :--- | :--- |
-| [`01-rebrand-app-name.patch`](.patches/01-rebrand-app-name.patch) | `strings.xml`, `build.gradle.kts` | Updates application branding to TrueBit across the UI and system notifications. |
-| [`03-lossless-first-prefetch.patch`](.patches/03-lossless-first-prefetch.patch) | `SourceKind.kt`, `AudioCache.kt`, `PlaybackService.kt`, `SettingsSheet.kt` | Prioritizes lossless addons, expands lookahead to 4, and adds customizable priority timeout slider. |
-| [`04-fix-bitrate-display.patch`](.patches/04-fix-bitrate-display.patch) | `PlaybackService.kt` | Prevents stale YouTube Opus bitrate from leaking into lossless stream telemetry. |
-| [`08-remove-desktop.patch`](.patches/08-remove-desktop.patch) | `settings.gradle.kts` | Streamlines build pipeline by focusing strictly on Android targets. |
-| [`09-inapp-update-repo.patch`](.patches/09-inapp-update-repo.patch) | `AppUpdateChecker.kt` | Points in-app update checks directly to `sksalapur/TrueBit` releases. |
-| [`10-rebrand-app-links.patch`](.patches/10-rebrand-app-links.patch) | `DiscordRPC.kt`, `LastFM.kt`, `SettingsSheet.kt` | Updates repository and official website links to `sksalapur.github.io/TrueBit`. |
+| **`Timbre-v1.8-arm64.apk`** | `arm64-v8a` | **Recommended for 99% of modern phones** (fastest, optimized native binaries). |
+| **`Timbre-v1.8.apk`** | Universal | All devices (includes 32-bit and x86_64 fallbacks). |
+
+> 💡 **Desktop or TV user?** Timbre is engineered specifically for Android mobile devices. If you need Windows, Linux, macOS, or Android TV builds, please check upstream [BitChord releases](https://github.com/kushagrasinghx/BitChord/releases).
 
 ---
 
-## 🤝 Credits & Acknowledgements
+## 💬 Community & Support
 
-TrueBit stands on the shoulders of giants. This project would **not be possible without BitChord**:
-
-- **[BitChord](https://github.com/kushagrasinghx/BitChord)** — Created by [kushagrasinghx](https://github.com/kushagrasinghx). Immense credit, gratitude, and respect to Kushagra and the BitChord community. The core player foundation, audio pipeline abstractions, beautiful UI design, and playback coordination belong to the BitChord project. TrueBit is proud to build upon this extraordinary work.
-- **[Cloudflare Workers & D1](https://workers.cloudflare.com)** — Edge computing and SQLite database infrastructure powering TrueBit's private addon gateway.
-- **[TrueBit Community](https://t.me/TrueBit_Lossless)** — Official Telegram community discussion group for audiophiles and user feedback.
+Join the official **[Telegram Community](https://t.me/TrueBit_Lossless)** to discuss releases, DAC configurations, and lossless addons.
 
 ---
 
-## 💬 Community & Discussion
+## 📜 Credits & License
 
-Have questions, feedback, or want to discuss audiophile setups? Join our official community:
-👉 **[Join TrueBit Community on Telegram](https://t.me/TrueBit_Lossless)**
-
----
-
-## ⚖️ License
-
-TrueBit is licensed under the **GNU General Public License v3.0 (GPLv3)** in compliance with the upstream BitChord license. See [LICENSE](LICENSE) for details.
+- **Upstream Engine**: [BitChord](https://github.com/kushagrasinghx/BitChord) by [Kushagra Singh](https://github.com/kushagrasinghx) — GNU General Public License v3.0.
+- **Addon Ecosystem**: Built for compatibility with [KATx-dev/qobuz-addon](https://github.com/KATx-dev/qobuz-addon).
+- **License**: Timbre is free, open-source software licensed under [**GPLv3**](LICENSE).

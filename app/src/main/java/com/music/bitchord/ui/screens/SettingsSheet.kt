@@ -531,7 +531,7 @@ fun SettingsScreen(
                     title = exportDownloadsTitle,
                     checked = exportDownloads,
                     onCheckedChange = AppSettings::setExportDownloads,
-                    subtitle = "Music/TrueBit".takeIf { exportDownloads },
+                    subtitle = "Music/Timbre".takeIf { exportDownloads },
                 )
             }
         }
@@ -1408,14 +1408,14 @@ fun SettingsScreen(
         if (searchQuery.isBlank()) {
         Text(
             text = buildAnnotatedString {
-                append("truebit $version  ")
+                append("timbre $version  ")
                 val linkStyles = TextLinkStyles(
                     style = SpanStyle(
                         color = MaterialTheme.colorScheme.primary,
                         textDecoration = TextDecoration.Underline,
                     ),
                 )
-                withLink(LinkAnnotation.Url("https://github.com/sksalapur/TrueBit", linkStyles)) {
+                withLink(LinkAnnotation.Url("https://github.com/sksalapur/Timbre", linkStyles)) {
                     append("GitHub")
                 }
                 append("  ")
@@ -1423,7 +1423,7 @@ fun SettingsScreen(
                     append("Developer")
                 }
                 append("  ")
-                withLink(LinkAnnotation.Url("https://sksalapur.github.io/TrueBit/", linkStyles)) {
+                withLink(LinkAnnotation.Url("https://sksalapur.github.io/Timbre/", linkStyles)) {
                     append("Website")
                 }
                 append("\n~YouTube Music & Listen Together Backend")
