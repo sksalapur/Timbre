@@ -5,13 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   
   <title>TrueBit — Bit-Perfect High-Resolution Audio Streaming for Android</title>
-  <meta name="description" content="The autonomous, bit-perfect Android audio streamer with built-in cloud FLAC lossless bridge, direct DAC AudioTrack output, and 0:00 instant playback." />
+  <meta name="description" content="The autonomous, bit-perfect Android audio streamer with built-in Cloudflare Hi-Res lossless gateway, direct DAC AudioTrack output, and 0:00 instant playback." />
   <meta name="keywords" content="TrueBit, BitChord, lossless music, bit perfect, android dac, hi-res audio, FLAC streamer, Chu II DSP, usb dac" />
   <meta name="author" content="sksalapur" />
 
   <!-- Open Graph -->
   <meta property="og:title" content="TrueBit — Bit-Perfect High-Resolution Audio Streaming" />
-  <meta property="og:description" content="Pure uncompressed 24-bit/192kHz studio masters. Built-in cloud lossless bridge. Autonomous upstream sync." />
+  <meta property="og:description" content="Pure uncompressed 24-bit/192kHz studio masters. Cloudflare Hi-Res edge streaming. Autonomous upstream sync." />
   <meta property="og:image" content="assets/banner.png" />
   <meta property="og:type" content="website" />
   <meta property="og:url" content="https://sksalapur.github.io/TrueBit/" />
@@ -147,7 +147,7 @@
         </div>
         <div class="nerd-stat-box">
           <div class="stat-label">Stream Provider</div>
-          <div class="stat-val">TrueBit Fly.io Bridge</div>
+          <div class="stat-val">TrueBit Cloudflare Edge</div>
         </div>
       </div>
 
@@ -169,6 +169,48 @@
       </div>
     </div>
   </header>
+
+  <!-- My Changes to BitChord Section -->
+  <section class="bitchord-changes-section" style="max-width: 1100px; margin: 3rem auto 1rem auto; padding: 0 1.5rem;">
+    <div style="background: rgba(19, 26, 38, 0.7); border: 1px solid rgba(0, 229, 255, 0.25); border-radius: 16px; padding: 2rem 2.5rem; backdrop-filter: blur(12px);">
+      <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1rem; margin-bottom: 1.25rem;">
+        <div style="display: flex; align-items: center; gap: 0.75rem;">
+          <span style="font-size: 1.5rem;">⚡</span>
+          <h2 style="font-size: 1.4rem; font-weight: 800; margin: 0; color: #fff;">My Changes to BitChord</h2>
+        </div>
+        <span class="brand-badge" style="background: rgba(0, 229, 255, 0.15); color: #00E5FF; border: 1px solid rgba(0, 229, 255, 0.3);">Audiophile Enhancements</span>
+      </div>
+      <p style="color: var(--text-dim); line-height: 1.6; margin-bottom: 1.5rem;">
+        TrueBit is an audiophile fork built upon the foundation of <a href="https://github.com/kushagrasinghx/BitChord" target="_blank" rel="noopener" style="color: #00E5FF; text-decoration: underline;">BitChord</a>. This project would not be possible without Kushagra's brilliant open-source engineering. Here is what TrueBit adds on top:
+      </p>
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem;">
+        <div style="background: rgba(13, 17, 23, 0.8); border: 1px solid rgba(255,255,255,0.06); padding: 1rem 1.25rem; border-radius: 10px;">
+          <div style="font-weight: 700; color: #00E5FF; margin-bottom: 0.35rem;">🎵 Lossless-First Routing (0:00)</div>
+          <div style="font-size: 0.88rem; color: var(--text-dim);">Queries studio FLAC streams first with a tuned 0.5s–5.0s priority window slider in Settings, avoiding mid-track bitrate jumps.</div>
+        </div>
+        <div style="background: rgba(13, 17, 23, 0.8); border: 1px solid rgba(255,255,255,0.06); padding: 1rem 1.25rem; border-radius: 10px;">
+          <div style="font-weight: 700; color: #00E5FF; margin-bottom: 0.35rem;">⏩ 4-Track Predictive Lookahead</div>
+          <div style="font-size: 0.88rem; color: var(--text-dim);">Pre-resolves and buffers the next 4 songs in queue (up from 1), guaranteeing instant gapless playback.</div>
+        </div>
+        <div style="background: rgba(13, 17, 23, 0.8); border: 1px solid rgba(255,255,255,0.06); padding: 1rem 1.25rem; border-radius: 10px;">
+          <div style="font-weight: 700; color: #00E5FF; margin-bottom: 0.35rem;">🎛️ Direct Unresampled DAC Output</div>
+          <div style="font-size: 0.88rem; color: var(--text-dim);">Direct AudioTrack sink unconstrained by Android's 48kHz mixer resampling, tailored for external DACs and Type-C DSP earphones.</div>
+        </div>
+        <div style="background: rgba(13, 17, 23, 0.8); border: 1px solid rgba(255,255,255,0.06); padding: 1rem 1.25rem; border-radius: 10px;">
+          <div style="font-weight: 700; color: #00E5FF; margin-bottom: 0.35rem;">📊 Accurate Bitrate Telemetry</div>
+          <div style="font-size: 0.88rem; color: var(--text-dim);">Live FLAC and PCM bitrate monitoring in Nerd Stats instead of zeroed metrics.</div>
+        </div>
+        <div style="background: rgba(13, 17, 23, 0.8); border: 1px solid rgba(255,255,255,0.06); padding: 1rem 1.25rem; border-radius: 10px;">
+          <div style="font-weight: 700; color: #00E5FF; margin-bottom: 0.35rem;">⚡ TrueBit Audio Wave Identity</div>
+          <div style="font-size: 0.88rem; color: var(--text-dim);">Replaced BitChord marks across UI headings, Replay cards, and status bar with TrueBit's signature audio wave vector.</div>
+        </div>
+        <div style="background: rgba(13, 17, 23, 0.8); border: 1px solid rgba(255,255,255,0.06); padding: 1rem 1.25rem; border-radius: 10px;">
+          <div style="font-weight: 700; color: #00E5FF; margin-bottom: 0.35rem;">📱 Stripped Desktop / Mobile-Tuned</div>
+          <div style="font-size: 0.88rem; color: var(--text-dim);">Removed desktop and TV runtime overhead to deliver a battery-efficient, high-performance pure Android mobile player.</div>
+        </div>
+      </div>
+    </div>
+  </section>
 
   <!-- Features Grid -->
   <section class="features-section" id="features">
@@ -297,9 +339,7 @@
           </svg>
           Read Addon Developer Guide
         </a>
-        <a href="https://github.com/sksalapur/lossless-bridge" target="_blank" rel="noopener" class="btn-secondary" style="font-size: 1rem;">
-          Lossless Bridge Repository &rarr;
-        </a>
+
       </div>
     </div>
   </section>
@@ -322,7 +362,6 @@
         <ul class="footer-links">
           <li><a href="https://github.com/sksalapur/TrueBit/releases/latest" target="_blank" rel="noopener">Latest Release (v1.8)</a></li>
           <li><a href="https://github.com/sksalapur/TrueBit/releases" target="_blank" rel="noopener">All GitHub Releases</a></li>
-          <li><a href="https://github.com/sksalapur/lossless-bridge" target="_blank" rel="noopener">Lossless Bridge API</a></li>
         </ul>
       </div>
 
@@ -345,7 +384,7 @@
     </div>
 
     <div class="footer-bottom">
-      TrueBit is an open-source project licensed under GPLv3. All core player architecture belongs to the upstream BitChord team.
+      TrueBit is an open-source project licensed under GPLv3. Heartfelt gratitude to Kushagra and the BitChord community — TrueBit would not be possible without the incredible foundation, architecture, and UI of BitChord.
     </div>
   </footer>
 
