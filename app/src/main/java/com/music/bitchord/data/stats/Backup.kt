@@ -93,10 +93,10 @@ object Backup {
                 ?.use { it.readBytes().decodeToString() }
                 ?: error("Couldn't open that file")
             val file = runCatching { json.decodeFromString(BackupFile.serializer(), text) }
-                .getOrElse { error("That doesn't look like a TrueBit backup") }
+                .getOrElse { error("That doesn't look like a Timbre backup") }
             require(file.app == APP_TAG) { "That backup is from another app" }
             require(file.version <= SCHEMA_VERSION) {
-                "That backup was written by a newer version of TrueBit"
+                "That backup was written by a newer version of Timbre"
             }
 
             ListeningStats.importAll(file.listening)

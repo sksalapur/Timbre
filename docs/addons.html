@@ -4,17 +4,17 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   
-  <title>Addon Developer Guide — TrueBit Bit-Perfect Audio</title>
-  <meta name="description" content="Complete guide and protocol specification for building custom high-resolution audio addons for TrueBit and BitChord." />
-  <meta name="keywords" content="TrueBit addon, BitChord addon, FLAC stream, audio addon protocol, bit-perfect streaming" />
+  <title>Addon Developer Guide — Timbre Bit-Perfect Audio</title>
+  <meta name="description" content="Complete guide and protocol specification for building custom high-resolution audio addons for Timbre and BitChord." />
+  <meta name="keywords" content="Timbre addon, BitChord addon, FLAC stream, audio addon protocol, bit-perfect streaming" />
   <meta name="author" content="sksalapur" />
 
   <!-- Open Graph -->
-  <meta property="og:title" content="TrueBit Addon Developer Guide" />
+  <meta property="og:title" content="Timbre Addon Developer Guide" />
   <meta property="og:description" content="Connect your own audio catalogue or FLAC server with three simple JSON routes." />
   <meta property="og:image" content="assets/banner.png" />
   <meta property="og:type" content="website" />
-  <meta property="og:url" content="https://sksalapur.github.io/TrueBit/addons.html" />
+  <meta property="og:url" content="https://sksalapur.github.io/Timbre/addons.html" />
 
   <!-- Favicon -->
   <link rel="icon" type="image/png" href="assets/emblem.png" />
@@ -33,8 +33,8 @@
   <!-- Navigation Bar -->
   <nav>
     <a href="index.html" class="nav-brand">
-      <img src="assets/emblem.png" alt="TrueBit Logo" class="nav-logo" />
-      <span class="brand-title">TrueBit</span>
+      <img src="assets/emblem.png" alt="Timbre Logo" class="nav-logo" />
+      <span class="brand-title">Timbre</span>
       <span class="brand-badge">Docs</span>
     </a>
 
@@ -47,14 +47,14 @@
     </ul>
 
     <div class="nav-actions">
-      <a href="https://github.com/sksalapur/TrueBit" class="btn-github" target="_blank" rel="noopener">
+      <a href="https://github.com/sksalapur/Timbre" class="btn-github" target="_blank" rel="noopener">
         <svg height="18" width="18" viewBox="0 0 16 16" fill="currentColor">
           <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"></path>
         </svg>
         GitHub
       </a>
       <a href="index.html#download" class="btn-primary" style="padding: 0.5rem 1rem; font-size: 0.9rem;">
-        Get TrueBit
+        Get Timbre
       </a>
     </div>
   </nav>
@@ -92,7 +92,7 @@
 
       <h4>Deployment</h4>
       <ul>
-        <li><a href="#installation">Adding to TrueBit</a></li>
+        <li><a href="#installation">Adding to Timbre</a></li>
         <li><a href="#troubleshooting">Diagnostics & Nerd Stats</a></li>
       </ul>
     </aside>
@@ -107,7 +107,7 @@
         </div>
         <h1>Addon Developer Guide</h1>
         <p class="docs-lead">
-          Connect any custom music catalog, private Subsonic/Navidrome server, or FLAC lossless repository to TrueBit with just <strong>three simple HTTP GET endpoints</strong>.
+          Connect any custom music catalog, private Subsonic/Navidrome server, or FLAC lossless repository to Timbre with just <strong>three simple HTTP GET endpoints</strong>.
         </p>
       </header>
 
@@ -115,10 +115,10 @@
       <section class="docs-section" id="overview">
         <h2>Overview</h2>
         <p>
-          TrueBit never executes arbitrary untrusted remote code. Instead, it interacts with your audio backend over standard HTTP using lightweight JSON messages.
+          Timbre never executes arbitrary untrusted remote code. Instead, it interacts with your audio backend over standard HTTP using lightweight JSON messages.
         </p>
         <p>
-          When a track is requested, TrueBit searches your catalog, resolves a direct playable stream URL (e.g. uncompressed 24-bit/96kHz FLAC), and feeds it straight to the bit-perfect Android AudioTrack pipeline.
+          When a track is requested, Timbre searches your catalog, resolves a direct playable stream URL (e.g. uncompressed 24-bit/96kHz FLAC), and feeds it straight to the bit-perfect Android AudioTrack pipeline.
         </p>
 
         <div class="flow-step-grid" id="architecture">
@@ -153,7 +153,7 @@
         <div id="manifest" style="margin-top: 2rem;">
           <h3>1. Addon Manifest</h3>
           <p>
-            When a user enters your addon URL (e.g. <code>https://my-audio-addon.com</code>), TrueBit fetches <code>/manifest.json</code> to register capabilities and verify server health.
+            When a user enters your addon URL (e.g. <code>https://my-audio-addon.com</code>), Timbre fetches <code>/manifest.json</code> to register capabilities and verify server health.
           </p>
 
           <div class="endpoint-header">
@@ -172,7 +172,7 @@
   "description": "High-resolution 24-bit/96kHz lossless audio catalog",
   "version": "1.0.0",
   "author": "Audio Engineering",
-  "homepage": "https://sksalapur.github.io/TrueBit/",
+  "homepage": "https://sksalapur.github.io/Timbre/",
   "resources": ["search", "stream"],
   "capabilities": {
     "search": true,
@@ -189,7 +189,7 @@
         <div id="search" style="margin-top: 3rem;">
           <h3>2. Catalog Search</h3>
           <p>
-            Searches your catalog for matching tracks. TrueBit evaluates <code>title</code>, <code>artist</code>, <code>album</code>, and <code>duration</code> to guarantee the exact master is resolved.
+            Searches your catalog for matching tracks. Timbre evaluates <code>title</code>, <code>artist</code>, <code>album</code>, and <code>duration</code> to guarantee the exact master is resolved.
           </p>
 
           <div class="endpoint-header">
@@ -220,7 +220,7 @@
         <div id="stream" style="margin-top: 3rem;">
           <h3>3. Stream Resolver</h3>
           <p>
-            Returns the direct media URL and detailed encoding metadata. Providing exact <code>bitDepth</code> and <code>sampleRate</code> allows TrueBit's bit-perfect sink to configure your hardware DAC immediately.
+            Returns the direct media URL and detailed encoding metadata. Providing exact <code>bitDepth</code> and <code>sampleRate</code> allows Timbre's bit-perfect sink to configure your hardware DAC immediately.
           </p>
 
           <div class="endpoint-header">
@@ -240,7 +240,7 @@
   "sampleRate": 96000,
   "bitrate": 4608000,
   "headers": {
-    "User-Agent": "TrueBit/1.8"
+    "User-Agent": "Timbre/1.8"
   }
 }</code></pre>
           </div>
@@ -249,21 +249,21 @@
 
       <!-- Section: Lossless Pipeline -->
       <section class="docs-section" id="lossless">
-        <h2>TrueBit Lossless Pipeline</h2>
+        <h2>Timbre Lossless Pipeline</h2>
 
         <div class="alert-card info">
           <span class="alert-icon">💎</span>
           <div class="alert-content">
-            <strong>Pure Hardware Path:</strong> Android's default <code>AudioTrack</code> mixer resamples all audio streams to 48kHz. TrueBit utilizes direct hardware routing via AndroidX Media3, preserving pristine 24-bit/96kHz and 24-bit/192kHz PCM without downsampling.
+            <strong>Pure Hardware Path:</strong> Android's default <code>AudioTrack</code> mixer resamples all audio streams to 48kHz. Timbre utilizes direct hardware routing via AndroidX Media3, preserving pristine 24-bit/96kHz and 24-bit/192kHz PCM without downsampling.
           </div>
         </div>
 
         <h3 id="priority-window">Lossless Priority Window (Settings Slider)</h3>
         <p>
-          Unlike stock players that clumsily start with lossy Opus and swap streams halfway through, TrueBit queries your lossless addon <strong>first</strong>.
+          Unlike stock players that clumsily start with lossy Opus and swap streams halfway through, Timbre queries your lossless addon <strong>first</strong>.
         </p>
         <p>
-          In <em>Settings &rarr; Playback</em>, users can set the <strong>Lossless Priority Window</strong> between <strong>0.5s and 5.0s</strong> (in 0.5s increments, default 3.5s). TrueBit waits up to this duration for the lossless addon to reply. If the track is absent, it gracefully falls back to YouTube Music Opus with zero playback gap.
+          In <em>Settings &rarr; Playback</em>, users can set the <strong>Lossless Priority Window</strong> between <strong>0.5s and 5.0s</strong> (in 0.5s increments, default 3.5s). Timbre waits up to this duration for the lossless addon to reply. If the track is absent, it gracefully falls back to YouTube Music Opus with zero playback gap.
         </p>
 
         <h3 id="hardware">Supported Codecs</h3>
@@ -364,7 +364,7 @@ app.get('/stream/:id', (req, res) => {
   });
 });
 
-app.listen(3000, () => console.log('TrueBit Addon listening on port 3000'));</code></pre>
+app.listen(3000, () => console.log('Timbre Addon listening on port 3000'));</code></pre>
           </div>
         </div>
 
@@ -418,7 +418,7 @@ def get_stream(track_id: str):
         </div>
 
         <div id="flyio-bridge" style="margin-top: 3rem;">
-          <h3>TrueBit Community & Addon Ecosystem</h3>
+          <h3>Timbre Community & Addon Ecosystem</h3>
           <p>
             Looking for community addons, shared configurations, or help setting up your private music server?
           </p>
@@ -426,8 +426,8 @@ def get_stream(track_id: str):
             Join our official audiophile community on Telegram to discuss DAC pairings, EQ presets, and addon configurations:
           </p>
           <div style="margin: 1.25rem 0;">
-            <a href="https://t.me/TrueBit_Lossless" target="_blank" rel="noopener" class="btn-primary" style="display: inline-flex; align-items: center; gap: 0.5rem;">
-              Join TrueBit Telegram Community &rarr;
+            <a href="https://t.me/Timbre_Lossless" target="_blank" rel="noopener" class="btn-primary" style="display: inline-flex; align-items: center; gap: 0.5rem;">
+              Join Timbre Telegram Community &rarr;
             </a>
           </div>
         </div>
@@ -435,17 +435,17 @@ def get_stream(track_id: str):
 
       <!-- Section: Installation -->
       <section class="docs-section" id="installation">
-        <h2>Installation & Testing in TrueBit</h2>
+        <h2>Installation & Testing in Timbre</h2>
         <ol style="margin-left: 1.5rem; color: var(--text-dim); margin-bottom: 1.5rem;">
-          <li style="margin-bottom: 0.5rem;">Open <strong>TrueBit</strong> on your Android device.</li>
+          <li style="margin-bottom: 0.5rem;">Open <strong>Timbre</strong> on your Android device.</li>
           <li style="margin-bottom: 0.5rem;">Navigate to <strong>Settings &rarr; Addons</strong>.</li>
           <li style="margin-bottom: 0.5rem;">Tap <strong>Add Addon</strong> and enter your server URL (e.g. <code>https://my-addon.example.com</code>).</li>
-          <li style="margin-bottom: 0.5rem;">TrueBit will query <code>/manifest.json</code>, validate schema, and display a green active badge.</li>
+          <li style="margin-bottom: 0.5rem;">Timbre will query <code>/manifest.json</code>, validate schema, and display a green active badge.</li>
         </ol>
 
         <h3 id="troubleshooting">Verifying Playback in Nerd Stats</h3>
         <p>
-          While playing any song in TrueBit, tap the <strong>Nerd Stats</strong> button on the player screen to see real-time hardware telemetry:
+          While playing any song in Timbre, tap the <strong>Nerd Stats</strong> button on the player screen to see real-time hardware telemetry:
         </p>
         <ul style="margin-left: 1.5rem; color: var(--text-dim);">
           <li style="margin-bottom: 0.35rem;"><strong>Audio Sink:</strong> Verify it displays <code>AudioTrack (Direct)</code> when external USB DAC is connected.</li>
@@ -462,7 +462,7 @@ def get_stream(track_id: str):
       <div class="footer-col" style="max-width: 320px;">
         <div style="display: flex; align-items: center; gap: 0.6rem; margin-bottom: 1rem;">
           <img src="assets/emblem.png" width="28" height="28" alt="emblem" />
-          <span style="font-family: var(--font-heading); font-size: 1.25rem; font-weight: 800; color: #fff;">TrueBit</span>
+          <span style="font-family: var(--font-heading); font-size: 1.25rem; font-weight: 800; color: #fff;">Timbre</span>
         </div>
         <p style="color: var(--text-muted); font-size: 0.85rem; line-height: 1.6;">
           Autonomous, bit-perfect high-resolution music streaming for Android.
@@ -474,13 +474,13 @@ def get_stream(track_id: str):
         <ul class="footer-links">
           <li><a href="index.html">Home Page</a></li>
           <li><a href="index.html#download">Download APK</a></li>
-          <li><a href="https://github.com/sksalapur/TrueBit" target="_blank" rel="noopener">GitHub Repository</a></li>
+          <li><a href="https://github.com/sksalapur/Timbre" target="_blank" rel="noopener">GitHub Repository</a></li>
         </ul>
       </div>
     </div>
 
     <div class="footer-bottom">
-      TrueBit is an open-source project licensed under GPLv3.
+      Timbre is an open-source project licensed under GPLv3.
     </div>
   </footer>
 

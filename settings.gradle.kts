@@ -15,7 +15,7 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "TrueBit"
+rootProject.name = "Timbre"
 include(":shared")
 include(":sharedUi")
 

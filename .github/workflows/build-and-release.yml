@@ -1,4 +1,4 @@
-name: Build and Release TrueBit
+﻿name: Build and Release Timbre
 
 on:
   push:
@@ -21,7 +21,7 @@ jobs:
       contents: write
 
     steps:
-      - name: Checkout TrueBit Repo
+      - name: Checkout Timbre Repo
         uses: actions/checkout@v4
 
       - name: Setup JDK 17
@@ -58,12 +58,12 @@ jobs:
             KEY_PASS="pass:${{ secrets.KEY_PASSWORD }}"
           else
             echo "Generating consistent signing key..."
-            keytool -genkeypair -v -keystore auto.keystore -alias truebit -keyalg RSA -keysize 2048 -validity 10000 \
-              -storepass "truebitpass" -keypass "truebitpass" -dname "CN=TrueBit, OU=Audio, O=TrueBit, L=HQ, S=Audio, C=US"
+            keytool -genkeypair -v -keystore auto.keystore -alias timbre -keyalg RSA -keysize 2048 -validity 10000 \
+              -storepass "timbrepass" -keypass "timbrepass" -dname "CN=Timbre, OU=Audio, O=Timbre, L=HQ, S=Audio, C=US"
             KS_FILE="auto.keystore"
-            KS_ALIAS="truebit"
-            KS_PASS="pass:truebitpass"
-            KEY_PASS="pass:truebitpass"
+            KS_ALIAS="timbre"
+            KS_PASS="pass:timbrepass"
+            KEY_PASS="pass:timbrepass"
           fi
 
           found_count=0
@@ -73,15 +73,15 @@ jobs:
               echo "Processing APK: $filename ($raw_apk)"
               
               if [[ "$filename" == *"arm64-v8a"* ]]; then
-                out_name="TrueBit-${TAG}-arm64.apk"
+                out_name="Timbre-${TAG}-arm64.apk"
               elif [[ "$filename" == *"universal"* ]]; then
-                out_name="TrueBit-${TAG}.apk"
+                out_name="Timbre-${TAG}.apk"
               elif [[ "$filename" == *"armeabi-v7a"* ]]; then
-                out_name="TrueBit-${TAG}-armeabi-v7a.apk"
+                out_name="Timbre-${TAG}-armeabi-v7a.apk"
               elif [[ "$filename" == *"x86_64"* ]]; then
-                out_name="TrueBit-${TAG}-x86_64.apk"
+                out_name="Timbre-${TAG}-x86_64.apk"
               else
-                out_name="TrueBit-${TAG}-${filename}"
+                out_name="Timbre-${TAG}-${filename}"
               fi
               
               target="signed-apks/${out_name}"
@@ -105,7 +105,7 @@ jobs:
           echo "✅ Successfully signed $found_count APKs:"
           ls -lh signed-apks/
 
-      - name: Generate TrueBit Release Notes
+      - name: Generate Timbre Release Notes
         run: |
           python3 scripts/rebadge_release.py "${{ github.event.inputs.release_tag || 'v1.8' }}" "${{ github.repository }}"
 
@@ -116,19 +116,19 @@ jobs:
           tag_name: ${{ github.event.inputs.release_tag || 'v1.8' }}
           target_commitish: ${{ github.sha }}
           token: ${{ secrets.GITHUB_TOKEN }}
-          name: "TrueBit ${{ github.event.inputs.release_tag || 'v1.8' }}"
+          name: "Timbre ${{ github.event.inputs.release_tag || 'v1.8' }}"
           body_path: release_notes.md
           files: signed-apks/*.apk
           make_latest: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Send Release Announcement to Telegram Group
+      - name: Send Release Announcement to Telegram
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: "@TrueBit_Lossless"
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID || '@TrueBit_Lossless' }}
         run: |
-          python3 scripts/post_telegram_release.py "${{ github.event.inputs.release_tag || 'v1.8' }}" "${{ github.repository }}" "release_notes.md" "signed-apks"
+          python3 scripts/post_telegram_release.py "${{ github.event.inputs.release_tag || 'v1.8' }}" "${{ github.repository }}" "release_notes.md" "Banner.png"
 
   deploy-pages:
     name: Deploy GitHub Pages
@@ -143,7 +143,7 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - name: Checkout TrueBit Repo
+      - name: Checkout Timbre Repo
         uses: actions/checkout@v4
 
       - name: Setup Pages
