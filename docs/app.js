@@ -1,6 +1,6 @@
 // Timbre Dynamic Release Fetcher & Interactive Elements
 const GITHUB_REPO = 'sksalapur/Timbre';
-const FALLBACK_VERSION = 'v1.8';
+const FALLBACK_VERSION = 'v1.8-1';
 const FALLBACK_DOWNLOAD_URL = `https://github.com/${GITHUB_REPO}/releases/latest`;
 
 async function fetchLatestRelease() {
