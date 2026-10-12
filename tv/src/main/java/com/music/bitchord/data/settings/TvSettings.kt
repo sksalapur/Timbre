@@ -156,6 +156,15 @@ object TvSettings {
         return !pin.isNullOrBlank()
     }
 
+    fun wipeAllPins() {
+        if (!this::prefs.isInitialized) return
+        save {
+            prefs.all.keys
+                .filter { it.startsWith("tv_profile_pin_") }
+                .forEach { key -> remove(key) }
+        }
+    }
+
     private const val KEY_TV_REFRESH_RATE = "tv_refresh_rate"
     private const val KEY_TV_NICKNAME = "tv_nickname"
     private const val KEY_TV_THEME = "tv_theme"

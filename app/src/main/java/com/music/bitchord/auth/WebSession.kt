@@ -117,10 +117,16 @@ object BrowserSession {
                 manager.setCookie(origin, "$name=; Max-Age=0; Path=/")
                 manager.setCookie(origin, "$name=; Max-Age=0; Path=/; Domain=$host")
                 manager.setCookie(origin, "$name=; Max-Age=0; Path=/; Domain=.$host")
+                manager.setCookie(origin, "$name=; Max-Age=0; Path=/accounts")
+                manager.setCookie(origin, "$name=; Max-Age=0; Path=/ServiceLogin")
                 cleared++
             }
         }
-        runCatching { manager.flush() }
+        runCatching {
+            manager.removeAllCookies(null)
+            manager.flush()
+            android.webkit.WebStorage.getInstance().deleteAllData()
+        }
         Log.d("BitChord", "cleared $cleared browser cookies for Google")
     }
 

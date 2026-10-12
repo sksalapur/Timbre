@@ -25,7 +25,7 @@ private const val MUSIC_ORIGIN = "https://music.youtube.com"
 
 private const val LOGIN_URL =
     "https://accounts.google.com/ServiceLogin" +
-        "?ltmpl=music&service=youtube&passive=true" +
+        "?ltmpl=music&service=youtube&prompt=select_account" +
     "&continue=https%3A%2F%2Fmusic.youtube.com%2F"
 
 private const val TAG = "BitChord"
@@ -88,13 +88,21 @@ fun YtMusicLoginScreen(
     AndroidView(
         modifier = modifier.fillMaxSize(),
         factory = { context ->
-            // Clearing the local jar is enough to show a fresh Google login.
-            // Never visit accounts.google.com/Logout here: that invalidates a
-            // previously saved account on Google's server, so adding account B
-            // silently breaks account A.
-            if (mode == WebSessionMode.SIGN_IN) BrowserSession.clearGoogleCookies()
-            else initialCookie?.let(BrowserSession::installGoogleCookies)
+            if (mode == WebSessionMode.SIGN_IN) {
+                runCatching {
+                    val manager = CookieManager.getInstance()
+                    manager.removeAllCookies(null)
+                    manager.flush()
+                    android.webkit.WebStorage.getInstance().deleteAllData()
+                }
+                BrowserSession.clearGoogleCookies()
+            } else initialCookie?.let(BrowserSession::installGoogleCookies)
             WebView(context).apply {
+                if (mode == WebSessionMode.SIGN_IN) {
+                    clearCache(true)
+                    clearHistory()
+                    clearFormData()
+                }
                 settings.javaScriptEnabled = true
                 settings.domStorageEnabled = true
                 configureWebView(this)

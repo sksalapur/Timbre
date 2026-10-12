@@ -124,6 +124,15 @@ fun TvApp(
         com.music.bitchord.ui.tv.audio.TvSpatialAudioEngine.setEnabled(spatialAudio)
     }
 
+    val signedIn by viewModel.signedIn.collectAsState()
+    LaunchedEffect(signedIn) {
+        if (!signedIn) {
+            TvSettings.wipeAllPins()
+        }
+    }
+
+    var onSignOutAction by remember { mutableStateOf<(() -> Unit)?>(null) }
+
     Box(
         modifier = modifier
             .fillMaxSize()
@@ -176,6 +185,10 @@ fun TvApp(
             TvAccountDialog(
                 viewModel = viewModel,
                 onDismiss = { showAccountDialog = false },
+                onSignOut = {
+                    onSignOutAction?.invoke()
+                    showAccountDialog = false
+                },
                 allowPhoneSignIn = false,
             )
         }
@@ -240,6 +253,17 @@ private fun TvMainShell(
     var barHasFocus by remember { mutableStateOf(false) }
     // The card each pushed page was opened from, so Back can hand focus back to it.
     val returnFocus = remember { mutableListOf<FocusRequester?>() }
+
+    val openAccount: () -> Unit = {
+        if (detailStack.isNotEmpty()) {
+            detailStack.clear()
+            returnFocus.clear()
+            viewModel.clearDetail()
+        }
+        chrome.contentScrolled = false
+        destination = TvDestination.HOME
+        onOpenAccount()
+    }
 
     val select: (TvDestination) -> Unit = { next ->
         if (detailStack.isNotEmpty()) {
@@ -369,7 +393,7 @@ private fun TvMainShell(
                                 playerState = playerState,
                                 onNavigateToDetail = openDetail,
                                 onNavigateToNowPlaying = openNowPlaying,
-                                onOpenAccount = onOpenAccount,
+                                onOpenAccount = openAccount,
                             )
                             TvDestination.SEARCH -> TvSearchScreen(
                                 viewModel = viewModel,
@@ -379,7 +403,7 @@ private fun TvMainShell(
                             )
                             TvDestination.SETTINGS -> TvSettingsScreen(
                                 viewModel = viewModel,
-                                onOpenAccount = onOpenAccount,
+                                onOpenAccount = openAccount,
                                 onRunSetupAgain = onRunSetupAgain,
                             )
                         }
@@ -420,7 +444,7 @@ private fun TvMainShell(
                 contentFocus = if (activeDetail != null) detailFocus else contentFocus,
                 onSelect = select,
                 onOpenNowPlaying = openNowPlaying,
-                onOpenAccount = onOpenAccount,
+                onOpenAccount = openAccount,
                 modifier = Modifier
                     .align(Alignment.TopCenter)
                     .zIndex(10f)
