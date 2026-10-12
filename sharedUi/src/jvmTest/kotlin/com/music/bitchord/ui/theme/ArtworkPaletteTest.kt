@@ -1,8 +1,6 @@
 package com.music.bitchord.ui.theme
 
-import androidx.compose.ui.graphics.Color
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotEquals
 import org.junit.Test
 
 class ArtworkPaletteTest {
@@ -23,18 +21,4 @@ class ArtworkPaletteTest {
         assertEquals(0.62f, adaptedArtworkSaturation(0.90f, minimum = 0.20f, maximum = 0.62f), 0f)
     }
 
-    @Test
-    fun nearBlackWithATraceOfColourIsTreatedAsGrey() {
-        // A sleeve that is mostly black: high HSL saturation, no visible colour.
-        val swatch = Color(red = 22, green = 12, blue = 26).neutralizedIfGrey()
-        assertEquals(swatch.red, swatch.green, 0.01f)
-        assertEquals(swatch.green, swatch.blue, 0.01f)
-    }
-
-    @Test
-    fun visiblyColouredSwatchIsLeftAlone() {
-        val swatch = Color(red = 40, green = 90, blue = 60)
-        assertEquals(swatch, swatch.neutralizedIfGrey())
-        assertNotEquals(swatch.red, swatch.green)
-    }
 }

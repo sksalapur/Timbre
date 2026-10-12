@@ -190,19 +190,6 @@ private const val PLAYER_TINT_MAX_SATURATION = 0.40f
 /** Spread between the strongest and weakest channel — colour you can see, unlike HSL saturation. */
 private fun Color.chroma(): Float = maxOf(red, green, blue) - minOf(red, green, blue)
 
-/**
- * A swatch with no visible colour, taken down to the true grey of the same
- * lightness; anything with real chroma is returned as it is.
- *
- * [adaptedArtworkSaturation] already keeps a grey grey, but it judges by HSL
- * saturation, and HSL rates a near-black's trace of colour as strongly
- * saturated — a black with a little red and blue in it is a "purple" at 40%.
- * Lifted to a page tint, that is the dark purple UTOPIA's black sleeve came out
- * as. Chroma is the measure the eye agrees with.
- */
-internal fun Color.neutralizedIfGrey(): Color =
-    if (chroma() >= TINT_MIN_CHROMA) this else withHsl(saturation = { 0f })
-
 /** Below this a swatch is black, white or grey to the eye, whatever hue HSL assigns it. */
 private const val TINT_MIN_CHROMA = 0.08f
 
@@ -377,10 +364,7 @@ internal fun topBandScrimAlpha(artworkLuminance: Float?): Float {
 private const val PLAYER_STATUS_SCRIM_MIN_ALPHA = 0.16f
 private const val PLAYER_STATUS_SCRIM_MAX_ALPHA = 0.65f
 
-private fun Seed.toPalette(dark: Boolean): ArtworkPalette =
-    copy(dominant = dominant.neutralizedIfGrey(), edge = edge.neutralizedIfGrey()).paletteFor(dark)
-
-private fun Seed.paletteFor(dark: Boolean): ArtworkPalette = if (dark) {
+private fun Seed.toPalette(dark: Boolean): ArtworkPalette = if (dark) {
     ArtworkPalette(
         // Deep enough that white body text clears contrast on any sleeve, but
         // not so deep the hue is gone — the whole point is that the page is

@@ -182,9 +182,17 @@ internal fun splitQueue(queue: List<Song>, currentIndex: Int, showHistory: Boole
         val id = queue[i].videoId
         seen.getOrDefault(id, 0).also { seen[id] = it + 1 }
     }
+    // A lazy list throws on a repeated key, and two rows can share an entry id
+    // (a queue restored twice, an add replayed); the repeat gets a suffix
+    // instead of taking the whole player down.
+    val usedKeys = HashSet<String>()
     fun track(index: Int, prefix: String): QueueTrack {
         val song = queue[index]
-        return QueueTrack(index, song, prefix + "_" + (song.queueEntryId ?: "${song.videoId}#${occurrence[index]}"))
+        val base = prefix + "_" + (song.queueEntryId ?: "${song.videoId}#${occurrence[index]}")
+        var key = base
+        var repeat = 1
+        while (!usedKeys.add(key)) key = base + "~" + repeat++
+        return QueueTrack(index, song, key)
     }
     val user = ArrayList<QueueTrack>()
     val context = ArrayList<QueueTrack>()

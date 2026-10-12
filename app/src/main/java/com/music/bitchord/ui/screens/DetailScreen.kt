@@ -12,6 +12,7 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import com.music.bitchord.ui.components.liquidGlassRim
 import com.music.bitchord.ui.components.longPressMenuClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -1430,6 +1431,9 @@ private fun CircleIconButton(
             .alpha(if (enabled) 1f else DISABLED_ACTION_ALPHA)
             .clip(CircleShape)
             .background(Color.White.copy(alpha = LIGHT_FILL_ALPHA), CircleShape)
+            // The glass rim the floating bars wear, with Liquid Glass on. Rim
+            // only: over the page's flat tint a blurred fill would look the same.
+            .liquidGlassRim(CircleShape)
             .border(1.dp, Color.White.copy(alpha = TOP_RELEASE_EDGE_ALPHA), CircleShape)
             .clickable(enabled = enabled) {
                 haptics.play(haptic)
