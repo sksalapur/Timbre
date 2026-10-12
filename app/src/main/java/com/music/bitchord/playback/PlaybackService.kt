@@ -150,6 +150,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
@@ -1677,6 +1678,16 @@ class PlaybackService : MediaLibraryService() {
                     }
                 }
         }
+        scope.launch {
+            var wasInParty = ListenTogether.state.value.inParty
+            ListenTogether.state
+                .map { it.inParty }
+                .distinctUntilChanged()
+                .collect { inParty ->
+                    if (wasInParty && !inParty) rebuildBoundedContextAfterParty()
+                    wasInParty = inParty
+                }
+        }
         loadAutoplayForCurrentTrack()
 
         // Only the analytics listener reports the format the audio renderer was
@@ -2432,6 +2443,7 @@ class PlaybackService : MediaLibraryService() {
             AppSettings.setShuffleEnabled(edit.desiredShuffle)
             replaceBoundedUpcoming(exoPlayer, window)
         }
+        if (edit.refresh) replaceBoundedUpcoming(exoPlayer, window)
         if (edit.topUp) {
             applyBoundedContextTopUp()
         }
@@ -2616,6 +2628,7 @@ class PlaybackService : MediaLibraryService() {
                 return@launch
             }
             applyBoundedContextTopUp()
+            boundedEditState = boundedEditState.copy(topUpPending = false)
         }
     }
 
@@ -2673,6 +2686,7 @@ class PlaybackService : MediaLibraryService() {
 
     private fun syncBoundedContextCursor(exoPlayer: ExoPlayer, mediaItem: MediaItem?) {
         val window = boundedContextWindow ?: return
+        if (ListenTogether.state.value.inParty) return
         if (mediaItem?.queueTier != QueueTier.CONTEXT) return
         val canonicalIndex = QueueShuffle.getCanonicalIndex(mediaItem) ?: return
         val cycle = mediaItem.contextCycleId
@@ -2681,6 +2695,25 @@ class PlaybackService : MediaLibraryService() {
         } else if (window.currentCanonicalIndex != canonicalIndex) {
             window.jumpTo(canonicalIndex)
         }
+    }
+
+    /** Re-establishes the local bounded projection after PartySync gives up ownership. */
+    private fun rebuildBoundedContextAfterParty() {
+        val exoPlayer = player ?: return
+        val window = boundedContextWindow ?: return
+        val snapshot = boundedContextRegistry.snapshot() ?: return
+        if (snapshot.contextToken != boundedContextToken) return
+        val anchor = boundedContextAnchor(exoPlayer)
+        if (anchor == null || anchor !in snapshot.songs.indices) {
+            // The party may have replaced the queue with tracks that have no
+            // local canonical identity. Preserve that queue rather than reset
+            // playback into an unproven bounded reconstruction.
+            clearBoundedContext()
+            return
+        }
+        if (window.currentCanonicalIndex != anchor) window.jumpTo(anchor)
+        boundedEditState = BoundedQueueEdits.requestRefresh(boundedEditState)
+        if (crossfade?.isTransitioning() != true) applyDeferredBoundedQueueEdit()
     }
 
     private fun boundedMediaItems(plan: BoundedContextPlan, window: QueueWindow): List<MediaItem> {
