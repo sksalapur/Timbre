@@ -22,7 +22,6 @@ import com.google.android.gms.cast.framework.media.CastMediaOptions
 class CastOptionsProvider : OptionsProvider {
 
     override fun getCastOptions(context: Context): CastOptions {
-        CastLog.d("CastOptionsProvider instantiated by the framework")
         val media = CastMediaOptions.Builder()
             .setNotificationOptions(null)
             .setMediaSessionEnabled(false)

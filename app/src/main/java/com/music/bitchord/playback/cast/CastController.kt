@@ -5,7 +5,6 @@ import android.util.Log
 import androidx.mediarouter.media.MediaRouteSelector
 import androidx.mediarouter.media.MediaRouter
 import com.google.android.gms.cast.Cast
-import com.google.android.gms.cast.CastStatusCodes
 import com.google.android.gms.cast.framework.CastContext
 import com.google.android.gms.cast.framework.CastSession
 import com.google.android.gms.cast.framework.SessionManagerListener
@@ -70,62 +69,40 @@ object CastController {
     }
 
     private val sessionListener = object : SessionManagerListener<CastSession> {
-        override fun onSessionStarting(session: CastSession) {
-            CastLog.d("session starting: ${describe(session)}")
-            update { it.copy(connecting = true) }
-        }
+        override fun onSessionStarting(session: CastSession) = update { it.copy(connecting = true) }
 
-        override fun onSessionStarted(session: CastSession, sessionId: String) {
-            CastLog.d("session started: id=$sessionId ${describe(session)}")
+        override fun onSessionStarted(session: CastSession, sessionId: String) =
             began(session, resumed = false)
-        }
 
         override fun onSessionStartFailed(session: CastSession, error: Int) {
             Log.w(TAG, "session start failed: $error")
-            CastLog.w("session start FAILED: code=$error (${CastStatusCodes.getStatusCodeString(error)}) ${describe(session)}")
             update { it.copy(connecting = false) }
             playback?.onConnectFailed()
         }
 
         override fun onSessionEnding(session: CastSession) {
-            CastLog.d("session ending: ${describe(session)}")
             playback?.onSessionEnding(session)
         }
 
         override fun onSessionEnded(session: CastSession, error: Int) {
-            CastLog.d("session ended: code=$error (${CastStatusCodes.getStatusCodeString(error)})")
             stopWatching()
             update { it.copy(connecting = false, connectedName = null) }
             playback?.onSessionEnded(error)
             publishDevices()
         }
 
-        override fun onSessionResuming(session: CastSession, sessionId: String) {
-            CastLog.d("session resuming: id=$sessionId")
+        override fun onSessionResuming(session: CastSession, sessionId: String) =
             update { it.copy(connecting = true) }
-        }
 
-        override fun onSessionResumed(session: CastSession, wasSuspended: Boolean) {
-            CastLog.d("session resumed: wasSuspended=$wasSuspended ${describe(session)}")
+        override fun onSessionResumed(session: CastSession, wasSuspended: Boolean) =
             began(session, resumed = true)
-        }
 
-        override fun onSessionResumeFailed(session: CastSession, error: Int) {
-            CastLog.w("session resume FAILED: code=$error (${CastStatusCodes.getStatusCodeString(error)})")
+        override fun onSessionResumeFailed(session: CastSession, error: Int) =
             update { it.copy(connecting = false) }
-        }
 
         // A dropped connection the framework is still trying to win back.
         // Nothing to do: the receiver keeps playing its queue meanwhile.
-        override fun onSessionSuspended(session: CastSession, reason: Int) {
-            CastLog.w("session suspended: reason=$reason")
-        }
-    }
-
-    private fun describe(session: CastSession): String {
-        val device = session.castDevice
-        return "device=${device?.friendlyName} model=${device?.modelName} id=${device?.deviceId} " +
-            "connected=${session.isConnected} client=${session.remoteMediaClient != null}"
+        override fun onSessionSuspended(session: CastSession, reason: Int) = Unit
     }
 
     /**
@@ -137,11 +114,8 @@ object CastController {
         if (started) return
         started = true
         val app = context.applicationContext
-        val availability = GoogleApiAvailability.getInstance().isGooglePlayServicesAvailable(app)
-        CastLog.d("ensureStarted: play services availability=$availability (0 = ok)")
-        if (availability != ConnectionResult.SUCCESS) {
+        if (GoogleApiAvailability.getInstance().isGooglePlayServicesAvailable(app) != ConnectionResult.SUCCESS) {
             Log.i(TAG, "Play Services unavailable; casting disabled")
-            CastLog.w("Play Services unavailable; casting disabled")
             return
         }
         try {
@@ -151,17 +125,14 @@ object CastController {
                 .addOnSuccessListener { ctx -> onReady(app, ctx) }
                 .addOnFailureListener {
                     Log.w(TAG, "Cast framework unavailable", it)
-                    CastLog.e("Cast framework unavailable", it)
                 }
         } catch (e: Exception) {
             Log.w(TAG, "Cast framework unavailable", e)
-            CastLog.e("Cast framework unavailable", e)
         }
     }
 
     private fun onReady(app: Context, ctx: CastContext) {
         castContext = ctx
-        CastLog.d("framework ready; selector=${ctx.mergedSelector}")
         router = MediaRouter.getInstance(app)
         selector = ctx.mergedSelector
         ctx.sessionManager.addSessionManagerListener(sessionListener, CastSession::class.java)
@@ -218,24 +189,9 @@ object CastController {
 
     fun connect(deviceId: String) {
         val router = router ?: return
-        val route = router.routes.firstOrNull { it.id == deviceId }
-        if (route == null) {
-            CastLog.w("connect: no route with id=$deviceId; known=${router.routes.map { it.id }}")
-            return
-        }
-        CastLog.d(
-            "connect requested: ${route.name} id=${route.id} enabled=${route.isEnabled} " +
-                "state=${route.connectionState} playbackType=${route.playbackType} " +
-                "extras=${route.extras?.keySet()?.toList()}",
-        )
-        CastLog.flush()
+        val route = router.routes.firstOrNull { it.id == deviceId } ?: return
         update { it.copy(connecting = true) }
-        try {
-            router.selectRoute(route)
-        } catch (t: Throwable) {
-            CastLog.e("selectRoute threw", t)
-            throw t
-        }
+        router.selectRoute(route)
     }
 
     /**
@@ -259,7 +215,6 @@ object CastController {
     }
 
     private fun began(session: CastSession, resumed: Boolean) {
-        CastLog.d("began: resumed=$resumed playbackBound=${playback != null}")
         watch(session)
         update {
             it.copy(
@@ -289,7 +244,6 @@ object CastController {
         val devices = if (router == null || selector == null) {
             emptyList()
         } else {
-            CastLog.d("routes: " + router.routes.joinToString { "${it.name}[default=${it.isDefault} on=${it.isEnabled} sel=${it.isSelected}]" })
             router.routes
                 .filter { !it.isDefault && it.isEnabled && it.matchesSelector(selector) }
                 .map {

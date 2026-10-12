@@ -198,23 +198,15 @@ class CastPlayback(
         } catch (t: Throwable) {
             // This runs inside the framework's callback; an exception here ends
             // the app. A receiver that could not be set up is a failed cast.
-            CastLog.e("onSessionBegan threw", t)
+            Log.e(TAG, "onSessionBegan threw", t)
             release()
             say(R.string.cast_connect_failed)
         }
     }
 
     private fun beginSession(newSession: CastSession, resumed: Boolean) {
-        val remote = newSession.remoteMediaClient
-        if (remote == null) {
-            CastLog.w("onSessionBegan: session has no RemoteMediaClient; nothing to drive")
-            return
-        }
-        if (active && remote === client) {
-            CastLog.d("onSessionBegan: already driving this client")
-            return
-        }
-        CastLog.d("onSessionBegan: resumed=$resumed localPlayer=${localPlayer() != null} status=${remote.mediaStatus?.playerState}")
+        val remote = newSession.remoteMediaClient ?: return
+        if (active && remote === client) return
         release()
         session = newSession
         client = remote
@@ -227,7 +219,6 @@ class CastPlayback(
             val wasPlaying = player.playWhenReady && player.playbackState != Player.STATE_ENDED
             val position = player.currentPosition.coerceAtLeast(0L)
             val currentId = player.currentMediaItem?.mediaId
-            CastLog.d("handing over: item=$currentId position=${position}ms wasPlaying=$wasPlaying queue=${player.mediaItemCount}")
             // The phone goes quiet first, whatever happens next, so the two
             // are never both audible.
             player.pause()
@@ -277,7 +268,6 @@ class CastPlayback(
             if (resume) player.play()
         }
         Log.i(TAG, "session ended: error=$error resumeHere=$resume")
-        CastLog.d("playback released: error=$error resumeHere=$resume at=${endPositionMs}ms item=$endMediaId")
         sink?.onRemoteRouteChanged()
         sink?.onRemotePlaybackChanged()
     }
@@ -350,7 +340,6 @@ class CastPlayback(
         val remote = client ?: return
         val status = remote.mediaStatus ?: return
         val state = status.playerState
-        CastLog.d("receiver status: state=$state idle=${status.idleReason} item=${status.currentItemId} queue=${status.queueItemCount}")
         // Whatever the phone last asked for has been answered by now.
         requestedAt = 0L
 
@@ -369,7 +358,6 @@ class CastPlayback(
                     wantsPlay = false
                     onReceiverFinished()
                 } else if (status.idleReason == MediaStatus.IDLE_REASON_ERROR) {
-                    CastLog.w("receiver reported a playback ERROR for item=${status.currentItemId}")
                     wantsPlay = false
                     loading = false
                     say(R.string.cast_track_unsupported)
@@ -421,14 +409,13 @@ class CastPlayback(
         requestedAt = SystemClock.elapsedRealtime()
         sink?.onRemotePlaybackChanged()
 
-        CastLog.d("load: item=${item?.mediaId} position=${positionMs}ms play=$play generation=$generation")
         loadJob = scope.launch {
             try {
                 loadNow(item, positionMs, play, generation, remote)
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (t: Throwable) {
-                CastLog.e("load threw", t)
+                Log.e(TAG, "load threw", t)
                 loading = false
                 wantsPlay = false
                 say(R.string.cast_connect_failed)
@@ -463,13 +450,10 @@ class CastPlayback(
                 .setAutoplay(play)
                 .setCurrentTime(positionMs)
                 .build()
-            CastLog.d("sending LOAD to receiver (repeat=$repeat start=${positionMs}ms autoplay=$play)")
             val result = remote.load(request).awaitResult()
-            CastLog.d("LOAD answered: success=${result.status.isSuccess} code=${result.status.statusCode} msg=${result.status.statusMessage}")
             if (generation != loadGeneration || !active) return@run
             if (!result.status.isSuccess) {
                 Log.w(TAG, "load failed: ${result.status.statusCode}")
-                CastLog.w("load FAILED: code=${result.status.statusCode} ${result.status.statusMessage}")
                 loading = false
                 wantsPlay = false
                 say(R.string.cast_track_unsupported)
@@ -501,7 +485,7 @@ class CastPlayback(
                     } catch (e: kotlinx.coroutines.CancellationException) {
                         throw e
                     } catch (t: Throwable) {
-                        CastLog.e("reconcile threw", t)
+                        Log.e(TAG, "reconcile threw", t)
                     }
                 }
             } while (reconcileAgain && active)
@@ -549,14 +533,8 @@ class CastPlayback(
             resolve(item)
         } catch (e: Exception) {
             Log.w(TAG, "could not resolve ${item.mediaId} for casting", e)
-            CastLog.w("could not resolve ${item.mediaId} for casting", e)
             null
-        }
-        if (stream == null) {
-            CastLog.w("resolve gave no castable stream for ${item.mediaId} (local file, header-bound source, or resolver failed)")
-            return null
-        }
-        CastLog.d("resolved ${item.mediaId}: ${CastLog.url(stream.url)} mime=${stream.mimeType}")
+        } ?: return null
 
         val metadata = item.mediaMetadata
         val music = MediaMetadata(MediaMetadata.MEDIA_TYPE_MUSIC_TRACK).apply {
