@@ -19,6 +19,23 @@
   <img src="https://img.shields.io/badge/License-GPLv3-brightgreen?style=for-the-badge" />
 </p>
 
+> ### 💡 What is TrueBit?
+> **TrueBit** is a specialized, bit-perfect audiophile fork built upon the exceptional foundation of [**BitChord**](https://github.com/kushagrasinghx/BitChord). This project would not be possible without the brilliant player architecture, sleek UI, and open-source contributions of BitChord and its creator, [kushagrasinghx](https://github.com/kushagrasinghx).
+
+---
+
+## 🛠️ My Changes to BitChord
+
+TrueBit injects precision hardware routing, uncompressed lossless streaming, and mobile-first enhancements into BitChord:
+
+- 🎵 **Lossless-First Audio Routing (0:00)**: Directs streams to studio 24-bit FLAC sources from the very first second. Includes a customizable **Lossless Priority Window slider (0.5s–5.0s)** in Settings to balance connection speed with audio purity.
+- ⏩ **Predictive 4-Track Lookahead**: Quadruples queue lookahead buffering (from 1 track to 4 tracks), pre-resolving audio streams in the background for zero-latency gapless playback.
+- 🎛️ **Direct Bit-Perfect Hardware Routing**: Connects unresampled AudioTrack sinks unconstrained by Android's default 48kHz audio mixer, delivering pure 24-bit / 96kHz / 192kHz PCM to external USB DACs and Type-C DSP earphones (like Moondrop Chu II DSP).
+- 📊 **Accurate Live Bitrate Telemetry**: Live FLAC and PCM bitrate monitoring in Nerd Stats instead of zeroed metrics.
+- ⚡ **TrueBit Audio Wave Vector Identity**: Replaces BitChord marks across UI headings, Replay cards, and status-bar notifications with TrueBit's signature audio waveform silhouette.
+- 📱 **Streamlined Mobile Architecture**: Stripped desktop/TV modules and runtime bloat to deliver a battery-efficient, high-performance pure Android mobile player.
+- 🔒 **Private Edge Token Gate**: Direct integration with TrueBit's private Cloudflare Edge Worker & D1 database via `@TrueBitLosslessBot`, providing sustainable quota-enforced Hi-Res streaming with zero browser login.
+
 ---
 
 ## 🎧 The Problem
@@ -114,8 +131,10 @@ All modifications are maintained as atomic, surgical `.patch` files in the [`.pa
 
 ## 🤝 Credits & Acknowledgements
 
-- **[BitChord](https://github.com/kushagrasinghx/BitChord)** — Created by [kushagrasinghx](https://github.com/kushagrasinghx). All core player architecture, audio pipelines, and UI belong to the original BitChord team.
-- **[Lossless Bridge](https://github.com/sksalapur/lossless-bridge)** — High-performance cloud proxy routing lossless FLAC streams.
+TrueBit stands on the shoulders of giants. This project would **not be possible without BitChord**:
+
+- **[BitChord](https://github.com/kushagrasinghx/BitChord)** — Created by [kushagrasinghx](https://github.com/kushagrasinghx). Immense credit, gratitude, and respect to Kushagra and the BitChord community. The core player foundation, audio pipeline abstractions, beautiful UI design, and playback coordination belong to the BitChord project. TrueBit is proud to build upon this extraordinary work.
+- **[Cloudflare Workers & D1](https://workers.cloudflare.com)** — Edge computing and SQLite database infrastructure powering TrueBit's private addon gateway.
 - **[TrueBit Community](https://t.me/TrueBit_Lossless)** — Official Telegram community discussion group for audiophiles and user feedback.
 
 ---
