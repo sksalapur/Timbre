@@ -108,8 +108,9 @@ private enum class AccountDialogMode { Profiles, SignInChoose, SignInPhone, Sign
 fun TvAccountDialog(
     viewModel: MainViewModel,
     onDismiss: () -> Unit,
+    onSignOut: () -> Unit = {},
     /** Offer signing in with a phone (QR). Off goes straight to signing in on the TV. */
-    allowPhoneSignIn: Boolean = true,
+    allowPhoneSignIn: Boolean = false,
 ) {
     val googleAccounts by viewModel.googleAccounts.collectAsState()
     val activeAccountId by viewModel.activeAccountId.collectAsState()
@@ -148,14 +149,10 @@ fun TvAccountDialog(
                     viewModel.selectProfile(account.accountId, profile.profileId, profile)
                     onDismiss()
                 },
-                onAddAccount = {
-                    mode = if (allowPhoneSignIn) AccountDialogMode.SignInChoose else AccountDialogMode.SignInTv
-                },
                 onRemoveAccount = { account ->
+                    TvSettings.wipeAllPins()
                     viewModel.removeAccount(account.accountId)
-                },
-                onSignOutAll = {
-                    viewModel.signOut()
+                    onSignOut()
                     onDismiss()
                 },
                 onDismiss = onDismiss,
@@ -196,16 +193,14 @@ fun TvAccountDialog(
     }
 }
 
-/** Full-screen YouTube-style profile switcher for Android TV. */
+/** Full-screen Apple-style profile switcher for Android TV. */
 @Composable
 private fun TvProfileSwitcher(
     googleAccounts: List<GoogleAccountSession>,
     activeAccountId: String?,
     activeProfileId: String?,
     onSelectProfile: (GoogleAccountSession, YouTubeProfile) -> Unit,
-    onAddAccount: () -> Unit,
     onRemoveAccount: (GoogleAccountSession) -> Unit,
-    onSignOutAll: () -> Unit,
     onDismiss: () -> Unit,
 ) {
     var pendingUnlockProfile by remember { mutableStateOf<Pair<GoogleAccountSession, YouTubeProfile>?>(null) }
@@ -215,7 +210,9 @@ private fun TvProfileSwitcher(
     val allProfiles = remember(googleAccounts) {
         googleAccounts.flatMap { account ->
             if (account.profiles.isNotEmpty()) {
-                account.profiles.map { profile -> account to profile }
+                val personal = account.profiles.filterNot { it.isBrandAccount }
+                val brand = account.profiles.filter { it.isBrandAccount }
+                (personal + brand).map { profile -> account to profile }
             } else {
                 listOf(
                     account to YouTubeProfile(
@@ -335,7 +332,12 @@ private fun TvProfileSwitcher(
                             TvProfileCard(
                                 account = account,
                                 profile = profile,
-                                modifier = Modifier.tvInitialFocus(enabled = index == 0),
+                                modifier = Modifier
+                                    .tvInitialFocus(enabled = index == 0)
+                                    .focusProperties {
+                                        if (index == 0) left = FocusRequester.Cancel
+                                        if (index == allProfiles.lastIndex) right = FocusRequester.Cancel
+                                    },
                                 onClick = {
                                     if (TvSettings.isProfileLocked(profile.profileId)) {
                                         unlockError = null
@@ -348,23 +350,14 @@ private fun TvProfileSwitcher(
 
                             TvProfileSettingsButton(
                                 visible = itemFocused,
+                                modifier = Modifier.focusProperties {
+                                    if (index == 0) left = FocusRequester.Cancel
+                                    if (index == allProfiles.lastIndex) right = FocusRequester.Cancel
+                                },
                                 onClick = {
                                     selectedAccountForSettings = account to profile
                                 },
                             )
-                        }
-                    }
-
-                    item(key = "add_account") {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(16.dp),
-                        ) {
-                            TvAddAccountCard(
-                                onClick = onAddAccount,
-                                modifier = Modifier.tvInitialFocus(enabled = allProfiles.isEmpty()),
-                            )
-                            Spacer(modifier = Modifier.height(38.dp))
                         }
                     }
                 }
@@ -561,6 +554,11 @@ private fun TvAccountSettingsDialog(
             )
         }
         null -> {
+            val isFirstProfile = !profile.isBrandAccount ||
+                account.profiles.firstOrNull { !it.isBrandAccount }?.profileId == profile.profileId ||
+                account.profiles.firstOrNull()?.profileId == profile.profileId ||
+                account.profiles.isEmpty()
+
             TvDialog(
                 title = profile.name.ifBlank { account.name.ifBlank { "Account Settings" } },
                 message = profile.handle.ifBlank { account.email.ifBlank { null } },
@@ -590,16 +588,19 @@ private fun TvAccountSettingsDialog(
                         },
                     )
 
-                    TvListRow(
-                        title = "Sign Out",
-                        subtitle = "Remove this account from TV",
-                        destructive = true,
-                        leadingIcon = Icons.AutoMirrored.Rounded.Logout,
-                        onClick = {
-                            onSignOut()
-                            onDismiss()
-                        },
-                    )
+                    if (isFirstProfile) {
+                        TvListRow(
+                            title = "Sign Out",
+                            subtitle = "Remove this account from TV",
+                            destructive = true,
+                            leadingIcon = Icons.AutoMirrored.Rounded.Logout,
+                            onClick = {
+                                TvSettings.wipeAllPins()
+                                onSignOut()
+                                onDismiss()
+                            },
+                        )
+                    }
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
@@ -798,62 +799,7 @@ private fun TvPinDialog(
     }
 }
 
-@Composable
-private fun TvAddAccountCard(
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val interaction = remember { MutableInteractionSource() }
-    val focused by interaction.collectIsFocusedAsState()
-    val shape = RoundedCornerShape(20.dp)
 
-    Column(
-        modifier = modifier
-            .width(170.dp)
-            .height(230.dp)
-            .tvLift(interaction, shape, focusedScale = 1.08f, elevation = 20.dp)
-            .tvPlatter(interaction, resting = TvGlass.Fill, focused = TvGlass.Platter)
-            .tvClick(interaction, onClick = onClick)
-            .padding(16.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
-    ) {
-        Box(
-            modifier = Modifier
-                .size(88.dp)
-                .clip(CircleShape)
-                .background(if (focused) TvGlass.OnPlatterSecondary.copy(alpha = 0.15f) else Color.White.copy(alpha = 0.08f)),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                imageVector = Icons.Rounded.Add,
-                contentDescription = "Add Account",
-                tint = if (focused) TvGlass.OnPlatter else TvGlass.TextPrimary,
-                modifier = Modifier.size(40.dp),
-            )
-        }
-
-        Spacer(modifier = Modifier.height(14.dp))
-
-        Text(
-            text = "Add Account",
-            style = TvType.CardTitle.copy(fontWeight = FontWeight.Bold),
-            color = if (focused) TvGlass.OnPlatter else TvGlass.TextPrimary,
-            maxLines = 1,
-            textAlign = TextAlign.Center,
-        )
-
-        Spacer(modifier = Modifier.height(4.dp))
-
-        Text(
-            text = "Sign in with Google",
-            style = TvType.Caption,
-            color = if (focused) TvGlass.OnPlatterSecondary else TvGlass.TextSecondary,
-            maxLines = 1,
-            textAlign = TextAlign.Center,
-        )
-    }
-}
 
 
 
