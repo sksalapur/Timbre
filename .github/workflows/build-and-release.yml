@@ -36,7 +36,7 @@ jobs:
       - name: Build Android Release APK
         run: |
           chmod +x gradlew
-          ./gradlew assembleProdRelease -x test -x lint -x lintVitalProdRelease --no-daemon --stacktrace
+          ./gradlew assembleProdRelease -x test --no-daemon --stacktrace
 
       - name: Sign APKs (Keystore or Auto-Debug Key)
         id: sign_apk
