@@ -5,8 +5,8 @@ import urllib.request
 import urllib.error
 import html
 
-DEFAULT_BOT_TOKEN = "8657793462:AAFapzdJ2lXqgOM-6o0GubdbPXqEdklw6B4"
-DEFAULT_CHAT_ID = "@TrueBit_Lossless"
+DEFAULT_BOT_TOKEN = "8851295493:AAGc1sLYeu23iS43OL5dF6fXkkeQXGAxF1c"
+DEFAULT_CHAT_ID = "@Timbre_Community"
 DEFAULT_REPO = "sksalapur/Timbre"
 
 def send_telegram_release(tag, repo=DEFAULT_REPO, notes_file="release_notes.md", banner_path="Banner.png"):
@@ -25,8 +25,8 @@ def send_telegram_release(tag, repo=DEFAULT_REPO, notes_file="release_notes.md",
     if "## Changelog" in body_text:
         parts = body_text.split("## Changelog", 1)
         changelog_section = parts[1].split("---")[0].strip()
-    elif "### 💎 Timbre Enhancements Included" in body_text:
-        parts = body_text.split("### 💎 Timbre Enhancements Included", 1)
+    elif "### \U0001F48E Timbre Enhancements Included" in body_text:
+        parts = body_text.split("### \U0001F48E Timbre Enhancements Included", 1)
         changelog_section = parts[1].split("---")[0].strip()
     elif "## Top Features" in body_text:
         parts = body_text.split("## Top Features", 1)
@@ -41,7 +41,12 @@ def send_telegram_release(tag, repo=DEFAULT_REPO, notes_file="release_notes.md",
 
     changelog_snippet = "\n".join(clean_lines)
     if not changelog_snippet:
-        changelog_snippet = "• Bit-Perfect uncompressed 24-bit/192kHz playback\n• Direct hardware AudioTrack routing for external DACs\n• Predictive 4-track lookahead queue buffering\n• Lossless-first streaming priority window"
+        changelog_snippet = (
+            "• Bit-Perfect uncompressed 24-bit/192kHz playback\n"
+            "• Direct hardware AudioTrack routing for external DACs\n"
+            "• Predictive 4-track lookahead queue buffering\n"
+            "• Lossless-first streaming priority window"
+        )
 
     arm64_url = f"https://github.com/{repo}/releases/download/{tag}/Timbre-{tag}-arm64.apk"
     universal_url = f"https://github.com/{repo}/releases/download/{tag}/Timbre-{tag}.apk"
@@ -49,60 +54,54 @@ def send_telegram_release(tag, repo=DEFAULT_REPO, notes_file="release_notes.md",
     website_url = "https://sksalapur.github.io/Timbre/"
 
     caption_text = (
-        f"🚀 <b>Timbre {tag} Released!</b>\n"
+        f"\U0001F680 <b>Timbre {tag} Released!</b>\n"
         f"<i>Bit-Perfect High-Resolution Audio Streaming for Android</i>\n\n"
-        f"✨ <b>Release Highlights:</b>\n"
+        f"\u2728 <b>Release Highlights:</b>\n"
         f"{changelog_snippet}\n\n"
-        f"📲 <b>Direct Downloads:</b>\n"
+        f"\U0001F4F2 <b>Direct Downloads:</b>\n"
         f"• <b>ARM64</b> (Recommended): <a href=\"{arm64_url}\">Timbre-{tag}-arm64.apk</a>\n"
         f"• <b>Universal</b> (All devices): <a href=\"{universal_url}\">Timbre-{tag}.apk</a>"
     )
 
-    # Telegram caption max length is 1024 characters
     if len(caption_text) > 1020:
         caption_text = caption_text[:1000] + "...\n\n<i>Check GitHub for full changelog.</i>"
 
     reply_markup = {
         "inline_keyboard": [
             [
-                {"text": "📥 Download ARM64 APK", "url": arm64_url},
-                {"text": "🌐 Universal APK", "url": universal_url}
+                {"text": "\U0001F4E5 Download ARM64 APK", "url": arm64_url},
+                {"text": "\U0001F310 Universal APK", "url": universal_url}
             ],
             [
-                {"text": "🐙 GitHub Release", "url": release_url},
-                {"text": "🎧 Official Website", "url": website_url}
+                {"text": "\U0001F419 GitHub Release", "url": release_url},
+                {"text": "\U0001F3A7 Official Website", "url": website_url}
             ]
         ]
     }
 
-    # First attempt: sendPhoto using the banner image
+    # First attempt: sendPhoto using banner
     posted_successfully = False
     if os.path.exists(banner_path):
         try:
             boundary = "----WebKitFormBoundaryTimbreRelease7MA4YWxkTrZu0gW"
             body = []
 
-            # Add chat_id field
             body.append(f"--{boundary}".encode("utf-8"))
             body.append(b'Content-Disposition: form-data; name="chat_id"\r\n')
             body.append(chat_id.encode("utf-8"))
 
-            # Add caption field
             body.append(f"--{boundary}".encode("utf-8"))
             body.append(b'Content-Disposition: form-data; name="caption"\r\n')
             body.append(caption_text.encode("utf-8"))
 
-            # Add parse_mode field
             body.append(f"--{boundary}".encode("utf-8"))
             body.append(b'Content-Disposition: form-data; name="parse_mode"\r\n')
             body.append(b"HTML")
 
-            # Add reply_markup field
             body.append(f"--{boundary}".encode("utf-8"))
             body.append(b'Content-Disposition: form-data; name="reply_markup"\r\n')
             body.append(json.dumps(reply_markup).encode("utf-8"))
 
-            # Add photo file
             with open(banner_path, "rb") as f:
                 photo_bytes = f.read()
 
@@ -129,17 +128,17 @@ def send_telegram_release(tag, repo=DEFAULT_REPO, notes_file="release_notes.md",
         except Exception as e:
             print(f"sendPhoto attempt failed ({e}), falling back to sendMessage...")
 
-    # Fallback to sendMessage if sendPhoto was not used or failed
+    # Fallback to sendMessage
     if not posted_successfully:
         fallback_text = (
-            f"🚀 <b>Timbre {tag} Released!</b>\n"
+            f"\U0001F680 <b>Timbre {tag} Released!</b>\n"
             f"<i>Bit-Perfect High-Resolution Audio Streaming for Android</i>\n\n"
-            f"✨ <b>Release Highlights:</b>\n"
+            f"\u2728 <b>Release Highlights:</b>\n"
             f"{changelog_snippet}\n\n"
-            f"📲 <b>Direct APK Downloads:</b>\n"
+            f"\U0001F4F2 <b>Direct APK Downloads:</b>\n"
             f"• <b>ARM64</b> (Recommended): <a href=\"{arm64_url}\">Timbre-{tag}-arm64.apk</a>\n"
             f"• <b>Universal</b> (All devices): <a href=\"{universal_url}\">Timbre-{tag}.apk</a>\n\n"
-            f"🎧 <a href=\"{website_url}\">Official Website</a> | 🐙 <a href=\"{release_url}\">GitHub Release</a>"
+            f"\U0001F3A7 <a href=\"{website_url}\">Official Website</a> | \U0001F419 <a href=\"{release_url}\">GitHub Release</a>"
         )
         payload = {
             "chat_id": chat_id,
