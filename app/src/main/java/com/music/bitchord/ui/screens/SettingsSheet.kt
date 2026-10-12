@@ -1419,6 +1419,10 @@ fun SettingsScreen(
                     append("GitHub")
                 }
                 append("  ")
+                withLink(LinkAnnotation.Url("https://t.me/Timbre_Community", linkStyles)) {
+                    append("Telegram")
+                }
+                append("  ")
                 withLink(LinkAnnotation.Url("https://github.com/sksalapur", linkStyles)) {
                     append("Developer")
                 }
@@ -1426,7 +1430,7 @@ fun SettingsScreen(
                 withLink(LinkAnnotation.Url("https://sksalapur.github.io/Timbre/", linkStyles)) {
                     append("Website")
                 }
-                append("\n~YouTube Music & Listen Together Backend")
+                append("\nBit-Perfect Lossless Audio • Cloudflare Edge & Addons")
             },
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
