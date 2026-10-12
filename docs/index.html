@@ -39,6 +39,7 @@
     </a>
 
     <ul class="nav-links">
+      <li><a href="#studio" class="nav-link">Timbre Studio</a></li>
       <li><a href="#features" class="nav-link">Features</a></li>
       <li><a href="#hardware" class="nav-link">Hardware & DACs</a></li>
       <li><a href="addons.html" class="nav-link">Addon Docs</a></li>
@@ -157,9 +158,9 @@
           <span style="font-size: 0.85rem; font-weight: 600; color: #fff;">⚙️ Lossless Priority Window (Settings Slider)</span>
           <span id="demo-timeout-val" style="font-family: var(--font-mono); font-size: 0.9rem; color: var(--cyan-primary); font-weight: 700;">3.5s</span>
         </div>
-        <input type="range" id="demo-timeout-slider" min="0.5" max="5.0" step="0.5" value="3.5" style="width: 100%; accent-color: var(--cyan-primary); cursor: pointer;" />
+        <input type="range" id="demo-timeout-slider" min="0.5" max="8.0" step="0.1" value="3.5" style="width: 100%; accent-color: var(--cyan-primary); cursor: pointer;" />
         <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.35rem;">
-          Adjusts max wait for FLAC studio stream before fallback to YouTube Opus. Matches your personal connection speed and tolerance.
+          Adjusts max wait (0.5s – 8.0s) for studio FLAC stream before instant fallback race or Purist mode auto-skip.
         </div>
       </div>
 
@@ -185,29 +186,236 @@
       </p>
       <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem;">
         <div style="background: rgba(13, 17, 23, 0.8); border: 1px solid rgba(255,255,255,0.06); padding: 1rem 1.25rem; border-radius: 10px;">
-          <div style="font-weight: 700; color: #00E5FF; margin-bottom: 0.35rem;">🎵 Lossless-First Routing (0:00)</div>
-          <div style="font-size: 0.88rem; color: var(--text-dim);">Queries studio FLAC streams first with a tuned 0.5s–5.0s priority window slider in Settings, avoiding mid-track bitrate jumps.</div>
+          <div style="font-weight: 700; color: #00E5FF; margin-bottom: 0.35rem;">🎵 Lossless-First (0.5s – 8.0s) & Purist Mode</div>
+          <div style="font-size: 0.88rem; color: var(--text-dim);">Queries studio FLAC streams first with a 0.5s–8.0s priority window slider, instant fallback race, and zero-lossy Purist gatekeeper.</div>
         </div>
         <div style="background: rgba(13, 17, 23, 0.8); border: 1px solid rgba(255,255,255,0.06); padding: 1rem 1.25rem; border-radius: 10px;">
-          <div style="font-weight: 700; color: #00E5FF; margin-bottom: 0.35rem;">⏩ 4-Track Predictive Lookahead</div>
-          <div style="font-size: 0.88rem; color: var(--text-dim);">Pre-resolves and buffers the next 4 songs in queue (up from 1), guaranteeing instant gapless playback.</div>
+          <div style="font-weight: 700; color: #00E5FF; margin-bottom: 0.35rem;">⏩ Concurrent Lookahead Engine (3–20 Tracks)</div>
+          <div style="font-size: 0.88rem; color: var(--text-dim);">Resolves upcoming tracks in parallel over the network. Rapid skipping never cancels in-flight jobs, ensuring instant playback.</div>
         </div>
         <div style="background: rgba(13, 17, 23, 0.8); border: 1px solid rgba(255,255,255,0.06); padding: 1rem 1.25rem; border-radius: 10px;">
-          <div style="font-weight: 700; color: #00E5FF; margin-bottom: 0.35rem;">🎛️ Direct Unresampled DAC Output</div>
-          <div style="font-size: 0.88rem; color: var(--text-dim);">Direct AudioTrack sink unconstrained by Android's 48kHz mixer resampling, tailored for external DACs and Type-C DSP earphones.</div>
+          <div style="font-weight: 700; color: #00E5FF; margin-bottom: 0.35rem;">💾 True FLAC Disk Caching & Retention</div>
+          <div style="font-size: 0.88rem; color: var(--text-dim);">Background FLAC stream chunk writes aligned under true <code>#alt-noatmos</code> cache keys and protected with <code>Origin.LOSSLESS</code> retention.</div>
         </div>
         <div style="background: rgba(13, 17, 23, 0.8); border: 1px solid rgba(255,255,255,0.06); padding: 1rem 1.25rem; border-radius: 10px;">
-          <div style="font-weight: 700; color: #00E5FF; margin-bottom: 0.35rem;">📊 Accurate Bitrate Telemetry</div>
-          <div style="font-size: 0.88rem; color: var(--text-dim);">Live FLAC and PCM bitrate monitoring in Nerd Stats instead of zeroed metrics.</div>
+          <div style="font-weight: 700; color: #00E5FF; margin-bottom: 0.35rem;">🎛️ Timbre Studio Direct Hardware Sink</div>
+          <div style="font-size: 0.88rem; color: var(--text-dim);">Direct AudioTrack sink, UsbDirectManager permissions, bit-perfect rate switching (44.1–192kHz), and live Bluetooth A2DP telemetry.</div>
         </div>
         <div style="background: rgba(13, 17, 23, 0.8); border: 1px solid rgba(255,255,255,0.06); padding: 1rem 1.25rem; border-radius: 10px;">
-          <div style="font-weight: 700; color: #00E5FF; margin-bottom: 0.35rem;">⚡ Timbre Audio Wave Identity</div>
-          <div style="font-size: 0.88rem; color: var(--text-dim);">Replaced BitChord marks across UI headings, Replay cards, and status bar with Timbre's signature audio wave vector.</div>
+          <div style="font-weight: 700; color: #00E5FF; margin-bottom: 0.35rem;">📊 Live Decoded PCM Telemetry</div>
+          <div style="font-size: 0.88rem; color: var(--text-dim);">Genuine decoded physical data rates (1,411 kbps for 16/44.1, 4,608 kbps for 24/96, 9,216 kbps for 24/192) in Nerd Stats and Now Playing.</div>
         </div>
         <div style="background: rgba(13, 17, 23, 0.8); border: 1px solid rgba(255,255,255,0.06); padding: 1rem 1.25rem; border-radius: 10px;">
-          <div style="font-weight: 700; color: #00E5FF; margin-bottom: 0.35rem;">📱 Stripped Desktop / Mobile-Tuned</div>
-          <div style="font-size: 0.88rem; color: var(--text-dim);">Removed desktop and TV runtime overhead to deliver a battery-efficient, high-performance pure Android mobile player.</div>
+          <div style="font-weight: 700; color: #00E5FF; margin-bottom: 0.35rem;">📱 Pure Android Mobile Player</div>
+          <div style="font-size: 0.88rem; color: var(--text-dim);">Desktop and TV runtime bloat removed for maximum battery efficiency, snappy memory performance, and pure touch ergonomics.</div>
         </div>
+      </div>
+    </div>
+  </section>
+
+
+  <!-- Timbre Studio Audiophile Suite Section -->
+  <section class="studio-section" id="studio">
+    <div class="section-header">
+      <div style="display: inline-block; margin-bottom: 0.75rem;">
+        <span class="brand-badge" style="background: rgba(0, 229, 255, 0.15); color: #00E5FF; border: 1px solid rgba(0, 229, 255, 0.3);">
+          🎛️ Timbre Studio (v1.8-1 Suite)
+        </span>
+      </div>
+      <h2>The Onboard Audiophile Control Suite</h2>
+      <p>Direct hardware AudioTrack routing, real-time Bluetooth codec telemetry, bit-exact verification, and strict Purist playback controls engineered for mobile audiophiles.</p>
+    </div>
+
+    <!-- Signal Flow Architecture Card -->
+    <div class="signal-flow-card">
+      <div class="signal-flow-header">
+        <div>
+          <h3 style="font-size: 1.25rem; font-weight: 800; color: #fff; margin-bottom: 0.25rem;">⚡ Direct Bit-Exact Signal Pipeline</h3>
+          <p style="font-size: 0.85rem; color: var(--text-dim); margin: 0;">How Timbre delivers 24-bit / 192kHz uncompressed studio masters straight to your ears without Android mixer degradation.</p>
+        </div>
+        <span class="tag-verified" style="font-family: var(--font-mono); font-size: 0.8rem; padding: 0.35rem 0.75rem;">Unresampled Bit-Perfect</span>
+      </div>
+
+      <div class="signal-flow-steps">
+        <div class="signal-flow-step">
+          <span class="step-tag">STAGE 01 · SOURCE</span>
+          <h4>Cloudflare Hi-Res Edge</h4>
+          <p>Lossless 24-bit / 192kHz FLAC queried from 0:00 with 0.5s–8.0s tunable resolution window.</p>
+        </div>
+        <div class="signal-flow-step">
+          <span class="step-tag">STAGE 02 · CACHING</span>
+          <h4>Predictive Disk Cache</h4>
+          <p>Concurrent 3–20 track lookahead with true <code>#alt-noatmos</code> keys & <code>Origin.LOSSLESS</code> retention.</p>
+        </div>
+        <div class="signal-flow-step">
+          <span class="step-tag">STAGE 03 · SINK</span>
+          <h4>Precision AudioSink</h4>
+          <p>AndroidX Media3 AudioTrack sink configured for float/packed PCM, bypassing <code>AudioFlinger</code> resampling.</p>
+        </div>
+        <div class="signal-flow-step">
+          <span class="step-tag">STAGE 04 · HARDWARE</span>
+          <h4>Direct DAC Endpoint</h4>
+          <p>Direct digital transfer to Moondrop Chu II DSP, FiiO KA17, or desktop USB DACs at native sample rate.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Studio Features 13-Card Grid -->
+    <div class="studio-grid">
+      <!-- 1. Bit-Exact Certification Badge -->
+      <div class="studio-card">
+        <div class="studio-card-header">
+          <div class="studio-icon">💎</div>
+          <div>
+            <div class="studio-card-title">Bit-Exact Certification Badge</div>
+            <div class="studio-card-subtitle">Live Signal-Path Verification</div>
+          </div>
+        </div>
+        <p>Live diagnostic badge inside the Audio Pipeline inspector. Displays glowing emerald <strong>BIT-PERFECT: Bit-Exact Signal Path</strong> when audio bypasses Android's <code>AudioFlinger</code> mixer, or <strong>Framework Mixed (A2DP)</strong> when passing through system audio.</p>
+      </div>
+
+      <!-- 2. Bluetooth Codec Telemetry -->
+      <div class="studio-card">
+        <div class="studio-card-header">
+          <div class="studio-icon">📶</div>
+          <div>
+            <div class="studio-card-title">Bluetooth Codec Telemetry</div>
+            <div class="studio-card-subtitle">Real-Time A2DP Inspection</div>
+          </div>
+        </div>
+        <p>Dynamic detection and inspection of active negotiated Bluetooth codecs (<code>LDAC 990kbps</code>, <code>aptX Adaptive</code>, <code>aptX HD</code>, <code>AAC</code>, <code>SBC</code>) with exact negotiated bit depth and transmission sample rate (e.g. 24-bit / 96kHz).</p>
+      </div>
+
+      <!-- 3. Direct Bit-Perfect Mode (USB DAC Passthrough) -->
+      <div class="studio-card">
+        <div class="studio-card-header">
+          <div class="studio-icon">🔌</div>
+          <div>
+            <div class="studio-card-title">Direct Bit-Perfect Mode</div>
+            <div class="studio-card-subtitle">USB DAC Passthrough</div>
+          </div>
+        </div>
+        <p>Leverages <code>UsbDirectManager</code> to request Android USB host permissions for external DACs and Type-C DSPs (Moondrop Chu II DSP, FiiO KA11/KA13/KA17). Completely bypasses the Android 48kHz audio resampler.</p>
+      </div>
+
+      <!-- 4. Purist Mode -->
+      <div class="studio-card">
+        <div class="studio-card-header">
+          <div class="studio-icon">🛡️</div>
+          <div>
+            <div class="studio-card-title">Purist Mode</div>
+            <div class="studio-card-subtitle">Lossless or Nothing</div>
+          </div>
+        </div>
+        <p>Strict audiophile gatekeeper. When enabled, Timbre strictly refuses lossy YouTube audio fallback (128–160 kbps Opus/AAC). If a studio FLAC master cannot be resolved, Timbre automatically skips to the next track rather than playing lossy audio.</p>
+      </div>
+
+      <!-- 5. Priority Resolution Window -->
+      <div class="studio-card">
+        <div class="studio-card-header">
+          <div class="studio-icon">⏱️</div>
+          <div>
+            <div class="studio-card-title">Priority Resolution Window</div>
+            <div class="studio-card-subtitle">0.5s – 8.0s Granular Slider</div>
+          </div>
+        </div>
+        <p>Granular 0.1s slider controlling how long Timbre waits for Cloudflare edge workers to return 24-bit FLAC streams. Optimized fallback race ensures lossless plays instantly with zero stall if ready before fallback resolution.</p>
+      </div>
+
+      <!-- 6. Audio Buffer Sizing -->
+      <div class="studio-card">
+        <div class="studio-card-header">
+          <div class="studio-icon">🧠</div>
+          <div>
+            <div class="studio-card-title">Audio Buffer Sizing</div>
+            <div class="studio-card-subtitle">Low Latency · Standard · Stable</div>
+          </div>
+        </div>
+        <p>Multi-tier buffer control for the Media3 <code>AudioTrack</code> PCM sink. Choose <strong>Low Latency (~250ms)</strong> for snappy track controls, <strong>Standard (~500ms)</strong>, or <strong>Audiophile Stable (~1500ms)</strong> for drop-free background listening during OEM Doze.</p>
+      </div>
+
+      <!-- 7. Bit-Perfect Rate Switching -->
+      <div class="studio-card">
+        <div class="studio-card-header">
+          <div class="studio-icon">🔄</div>
+          <div>
+            <div class="studio-card-title">Bit-Perfect Rate Switching</div>
+            <div class="studio-card-subtitle">Dynamic Sample Rate Sync</div>
+          </div>
+        </div>
+        <p>Dynamically reconfigures the hardware <code>AudioTrack</code> sink on the fly to match each track's native container sample rate (<code>44.1 kHz</code> to <code>192 kHz</code>), eliminating non-integer sample rate conversion jitter.</p>
+      </div>
+
+      <!-- 8. Queue Lookahead Engine -->
+      <div class="studio-card">
+        <div class="studio-card-header">
+          <div class="studio-icon">⏩</div>
+          <div>
+            <div class="studio-card-title">Queue Lookahead Engine</div>
+            <div class="studio-card-subtitle">3 to 20 Tracks Lookahead</div>
+          </div>
+        </div>
+        <p>Concurrent background resolver that queries upcoming tracks in parallel over the network (~1–2s total). Rapid skipping never cancels in-flight jobs, ensuring subsequent songs are pre-resolved and ready for instant playback.</p>
+      </div>
+
+      <!-- 9. Lossless Pre-warming Network Mode -->
+      <div class="studio-card">
+        <div class="studio-card-header">
+          <div class="studio-icon">📡</div>
+          <div>
+            <div class="studio-card-title">Lossless Pre-warming Mode</div>
+            <div class="studio-card-subtitle">Off · Wi-Fi Only · Any Network</div>
+          </div>
+        </div>
+        <p>Multi-state selector controlling background audio byte caching. Automatically protects cellular carrier data by restricting heavy FLAC stream downloads to Wi-Fi while keeping playback seamless.</p>
+      </div>
+
+      <!-- 10. Pre-cached Songs Count -->
+      <div class="studio-card">
+        <div class="studio-card-header">
+          <div class="studio-icon">💾</div>
+          <div>
+            <div class="studio-card-title">Pre-cached Songs Count</div>
+            <div class="studio-card-subtitle">3 to 50 Songs Cache</div>
+          </div>
+        </div>
+        <p>Configurable slider determining how many upcoming tracks have their initial 1 MB opening and stream chunks verified onto disk cache under true <code>#alt-noatmos</code> keys with <code>Origin.LOSSLESS</code> retention.</p>
+      </div>
+
+      <!-- 11. FLAC Dynamic Normalisation -->
+      <div class="studio-card">
+        <div class="studio-card-header">
+          <div class="studio-icon">⚖️</div>
+          <div>
+            <div class="studio-card-title">FLAC Dynamic Normalisation</div>
+            <div class="studio-card-subtitle">Dynamics & EBU R128 Peak Safeguard</div>
+          </div>
+        </div>
+        <p>Multi-tier volume safeguard (<strong>Off</strong>, <strong>Preserve Dynamics</strong>, <strong>EBU R128 Peak Safeguard</strong>) preventing sudden volume jumps across tracks from different mastering eras without flattening transients.</p>
+      </div>
+
+      <!-- 12. Live Decoded PCM Telemetry -->
+      <div class="studio-card">
+        <div class="studio-card-header">
+          <div class="studio-icon">📊</div>
+          <div>
+            <div class="studio-card-title">Live Decoded PCM Telemetry</div>
+            <div class="studio-card-subtitle">Stats for Nerds HUD</div>
+          </div>
+        </div>
+        <p>Real-time diagnostic overlay showing genuine physical data rate (e.g. 1,411 kbps for 16/44.1, 4,608 kbps for 24/96, 9,216 kbps for 24/192) alongside active server, container format, and buffer health.</p>
+      </div>
+
+      <!-- 13. Cloudflare Edge Health Monitor -->
+      <div class="studio-card">
+        <div class="studio-card-header">
+          <div class="studio-icon">☁️</div>
+          <div>
+            <div class="studio-card-title">Cloudflare Edge Health Monitor</div>
+            <div class="studio-card-subtitle">Live Round-Trip Edge Ping</div>
+          </div>
+        </div>
+        <p>Live round-trip ping measurement embedded directly inside Settings to monitor edge worker responsiveness and addon availability in real time.</p>
       </div>
     </div>
   </section>
@@ -317,6 +525,49 @@
             <td>External Desktop DAC</td>
             <td><code>32-bit Float / 192 kHz</code></td>
             <td><span class="tag-verified">Direct Sink</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+
+  <!-- The Problem Timbre Solves Comparison -->
+  <section class="hardware-section" style="margin-top: 2rem;">
+    <div class="section-header">
+      <h2>The Problem Timbre Solves</h2>
+      <p>How Timbre's audiophile architecture eliminates mobile streaming compromises.</p>
+    </div>
+
+    <div class="table-card">
+      <table>
+        <thead>
+          <tr>
+            <th>Platform / Setup</th>
+            <th>Limitation</th>
+            <th>How Timbre Solves It</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>YouTube Music / Spotify</strong></td>
+            <td>Heavily compressed lossy audio (128–160 kbps Opus/AAC). Smeared transients, flat dynamics.</td>
+            <td><span class="tag-verified">24-bit / 192kHz Studio FLAC Masters</span> from Cloudflare edge workers.</td>
+          </tr>
+          <tr>
+            <td><strong>Tidal / Qobuz / Apple Music</strong></td>
+            <td>$11–20/mo subscription fees, DRM lock-in, heavy battery drain, no YouTube Music playlist integration.</td>
+            <td><span class="tag-verified">100% Free & Open Source</span>, DRM-free, battery-efficient, seamless playlist import.</td>
+          </tr>
+          <tr>
+            <td><strong>Android Audio Pipeline</strong></td>
+            <td>Default Android system mixer forces 48kHz resampling and truncates 24-bit studio masters down to 16-bit PCM.</td>
+            <td><span class="tag-verified">Precision AudioSink</span> routes bit-exact unresampled PCM directly to external USB DACs.</td>
+          </tr>
+          <tr>
+            <td><strong>Stock Mobile Players</strong></td>
+            <td>Cold track transitions, buffering stalls during rapid skips, lossy fallbacks.</td>
+            <td><span class="tag-verified">Concurrent Lookahead & Pre-warming</span> caches upcoming FLAC streams for instant skips.</td>
           </tr>
         </tbody>
       </table>
