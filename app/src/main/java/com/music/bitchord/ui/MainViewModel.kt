@@ -1909,7 +1909,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         searchSubmitted = true
         _suggestions.value = emptyList()
         _typeaheadResults.value = emptyList()
-        runSearch()
+        // Picking a suggestion or history item is deliberate, but it must NOT
+        // pollute the user's YTMusic server-side search history — only an
+        // explicit keyboard submission should do that.  Use the anonymous
+        // endpoint so YouTube does not log this query against the account.
+        runSearch(anonymous = true)
     }
 
     fun removeSearch(id: String) = SearchHistory.remove(id)
@@ -1956,7 +1960,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             runAddonSearch(q)
             return
         }
-        runSearch()
+        runSearch(anonymous = false)
     }
 
     /**
@@ -2052,6 +2056,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val query: String,
         val filter: SearchFilter,
         val requestId: Long,
+        val anonymous: Boolean = true,
     )
 
     private fun cacheKey(query: String, filter: SearchFilter) = "${filter.name}:$query"
@@ -2069,7 +2074,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             ?.rows
     }
 
-    private fun runSearch() {
+    private fun runSearch(anonymous: Boolean = true) {
         val query = _query.value
         if (query.isBlank()) {
             // Nothing in flight can still be waiting to overwrite this: the
@@ -2084,7 +2089,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         _searchScrollReset.value += 1
         searchSession = null
         _searchLoadingMore.value = false
-        searchRequests.tryEmit(SearchRequest(query, _filter.value, id))
+        searchRequests.tryEmit(SearchRequest(query, _filter.value, id, anonymous))
     }
 
     /**
@@ -2116,7 +2121,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 val exact = searchCache.get(key)
                 val cached = exact?.rows ?: prefixMatch(request.query, request.filter)
                 _results.value = cached?.let { UiState.Success(it) } ?: UiState.Loading
-                if (exact != null) {
+                // An explicit submit still has to reach the server even when
+                // an anonymous lookup cached the same query: that call is what
+                // records it in the account's history.
+                if (exact != null && request.anonymous) {
                     searchSession = SearchSession(key, request.requestId, request.filter, exact.continuation)
                     return@collectLatest
                 }
@@ -2130,7 +2138,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 // see [SourceResolver.substituteForYouTube] — which upgrades
                 // the ones it holds without any of them having to be a
                 // separate row to pick between.
-                val result = YtMusicRepository.searchPage(request.query, request.filter)
+                val result = YtMusicRepository.searchPage(request.query, request.filter, request.anonymous)
                 // A search that has been superseded shouldn't land on screen,
                 // whether it succeeded or failed.
                 if (request.requestId != newestRequestId.get()) return@collectLatest
