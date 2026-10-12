@@ -10,18 +10,15 @@ import org.junit.Test
 class BoundedQueuePlannerTest {
 
     @Test
-    fun `initial plan keeps tier order and bounds history and upcoming context`() {
+    fun `initial plan bounds history and keeps queue tiers`() {
         val context = songs(80, "context-")
         val window = QueueWindow(context.size).startAt(30)
-        val user = listOf(song("user-1"), song("user-2"))
-        val autoplay = listOf(song("auto-1"), song("auto-2"))
-
         val plan = BoundedQueuePlanner.buildInitialPlan(
-            canonicalContext = context,
+            snapshot(context),
             selectedIndex = 30,
             queueWindow = window,
-            preservedUserQueue = user,
-            existingAutoplay = autoplay,
+            preservedUserQueue = listOf(song("user")),
+            existingAutoplay = listOf(song("auto")),
         )
 
         assertEquals((5 until 30).map { "context-$it" }, plan.history.map(Song::videoId))
@@ -29,112 +26,189 @@ class BoundedQueuePlannerTest {
         assertEquals((31..55).map { "context-$it" }, plan.contextUpcoming.map { context[it.canonicalIndex].videoId })
         assertEquals(MAX_QUEUE_HISTORY, plan.history.size)
         assertEquals(WINDOW_AHEAD, plan.contextUpcoming.size)
-        assertEquals(listOf(QueueTier.CONTEXT, QueueTier.CONTEXT), plan.history.take(2).map(Song::queueTier))
+        assertTrue(plan.history.all { it.queueTier == QueueTier.CONTEXT })
         assertEquals(QueueTier.CONTEXT, plan.current.queueTier)
-        assertEquals(listOf(QueueTier.USER_QUEUE, QueueTier.USER_QUEUE), plan.userQueue.map(Song::queueTier))
-        assertEquals(listOf(QueueTier.AUTOPLAY, QueueTier.AUTOPLAY), plan.autoplay.map(Song::queueTier))
+        assertEquals(QueueTier.USER_QUEUE, plan.userQueue.single().queueTier)
+        assertEquals(QueueTier.AUTOPLAY, plan.autoplay.single().queueTier)
+        assertEquals(MAX_QUEUE_HISTORY + 1 + 1 + WINDOW_AHEAD + 1, plan.materializedSongs().size)
+    }
 
-        val tiers = plan.materializedSongs().map(Song::queueTier)
+    @Test
+    fun `top up reaches target only below low water and is idempotent`() {
+        val window = QueueWindow(80).startAt(0)
+        val desired = window.upcoming(WINDOW_AHEAD, repeatAll = false)
+        val materialized = desired.take(LOW_WATER - 1)
+
+        val additions = BoundedQueuePlanner.topUpEntries(window, materialized, repeatAll = false)
+        assertEquals(desired.drop(LOW_WATER - 1), additions)
+        assertTrue(
+            BoundedQueuePlanner.topUpEntries(
+                window,
+                materialized + additions,
+                repeatAll = false,
+            ).isEmpty(),
+        )
+        assertTrue(
+            BoundedQueuePlanner.topUpEntries(
+                window,
+                desired.take(LOW_WATER),
+                repeatAll = false,
+            ).isEmpty(),
+        )
+    }
+
+    @Test
+    fun `top up rejects a stale prefix using canonical index and cycle`() {
+        val window = QueueWindow(4).startAt(0)
+        val desired = window.upcoming(WINDOW_AHEAD, repeatAll = true)
+        val wrongCycle = desired.first().copy(cycleId = desired.first().cycleId + 1)
+        val wrongIndex = desired.first().copy(canonicalIndex = (desired.first().canonicalIndex + 1) % 4)
+
+        assertTrue(BoundedQueuePlanner.topUpEntries(window, listOf(wrongCycle), true).isEmpty())
+        assertTrue(BoundedQueuePlanner.topUpEntries(window, listOf(wrongIndex), true).isEmpty())
+    }
+
+    @Test
+    fun `same song can be materialized again in a later repeat cycle`() {
+        val context = listOf(song("same"))
+        val window = QueueWindow(1).startAt(0)
+        val desired = window.upcoming(WINDOW_AHEAD, repeatAll = true)
+        val existing = desired.take(LOW_WATER - 1)
+
+        val additions = BoundedQueuePlanner.topUpEntries(window, existing, repeatAll = true)
+
+        assertEquals((1L..WINDOW_AHEAD.toLong()).toList(), desired.map { it.cycleId })
+        assertEquals((LOW_WATER.toLong()..WINDOW_AHEAD.toLong()).toList(), additions.map { it.cycleId })
         assertEquals(
-            listOf(
-                QueueTier.CONTEXT,
-                QueueTier.USER_QUEUE,
-                QueueTier.CONTEXT,
-                QueueTier.AUTOPLAY,
-            ),
-            listOf(tiers.first(), tiers[MAX_QUEUE_HISTORY + 1], tiers[MAX_QUEUE_HISTORY + 3], tiers.last()),
+            List(WINDOW_AHEAD) { "same" },
+            (existing + additions).map { context[it.canonicalIndex].videoId },
         )
     }
 
     @Test
-    fun `top up reaches target before autoplay and is idempotent`() {
-        val context = songs(80, "context-")
-        val window = QueueWindow(context.size).startAt(0)
-        val plan = BoundedQueuePlanner.buildInitialPlan(
-            context,
-            selectedIndex = 0,
-            queueWindow = window,
-            preservedUserQueue = listOf(song("user")),
-            existingAutoplay = listOf(song("auto")),
-        )
-
-        val lowWaterIds = (1..(LOW_WATER - 1)).map { "context-$it" }
-        val topped = BoundedQueuePlanner.topUpPlan(plan, window, lowWaterIds)
-
-        assertEquals(WINDOW_AHEAD, topped.contextUpcoming.size)
-        assertEquals((1..WINDOW_AHEAD).map { "context-$it" }, topped.contextUpcoming.map { context[it.canonicalIndex].videoId })
-        assertEquals(listOf("user"), topped.userQueue.map(Song::videoId))
-        assertEquals(listOf("auto"), topped.autoplay.map(Song::videoId))
-
-        val repeated = BoundedQueuePlanner.topUpPlan(topped, window, lowWaterIds)
-        assertEquals(topped, repeated)
-
-        val alreadyAboveLowWater = BoundedQueuePlanner.topUpPlan(
-            topped,
-            window,
-            (1..LOW_WATER).map { "context-$it" },
-        )
-        assertEquals(LOW_WATER, alreadyAboveLowWater.contextUpcoming.size)
-    }
-
-    @Test
-    fun `continuation pending prevents autoplay after materialized window ends`() {
+    fun `initial repeat rollover is gated by continuation state`() {
         val context = listOf(song("only"))
         val window = QueueWindow(1).startAt(0)
 
-        val pending = BoundedQueuePlanner.buildInitialPlan(
-            canonicalContext = context,
-            selectedIndex = 0,
-            queueWindow = window,
-            existingAutoplay = listOf(song("auto")),
-            continuationState = ContinuationState.AVAILABLE,
-        )
+        listOf(ContinuationState.AVAILABLE, ContinuationState.IN_FLIGHT).forEach { state ->
+            val plan = BoundedQueuePlanner.buildInitialPlan(
+                snapshot(context, state),
+                selectedIndex = 0,
+                queueWindow = window,
+                repeatAll = true,
+            )
+            assertTrue(plan.contextUpcoming.isEmpty())
+            assertFalse(plan.contextTrulyExhausted)
+            assertTrue(plan.continuationPending)
+        }
 
-        assertTrue(pending.contextUpcoming.isEmpty())
-        assertTrue(pending.continuationPending)
-        assertFalse(pending.contextTrulyExhausted)
-        assertFalse(BoundedQueuePlanner.autoplayEligible(pending))
-        assertFalse(
-            BoundedQueuePlanner.autoplayEligible(
-                window,
-                ContinuationState.IN_FLIGHT,
-            ),
-        )
-
-        val exhausted = BoundedQueuePlanner.buildInitialPlan(
-            canonicalContext = context,
+        val terminal = BoundedQueuePlanner.buildInitialPlan(
+            snapshot(context, ContinuationState.EXHAUSTED),
             selectedIndex = 0,
-            queueWindow = window,
-            existingAutoplay = listOf(song("auto")),
-            continuationState = ContinuationState.EXHAUSTED,
+            queueWindow = QueueWindow(1).startAt(0),
+            repeatAll = true,
         )
-        assertTrue(exhausted.contextTrulyExhausted)
-        assertTrue(BoundedQueuePlanner.autoplayEligible(exhausted))
-        assertFalse(BoundedQueuePlanner.autoplayEligible(exhausted, repeatAll = true))
+        assertEquals((1L..WINDOW_AHEAD.toLong()).toList(), terminal.contextUpcoming.map { it.cycleId })
+        assertFalse(terminal.contextTrulyExhausted)
     }
 
     @Test
-    fun `large canonical contexts still expose bounded live sections`() {
-        val context = songs(10_000, "large-")
-        val window = QueueWindow(context.size).startAt(5_000)
-        val plan = BoundedQueuePlanner.buildInitialPlan(context, 5_000, window)
-        val topped = BoundedQueuePlanner.topUpPlan(
-            plan,
-            window,
-            plan.contextUpcoming.take(LOW_WATER - 1).map { context[it.canonicalIndex].videoId },
-        )
+    fun `autoplay waits for terminal continuation and repeat all off`() {
+        val window = QueueWindow(1).startAt(0)
 
-        assertEquals(MAX_QUEUE_HISTORY, plan.history.size)
-        assertEquals(WINDOW_AHEAD, plan.contextUpcoming.size)
-        assertEquals(WINDOW_AHEAD, topped.contextUpcoming.size)
-        assertTrue(plan.materializedSongs().size <= MAX_QUEUE_HISTORY + 1 + WINDOW_AHEAD)
+        assertFalse(BoundedQueuePlanner.autoplayEligible(window, ContinuationState.AVAILABLE, false))
+        assertFalse(BoundedQueuePlanner.autoplayEligible(window, ContinuationState.IN_FLIGHT, false))
+        assertTrue(BoundedQueuePlanner.autoplayEligible(window, ContinuationState.EXHAUSTED, false))
+        assertTrue(BoundedQueuePlanner.autoplayEligible(window, ContinuationState.BLOCKED, false))
+        assertFalse(BoundedQueuePlanner.autoplayEligible(window, ContinuationState.EXHAUSTED, true))
     }
 
     @Test
-    fun `history trim count is bounded to twenty five`() {
-        assertEquals(0, BoundedQueuePlanner.historyTrimCount(MAX_QUEUE_HISTORY))
-        assertEquals(75, BoundedQueuePlanner.historyTrimCount(100))
+    fun `repeat gate is terminal continuation only`() {
+        assertFalse(BoundedQueuePlanner.canRepeat(ContinuationState.AVAILABLE))
+        assertFalse(BoundedQueuePlanner.canRepeat(ContinuationState.IN_FLIGHT))
+        assertTrue(BoundedQueuePlanner.canRepeat(ContinuationState.EXHAUSTED))
+        assertTrue(BoundedQueuePlanner.canRepeat(ContinuationState.BLOCKED))
     }
+
+    @Test
+    fun `canonical and shuffled windows each traverse every item once`() {
+        val canonical = traverse(QueueWindow(100).startAt(0))
+        assertEquals((0 until 100).toList(), canonical.map { it.canonicalIndex })
+        assertEquals(List(100) { 0L }, canonical.map { it.cycleId })
+
+        val shuffled = traverse(QueueWindow(100, shuffleSeed = 7L).startAt(0, shuffle = true))
+        assertEquals(100, shuffled.size)
+        assertEquals((0 until 100).toSet(), shuffled.map { it.canonicalIndex }.toSet())
+        assertEquals(100, shuffled.map { it.canonicalIndex }.distinct().size)
+    }
+
+    @Test
+    fun `queue refills below low water without requiring a full window`() {
+        listOf(100, 1_000, 10_000).forEach { size ->
+            val window = QueueWindow(size).startAt(0)
+            val queue = FakeQueue(window.upcoming(WINDOW_AHEAD, repeatAll = false))
+            var sawPartialLowWater = false
+
+            while (window.advanceAutomatically(repeatAll = false) != null) {
+                queue.removeFirst()
+                val desired = window.upcoming(WINDOW_AHEAD, repeatAll = false)
+                val additions = BoundedQueuePlanner.topUpEntries(window, queue.entries, repeatAll = false)
+
+                if (queue.entries.size == LOW_WATER && desired.size > LOW_WATER) {
+                    sawPartialLowWater = true
+                }
+                if (queue.entries.size >= LOW_WATER) {
+                    assertTrue(additions.isEmpty())
+                } else {
+                    assertEquals(desired.drop(queue.entries.size), additions)
+                }
+                if (additions.isNotEmpty()) queue.addAll(additions)
+
+                // At exactly low water, leaving the queue short is intentional;
+                // the next transition crosses the refill threshold.
+                assertEquals(desired.take(queue.entries.size), queue.entries)
+                assertTrue(queue.entries.size <= WINDOW_AHEAD)
+            }
+
+            assertTrue(sawPartialLowWater)
+            assertTrue(queue.entries.isEmpty())
+            assertEquals((size - 1 - WINDOW_AHEAD).coerceAtLeast(0), queue.addedEntries)
+            assertEquals(
+                (size - 1) + queue.addedEntries,
+                queue.mutationBudget,
+            )
+            val expectedTopUps = if (queue.addedEntries == 0) {
+                0
+            } else {
+                (queue.addedEntries + (WINDOW_AHEAD - LOW_WATER)) /
+                    (WINDOW_AHEAD - LOW_WATER + 1)
+            }
+            assertEquals(expectedTopUps, queue.topUpCalls)
+        }
+    }
+
+    private fun traverse(window: QueueWindow): List<QueueWindowEntry> = buildList {
+        add(requireNotNull(window.current))
+        while (true) add(window.advanceAutomatically(false) ?: break)
+    }
+
+    private fun snapshot(
+        songs: List<Song>,
+        state: ContinuationState = ContinuationState.EXHAUSTED,
+    ): ContextSnapshot = ContextSnapshot(
+        contextToken = "context",
+        sourceKey = "source",
+        browseId = null,
+        songs = songs,
+        version = 1L,
+        continuationToken = if (state == ContinuationState.AVAILABLE || state == ContinuationState.IN_FLIGHT) {
+            "next"
+        } else {
+            null
+        },
+        continuationState = state,
+    )
 
     private fun songs(count: Int, prefix: String): List<Song> =
         (0 until count).map { song("$prefix$it") }
@@ -145,4 +219,26 @@ class BoundedQueuePlannerTest {
         artist = "Artist",
         thumbnailUrl = null,
     )
+
+    private class FakeQueue(initial: List<QueueWindowEntry>) {
+        val entries = initial.toMutableList()
+        var addedEntries = 0
+            private set
+        var topUpCalls = 0
+            private set
+        var mutationBudget = 0
+            private set
+
+        fun removeFirst() {
+            if (entries.isNotEmpty()) entries.removeAt(0)
+            mutationBudget++
+        }
+
+        fun addAll(additions: List<QueueWindowEntry>) {
+            entries += additions
+            addedEntries += additions.size
+            topUpCalls++
+            mutationBudget += additions.size
+        }
+    }
 }

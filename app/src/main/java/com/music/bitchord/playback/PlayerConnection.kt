@@ -118,20 +118,28 @@ suspend fun MediaController.playBoundedContext(
     startIndex: Int,
     source: QueueSource,
     continuationToken: String?,
+    shuffle: Boolean = QueueShuffle.enabled.value,
 ) {
-    val request = ArrayList<Bundle>(songs.size)
-    songs.forEach { request += it.toSongBundle() }
-    sendCustomCommand(
-        SessionCommand(ACTION_START_BOUNDED_CONTEXT, Bundle.EMPTY),
-        bundleOf(
-            EXTRA_BOUNDED_CONTEXT_SONGS to request,
-            EXTRA_BOUNDED_CONTEXT_START_INDEX to startIndex,
-            EXTRA_BOUNDED_CONTEXT_SOURCE_TITLE to source.title,
-            EXTRA_BOUNDED_CONTEXT_SOURCE_TYPE to source.type.name,
-            EXTRA_BOUNDED_CONTEXT_SOURCE_ID to source.id,
-            EXTRA_BOUNDED_CONTEXT_CONTINUATION to continuationToken,
+    val token = BoundedContextRequests.put(
+        BoundedContextRequests.Request(
+            songs = songs,
+            startIndex = startIndex,
+            source = source,
+            continuationToken = continuationToken,
+            shuffle = shuffle,
         ),
-    ).await()
+    )
+    try {
+        sendCustomCommand(
+            SessionCommand(ACTION_START_BOUNDED_CONTEXT, Bundle.EMPTY),
+            // Keep the existing key until the service-side command rename. The
+            // value is now a process-local request token, never a Song list.
+            bundleOf(EXTRA_BOUNDED_CONTEXT_SONGS to token),
+        ).await()
+    } catch (error: Throwable) {
+        BoundedContextRequests.discard(token)
+        throw error
+    }
 }
 
 /** Clears the previous queue's service and restart state before starting radio. */
@@ -234,34 +242,36 @@ fun Song.toSongBundle(): Bundle = bundleOf(
     putStringArrayList(ARTISTS_IDS, ArrayList(artists.map { it.browseId.orEmpty() }))
 }
 
-fun songFromBundle(b: Bundle): Song = Song(
-    videoId = b.getString("videoId").orEmpty(),
-    title = b.getString("title").orEmpty(),
-    artist = b.getString("artist").orEmpty(),
-    thumbnailUrl = b.getString("thumbnailUrl"),
-    durationText = b.getString("durationText"),
-    artistId = b.getString("artistId"),
-    artists = b.artistsFromBundle(),
-    albumId = b.getString("albumId"),
-    albumName = b.getString("albumName"),
-    isVideo = b.getBoolean("isVideo"),
-    isVideoOrigin = b.getBoolean("isVideoOrigin"),
-    setVideoId = b.getString("setVideoId"),
-    fromAutoplay = b.getBoolean("fromAutoplay"),
-    radioName = b.getString("radioName"),
-    localUri = b.getString("localUri"),
-    downloadFormat = b.getString("downloadFormat"),
-    localPath = b.getString("localPath"),
-    sourceQuality = b.getString("sourceQuality"),
-    playbackSource = b.getString("playbackSource"),
-    playbackSourceType = b.getString("playbackSourceType")?.let { runCatching { com.music.bitchord.data.model.PlaybackSourceType.valueOf(it) }.getOrNull() },
-    playbackSourceId = b.getString("playbackSourceId"),
-    isExplicit = if (b.containsKey("isExplicit")) b.getBoolean("isExplicit") else null,
-    queueTier = b.getString("queueTier")?.let {
+fun songFromBundle(b: Bundle): Song {
+    val queueTier = b.getString("queueTier")?.let {
         runCatching { QueueTier.valueOf(it) }.getOrNull()
-    } ?: QueueTier.CONTEXT,
-    queueEntryId = b.getString("queueEntryId"),
-)
+    } ?: if (b.getBoolean("fromAutoplay")) QueueTier.AUTOPLAY else QueueTier.CONTEXT
+    return Song(
+        videoId = b.getString("videoId").orEmpty(),
+        title = b.getString("title").orEmpty(),
+        artist = b.getString("artist").orEmpty(),
+        thumbnailUrl = b.getString("thumbnailUrl"),
+        durationText = b.getString("durationText"),
+        artistId = b.getString("artistId"),
+        artists = b.artistsFromBundle(),
+        albumId = b.getString("albumId"),
+        albumName = b.getString("albumName"),
+        isVideo = b.getBoolean("isVideo"),
+        isVideoOrigin = b.getBoolean("isVideoOrigin"),
+        setVideoId = b.getString("setVideoId"),
+        radioName = b.getString("radioName"),
+        localUri = b.getString("localUri"),
+        downloadFormat = b.getString("downloadFormat"),
+        localPath = b.getString("localPath"),
+        sourceQuality = b.getString("sourceQuality"),
+        playbackSource = b.getString("playbackSource"),
+        playbackSourceType = b.getString("playbackSourceType")?.let { runCatching { com.music.bitchord.data.model.PlaybackSourceType.valueOf(it) }.getOrNull() },
+        playbackSourceId = b.getString("playbackSourceId"),
+        isExplicit = if (b.containsKey("isExplicit")) b.getBoolean("isExplicit") else null,
+        queueTier = queueTier,
+        queueEntryId = b.getString("queueEntryId"),
+    )
+}
 
 /** Flushes the current radio queue to disk before reporting that it started. */
 suspend fun MediaController.commitRadioQueue() {

@@ -60,7 +60,9 @@ import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.channels.BufferOverflow
@@ -84,6 +86,7 @@ import com.music.bitchord.data.sources.SourceRegistry
 import com.music.bitchord.data.sources.SourceResolver
 import com.music.bitchord.data.sources.TrackMatcher
 import com.music.bitchord.playback.AudioCache
+import com.music.bitchord.playback.BoundedContextRequests
 import com.music.bitchord.playback.StreamChoice
 import com.music.bitchord.ui.screens.CACHE_FOLDER_BROWSE_ID
 import com.music.bitchord.ui.screens.matchesSearch
@@ -556,6 +559,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
      */
     private val _detailStack = MutableStateFlow<List<DetailPage>>(emptyList())
     val detailStack: StateFlow<List<DetailPage>> = _detailStack.asStateFlow()
+
+    /** UI-side continuation fetches that can be handed to the playback service. */
+    private val fillInJobs = mutableMapOf<String, Job>()
 
     private val _releaseLibrary = MutableStateFlow<Map<String, LibraryState>>(emptyMap())
 
@@ -1399,6 +1405,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             // drop(1): the current value is just the count so far, not a play.
             PlaybackTracker.registeredPlays.drop(1).collect { homeStale = true }
+        }
+        viewModelScope.launch {
+            BoundedContextRequests.snapshot.collect { snapshot ->
+                snapshot?.let(::applyBoundedContextSnapshot)
+            }
         }
         viewModelScope.launch {
             AppSettings.filterNonMusicAudio.drop(1).collect {
@@ -2780,7 +2791,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
      * that loops back on itself instead of running dry.
      */
     private fun fillIn(browseId: String, token: String, artworkFallback: String?) {
-        viewModelScope.launch {
+        fillInJobs[browseId]?.cancel()
+        fillInJobs[browseId] = viewModelScope.launch {
             // Publish and draw the first response before spending the shared
             // connection on page two. On a long playlist the continuation can
             // otherwise start in the same main-loop turn as the state update,
@@ -2789,8 +2801,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             var next: String? = token
             while (next != null) {
                 val fetched = YtMusicRepository.moreSongs(next).getOrNull() ?: return@launch
+                // Repository calls may finish after cancellation. Do not let
+                // an in-flight UI page append after playback has handed the
+                // continuation to the service.
+                currentCoroutineContext().ensureActive()
                 val stack = _detailStack.value
-                val index = stack.indexOfFirst { it.browseId == browseId }
+                val index = stack.indexOfLast { it.browseId == browseId }
                 if (index < 0) return@launch
                 val current = stack[index]
                 val existing = (current.songs as? UiState.Success)?.data ?: return@launch
@@ -2819,6 +2835,54 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 next = fetched.continuation
             }
         }
+    }
+
+    /**
+     * Applies the service-owned canonical context to its matching open page.
+     *
+     * The service only materialises a small queue window, while its registry
+     * keeps the complete canonical list. Mirroring that registry here avoids a
+     * page that appears to stop growing as soon as playback starts.
+     */
+    private fun applyBoundedContextSnapshot(snapshot: BoundedContextRequests.Snapshot) {
+        val browseId = snapshot.request.source.id ?: return
+        val stack = _detailStack.value
+        val index = stack.indexOfLast { it.browseId == browseId }
+        if (index < 0) return
+        val page = stack[index]
+        if (page.type != BrowseType.ALBUM && page.type != BrowseType.PLAYLIST) return
+        val existing = (page.songs as? UiState.Success)?.data ?: return
+        val known = existing.mapTo(HashSet()) { it.videoId }
+        val added = snapshot.songs
+            .filter { known.add(it.videoId) }
+            .withArtwork(page.thumbnailUrl)
+        if (added.isEmpty() && page.continuation == snapshot.continuationToken) return
+        _detailStack.value = stack.toMutableList().also {
+            it[index] = page.copy(
+                songs = UiState.Success(existing + added),
+                continuation = snapshot.continuationToken,
+            )
+        }
+    }
+
+    /**
+     * Stops the UI continuation fetch and returns the newest page snapshot for
+     * a bounded playback handoff. The page continuation intentionally remains
+     * intact: the service may still be growing this context, and a repeated
+     * tap must carry the latest continuation rather than permanently losing it.
+     */
+    fun takePlaybackContext(browseId: String): DetailPage? {
+        fillInJobs.remove(browseId)?.cancel()
+        val stack = _detailStack.value
+        val index = stack.indexOfLast { it.browseId == browseId }
+        if (index < 0) return null
+        val mirrored = BoundedContextRequests.snapshot.value
+            ?.takeIf { it.request.source.id == browseId }
+        if (mirrored != null) {
+            applyBoundedContextSnapshot(mirrored)
+            return _detailStack.value.getOrNull(index)
+        }
+        return stack[index]
     }
 
     /**

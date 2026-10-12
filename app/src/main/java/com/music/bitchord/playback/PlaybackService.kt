@@ -100,6 +100,7 @@ import com.music.bitchord.data.lyrics.EmbeddedLyrics
 import com.music.bitchord.data.lyrics.LyricLine
 import com.music.bitchord.data.lyrics.LyricsRepository
 import com.music.bitchord.data.model.NOTIFICATION_ART_PX
+import com.music.bitchord.data.model.PlaybackSourceType
 import com.music.bitchord.data.model.SearchFilter
 import com.music.bitchord.data.model.SearchResult
 import com.music.bitchord.data.model.BrowseItem
@@ -123,6 +124,7 @@ import com.music.bitchord.data.innertube.PlayerClient
 import com.music.bitchord.data.innertube.StreamResolver
 import com.music.bitchord.data.model.LikeStatus
 import com.music.bitchord.data.model.Song
+import com.music.bitchord.data.model.isUnresolvedSpotify
 import com.music.bitchord.data.scrobbling.LastFM
 import com.music.bitchord.data.scrobbling.ListenBrainzManager
 import com.music.bitchord.data.scrobbling.ScrobbleManager
@@ -693,6 +695,7 @@ class PlaybackService : MediaLibraryService() {
             val window = boundedContextWindow ?: return@launch
             if (snapshot.contextToken != boundedContextToken) return@launch
             window.extendTo(snapshot.songs.size)
+            boundedContextRequest?.let { BoundedContextRequests.publish(it, snapshot) }
             scheduleBoundedContextTopUp()
         }
     }
@@ -700,9 +703,12 @@ class PlaybackService : MediaLibraryService() {
     private var boundedContextWindow: QueueWindow? = null
     private var boundedContextToken: String? = null
     private var boundedContextSource: QueueSource? = null
+    private var boundedContextRequest: BoundedContextRequests.Request? = null
     private var boundedContinuationJob: Job? = null
     private var boundedTopUpJob: Job? = null
     private var boundedTopUpPending = false
+    /** Latest requested shuffle mode while CrossfadeController is not settled. */
+    private var boundedDeferredShuffle: Boolean? = null
 
     private val localBitrateCache = ConcurrentHashMap<String, Int>()
 
@@ -1779,6 +1785,13 @@ class PlaybackService : MediaLibraryService() {
                 loudnessA.setBlendTrim(trim)
                 loudnessB.setBlendTrim(trim)
             },
+            onSettled = {
+                if (boundedTopUpPending || boundedDeferredShuffle != null) {
+                    scope.launch {
+                        applyDeferredBoundedQueueEdit()
+                    }
+                }
+            },
             versionSwapActive = { versionSwapJob?.isActive == true },
         )
 
@@ -2382,8 +2395,65 @@ class PlaybackService : MediaLibraryService() {
     }
 
     private fun toggleShuffleFromSession() {
+        val window = boundedContextWindow
+        if (window != null && !ListenTogether.state.value.inParty) {
+            val target = !(boundedDeferredShuffle ?: window.isShuffleEnabled)
+            boundedDeferredShuffle = target
+            if (crossfade?.isTransitioning() != true) applyDeferredBoundedQueueEdit()
+            return
+        }
         player?.let(QueueShuffle::toggle)
         refreshCustomLayouts()
+    }
+
+    /**
+     * Latest desired shuffle state wins. Nothing logical is mutated until the
+     * actual crossfade settlement callback; thus the outgoing and standby
+     * queues cannot be based on different generations of the logical order.
+     */
+    private fun applyDeferredBoundedQueueEdit() {
+        val exoPlayer = player ?: return
+        val window = boundedContextWindow ?: return
+        if (ListenTogether.state.value.inParty || crossfade?.isTransitioning() == true) return
+        val target = boundedDeferredShuffle
+        boundedDeferredShuffle = null
+        boundedContextAnchor(exoPlayer)?.let { anchor ->
+            if (window.currentCanonicalIndex != anchor) window.jumpTo(anchor)
+        }
+        if (target != null) {
+            window.setShuffle(target)
+            QueueShuffle.setEnabled(target)
+            AppSettings.setShuffleEnabled(target)
+            replaceBoundedUpcoming(exoPlayer, window)
+        }
+        if (boundedTopUpPending) {
+            boundedTopUpPending = false
+            applyBoundedContextTopUp()
+        }
+        refreshCustomLayouts()
+    }
+
+    /** Replace only the bounded upcoming tail, retaining current/history and tiers. */
+    private fun replaceBoundedUpcoming(exoPlayer: ExoPlayer, window: QueueWindow) {
+        val snapshot = boundedContextRegistry.snapshot() ?: return
+        if (snapshot.contextToken != boundedContextToken) return
+        window.extendTo(snapshot.songs.size)
+        val from = exoPlayer.currentMediaItemIndex + 1
+        if (from < 0) return
+        val existing = (from until exoPlayer.mediaItemCount).map(exoPlayer::getMediaItemAt)
+        val users = existing.filter { it.queueTier == QueueTier.USER_QUEUE }
+        val autoplay = existing.filter { it.queueTier == QueueTier.AUTOPLAY }
+        val existingContext = existing.filter { it.queueTier == QueueTier.CONTEXT }
+            .associateBy { QueueWindowEntry(it.canonicalIndex ?: -1, it.contextCycleId ?: window.cycleId) }
+        val context = window.upcoming(
+            WINDOW_AHEAD,
+            repeatAll = exoPlayer.repeatMode == Player.REPEAT_MODE_ALL,
+        ).map { entry ->
+            existingContext[entry] ?: boundedMediaItem(
+                snapshot.songs[entry.canonicalIndex], entry.canonicalIndex, entry.cycleId,
+            )
+        }
+        QueueShuffle.replaceChanged(exoPlayer, from, exoPlayer.mediaItemCount, users + context + autoplay)
     }
 
     /**
@@ -2395,18 +2465,18 @@ class PlaybackService : MediaLibraryService() {
      */
     private fun startBoundedContext(args: Bundle) {
         val exoPlayer = player ?: return
-        val bundles = args.getParcelableArrayList<Bundle>(EXTRA_BOUNDED_CONTEXT_SONGS).orEmpty()
-        if (bundles.isEmpty()) return
+        val requestToken = args.getString(EXTRA_BOUNDED_CONTEXT_SONGS) ?: return
+        val request = BoundedContextRequests.take(requestToken) ?: return
+        if (CastController.state.value.casting || castPlayback.active) {
+            // MainActivity normally keeps Cast on the full-queue path. This
+            // closes the race where a receiver connects after the tap but
+            // before this session command is handled.
+            BoundedContextRequests.discard(requestToken)
+            return
+        }
 
-        val sourceType = args.getString(EXTRA_BOUNDED_CONTEXT_SOURCE_TYPE)
-            ?.let { runCatching { PlaybackSourceType.valueOf(it) }.getOrNull() }
-            ?: return
-        val source = QueueSource(
-            title = args.getString(EXTRA_BOUNDED_CONTEXT_SOURCE_TITLE).orEmpty(),
-            type = sourceType,
-            id = args.getString(EXTRA_BOUNDED_CONTEXT_SOURCE_ID),
-        )
-        val requestedSongs = bundles.map(::songFromBundle)
+        val source = request.source
+        val requestedSongs = request.songs
             .filterNot { it.isUnresolvedSpotify }
             .map { it.copy(
                 queueTier = QueueTier.CONTEXT,
@@ -2416,7 +2486,7 @@ class PlaybackService : MediaLibraryService() {
             ) }
         if (requestedSongs.isEmpty()) return
 
-        val requestedIndex = args.getInt(EXTRA_BOUNDED_CONTEXT_START_INDEX, 0)
+        val requestedIndex = request.startIndex
             .coerceIn(requestedSongs.indices)
         val selectedVideoId = requestedSongs[requestedIndex].videoId
         val contextToken = "${source.type.name}:${source.id.orEmpty()}:${UUID.randomUUID()}"
@@ -2425,18 +2495,20 @@ class PlaybackService : MediaLibraryService() {
             sourceKey = "${source.type.name}:${source.id.orEmpty()}",
             browseId = source.id,
             songs = requestedSongs,
-            continuationToken = args.getString(EXTRA_BOUNDED_CONTEXT_CONTINUATION),
+            continuationToken = request.continuationToken,
         )
         val selectedIndex = registered.songs.indexOfFirst { it.videoId == selectedVideoId }
             .takeIf { it >= 0 } ?: 0
-        val shuffle = QueueShuffle.enabled.value
+        val shuffle = request.shuffle
         val window = QueueWindow(registered.songs.size).startAt(selectedIndex, shuffle)
 
         boundedContinuationJob?.cancel()
         boundedContextWindow = window
         boundedContextToken = contextToken
         boundedContextSource = source
+        boundedContextRequest = request
         boundedTopUpPending = false
+        BoundedContextRequests.publish(request, registered)
 
         val currentIndex = exoPlayer.currentMediaItemIndex
         val upcoming = if (currentIndex in 0 until exoPlayer.mediaItemCount) {
@@ -2478,6 +2550,7 @@ class PlaybackService : MediaLibraryService() {
 
     /** Clears local bounded state before a non-context queue replaces the player. */
     private fun clearBoundedContext() {
+        boundedContextRequest?.handoffToken?.let(BoundedContextRequests::discard)
         boundedContinuationJob?.cancel()
         boundedContinuationJob = null
         boundedTopUpJob?.cancel()
@@ -2492,6 +2565,7 @@ class PlaybackService : MediaLibraryService() {
         boundedContextWindow = null
         boundedContextToken = null
         boundedContextSource = null
+        boundedContextRequest = null
         boundedTopUpPending = false
         QueueShuffle.clearCanonicalContext()
     }
@@ -2555,28 +2629,19 @@ class PlaybackService : MediaLibraryService() {
         val afterCurrent = if (now in 0 until exoPlayer.mediaItemCount) {
             (now + 1 until exoPlayer.mediaItemCount).map { exoPlayer.getMediaItemAt(it) }
         } else emptyList()
-        val userQueue = afterCurrent.filter { it.queueTier == QueueTier.USER_QUEUE }.map(MediaItem::toSong)
-        val autoplay = afterCurrent.filter { it.queueTier == QueueTier.AUTOPLAY }.map(MediaItem::toSong)
-        val plan = BoundedQueuePlanner.buildInitialPlan(
-            contextSnapshot = snapshot,
-            selectedIndex = currentIndex,
-            queueWindow = window,
-            preservedUserQueue = userQueue,
-            existingAutoplay = autoplay,
-            repeatAll = exoPlayer.repeatMode == Player.REPEAT_MODE_ALL,
+        val existingEntries = afterCurrent
+            .filter { it.queueTier == QueueTier.CONTEXT }
+            .mapNotNull { item ->
+                val canonicalIndex = QueueShuffle.getCanonicalIndex(item) ?: return@mapNotNull null
+                QueueWindowEntry(canonicalIndex, item.contextCycleId ?: window.cycleId)
+            }
+        val repeatAll = exoPlayer.repeatMode == Player.REPEAT_MODE_ALL &&
+            BoundedQueuePlanner.canRepeat(snapshot.continuationState)
+        val additions = BoundedQueuePlanner.topUpEntries(
+            window = window,
+            materialized = existingEntries,
+            repeatAll = repeatAll,
         )
-        val existingIds = afterCurrent.filter { it.queueTier == QueueTier.CONTEXT }
-            .mapTo(HashSet()) { it.mediaId }
-        val target = BoundedQueuePlanner.topUpPlan(
-            plan = plan,
-            queueWindow = window,
-            contextSnapshot = snapshot,
-            currentMaterializedContextIds = existingIds,
-            repeatAll = exoPlayer.repeatMode == Player.REPEAT_MODE_ALL,
-        )
-        val additions = target.contextUpcoming.filter { entry ->
-            snapshot.songs.getOrNull(entry.canonicalIndex)?.videoId !in existingIds
-        }
         if (additions.isEmpty()) return
         val autoplayIndex = (now + 1 until exoPlayer.mediaItemCount)
             .firstOrNull { exoPlayer.getMediaItemAt(it).queueTier == QueueTier.AUTOPLAY }
@@ -2856,7 +2921,7 @@ class PlaybackService : MediaLibraryService() {
             if (window.currentCanonicalIndex != anchor) window.jumpTo(anchor)
         }
         return BoundedQueuePlanner.autoplayEligible(
-            queueWindow = window,
+            window = window,
             continuationState = snapshot.continuationState,
             repeatAll = exoPlayer.repeatMode == Player.REPEAT_MODE_ALL,
         )
@@ -3177,7 +3242,13 @@ class PlaybackService : MediaLibraryService() {
         // made every one of those paths progressively more expensive.
         val expiredHistory = queueHistoryTrimCount(exoPlayer.currentMediaItemIndex)
         if (expiredHistory > 0) {
-            if (exoPlayer.repeatMode == Player.REPEAT_MODE_ALL) {
+            if (boundedContextWindow != null) {
+                // In bounded mode the logical QueueWindow owns repeat/cycle
+                // state. The player timeline only retains the recent history;
+                // rotating expired rows would reintroduce them ahead of the
+                // logical cursor and make a cycle look unconsumed.
+                exoPlayer.removeMediaItems(0, expiredHistory)
+            } else if (exoPlayer.repeatMode == Player.REPEAT_MODE_ALL) {
                 // Repeat-all still means the whole queue. Rotate history that
                 // has fallen out of the visible 25-song window to the end
                 // instead of deleting it; it becomes upcoming again in the
