@@ -137,6 +137,25 @@ object TvSettings {
         save { putString(KEY_TV_NAV_LAYOUT, layout) }
     }
 
+    fun getProfilePin(profileId: String): String? {
+        return if (this::prefs.isInitialized) prefs.getString("tv_profile_pin_$profileId", null) else null
+    }
+
+    fun setProfilePin(profileId: String, pin: String?) {
+        save {
+            if (pin.isNullOrBlank()) {
+                remove("tv_profile_pin_$profileId")
+            } else {
+                putString("tv_profile_pin_$profileId", pin)
+            }
+        }
+    }
+
+    fun isProfileLocked(profileId: String): Boolean {
+        val pin = getProfilePin(profileId)
+        return !pin.isNullOrBlank()
+    }
+
     private const val KEY_TV_REFRESH_RATE = "tv_refresh_rate"
     private const val KEY_TV_NICKNAME = "tv_nickname"
     private const val KEY_TV_THEME = "tv_theme"
