@@ -34,8 +34,8 @@
 │                        Timbre Audiophile Signal Path                   │
 │                                                                        │
 │   Track Requested: "Hotel California" (Eagles)                         │
-│         │                                                              │
-│         ▼                                                              │
+│                                  │                                     │
+│                                  ▼                                     │
 │   ┌──────────────────────────────────────────────────────────────┐     │
 │   │ 1. Cloudflare Edge Addon (Queried First)                     │     │
 │   │    Direct match found: 24-bit / 192kHz FLAC Master           │     │
