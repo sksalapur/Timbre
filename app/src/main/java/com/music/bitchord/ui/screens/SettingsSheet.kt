@@ -11,6 +11,7 @@ import android.widget.Toast
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -18,6 +19,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -33,6 +35,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Notes
 import androidx.compose.material.icons.automirrored.rounded.VolumeOff
 import androidx.compose.material.icons.rounded.Animation
+import androidx.compose.material.icons.rounded.Apps
 import androidx.compose.material.icons.rounded.BarChart
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.BlurOff
@@ -111,6 +114,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.viewinterop.AndroidView
+import com.music.bitchord.AppIcon
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.SpanStyle
@@ -1408,6 +1414,66 @@ fun SettingsScreen(
                     },
                     onClick = { AppSettings.setShowNerdStats(!nerdStats) },
                 )
+            }
+            val appIconTitle = stringResource(R.string.app_icon)
+            row(appIconTitle, "icon", "launcher", "logo") {
+                var selectedIcon by remember { mutableStateOf(AppIcon.current(context)) }
+                SettingsRow(icon = Icons.Rounded.Apps, title = appIconTitle)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = ROW_INSET, end = ROW_INSET, bottom = 14.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    AppIcon.entries.forEach { option ->
+                        val selected = option == selectedIcon
+                        Column(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(16.dp))
+                                .clickable {
+                                    selectedIcon = option
+                                    AppIcon.apply(context, option)
+                                }
+                                .padding(vertical = 6.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                        ) {
+                            // The glass PNGs carry their own rounded corners, so they are
+                            // drawn whole; only the adaptive default needs a mask.
+                            if (option == AppIcon.Default) {
+                                AndroidView(
+                                    factory = { ctx ->
+                                        android.widget.ImageView(ctx).apply { setImageResource(option.iconRes) }
+                                    },
+                                    modifier = Modifier
+                                        .size(68.dp)
+                                        .clip(RoundedCornerShape(22.dp)),
+                                )
+                            } else {
+                                Image(
+                                    painter = painterResource(option.iconRes),
+                                    contentDescription = null,
+                                    contentScale = ContentScale.Fit,
+                                    modifier = Modifier.size(68.dp),
+                                )
+                            }
+                            Text(
+                                text = stringResource(
+                                    when (option) {
+                                        AppIcon.Default -> R.string.app_icon_default
+                                        AppIcon.GlassLight -> R.string.app_icon_light
+                                        AppIcon.GlassDark -> R.string.app_icon_dark
+                                    },
+                                ),
+                                style = MaterialTheme.typography.labelMedium,
+                                color = if (selected) MaterialTheme.colorScheme.primary
+                                else MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+                                modifier = Modifier.padding(top = 6.dp),
+                            )
+                        }
+                    }
+                }
             }
         }
 
