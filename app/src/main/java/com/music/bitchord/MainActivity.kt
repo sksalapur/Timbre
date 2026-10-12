@@ -67,6 +67,7 @@ import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.CloudOff
 import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.IosShare
+import androidx.compose.material.icons.rounded.MoreHoriz
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.Sort
 import androidx.compose.material.icons.rounded.Upgrade
@@ -285,6 +286,7 @@ import androidx.compose.ui.layout.onSizeChanged
 import com.music.bitchord.ui.player.LocalPlayerDock
 import com.music.bitchord.ui.player.PlayerDock
 import com.music.bitchord.ui.screens.DetailScreen
+import com.music.bitchord.ui.screens.sortedForDetail
 import com.music.bitchord.ui.screens.ExploreScreen
 import com.music.bitchord.ui.screens.LocalMusicScreen
 import com.music.bitchord.ui.screens.HomeScreen
@@ -774,6 +776,9 @@ private fun BitChordApp(
     // has a cover and a track list, so it takes the bar every other release page
     // takes. Hence the folder question rather than the prefix.
     val isLocalDetail = detail?.browseId.isDeviceFolder()
+    // An album or playlist page: the one whose top bar carries its search,
+    // sort and overflow controls.
+    val isReleaseDetail = detail != null && !isLocalDetail && detail.type != BrowseType.ARTIST
     // Not keyed on the browse id and not remembered here: each page's choice
     // lives in AppSettings keyed by that page — Spotify-style, one playlist's
     // order never imposes itself on another, and every page keeps its own
@@ -781,6 +786,10 @@ private fun BitChordApp(
     val detailSongSorts by AppSettings.detailSongSorts.collectAsStateWithLifecycle()
     val songSort = detail?.browseId?.let { detailSongSorts[it] } ?: SongSort.DEFAULT
     var songSortMenuOpen by remember { mutableStateOf(false) }
+    // Whether the open release page's filter box is up. Held out here with the
+    // sort control because the button that opens it sits in the top bar beside
+    // it, and reset with the page so a filter never follows you to the next one.
+    var detailSearching by rememberSaveable(detail?.browseId) { mutableStateOf(false) }
     val likeStatuses by viewModel.likeStatuses.collectAsStateWithLifecycle()
     // Which tracks are being held on YouTube's own upload, so the player's menu
     // offers the way back out of a revert rather than the revert again.
@@ -2931,25 +2940,10 @@ private fun BitChordApp(
                                 }
                             },
                             onSectionItemLongPress = onBrowseLongPress,
-                            // The page's own tracks, so the sheet has them already and
-                            // Play, Shuffle and Open are the buttons beside the one that
-                            // opened it rather than rows on it. Download is the other
-                            // way round: the header no longer carries it, so the sheet
-                            // is where a whole release is asked for — and the tracks
-                            // arrive stamped with the album they came off, which is what
-                            // the download record groups them under.
-                            onMore = { songs ->
-                                browseActions = BrowseTarget(
-                                    browseId = page.browseId,
-                                    title = page.title,
-                                    subtitle = page.subtitle,
-                                    thumbnailUrl = page.thumbnailUrl,
-                                    type = page.type,
-                                    songs = songs.map(withAlbum),
-                                    fromCard = false,
-                                    downloadId = downloadIdFor(page.browseId),
-                                )
-                            },
+                            // Only the page on its way in answers to the bar's
+                            // search button; one fading out keeps its list whole.
+                            searching = detailSearching && page.browseId == detail?.browseId,
+                            onSearchingChange = { detailSearching = it },
                             onArtistClick = { id, name ->
                                 viewModel.openDetail(id, name, "Artist", null, BrowseType.ARTIST)
                             },
@@ -3647,12 +3641,28 @@ private fun BitChordApp(
                                     }
                                 }
                             }
-                            // Left of the account photo, and only on an album or
-                            // playlist page — an artist page has no single track
-                            // list to reorder, and the device folders already
-                            // carry this same control themselves (see
-                            // `LocalSearchField`).
-                            if (detail != null && !isLocalDetail && detail.type != BrowseType.ARTIST) {
+                            // Sort, only on an album or playlist page — an
+                            // artist page has no single track list to reorder,
+                            // and the device folders already carry this same
+                            // control themselves (see `LocalSearchField`).
+                            //
+                            // Search and the overflow flank it, as the share and
+                            // "…" pair do on Apple Music's album page: the header
+                            // below is left with just the sleeve, the title and
+                            // Shuffle / Play / Add.
+                            if (isReleaseDetail && detail != null) {
+                                val releaseSongs = (detail.songs as? UiState.Success)?.data.orEmpty()
+                                if (releaseSongs.isNotEmpty()) {
+                                    IconButton(onClick = { detailSearching = !detailSearching }) {
+                                        Icon(
+                                            if (detailSearching) Icons.Rounded.Close else BitChordIcons.Search,
+                                            contentDescription = stringResource(
+                                                if (detailSearching) R.string.close_search else R.string.search_this_list,
+                                            ),
+                                            tint = MaterialTheme.colorScheme.onSurface,
+                                        )
+                                    }
+                                }
                                 // The menu itself is [FrostedSortMenu], composed
                                 // with the app's other frosted overlays further
                                 // down — in the main hierarchy, where the haze
@@ -3663,6 +3673,42 @@ private fun BitChordApp(
                                         contentDescription = stringResource(R.string.sort_songs),
                                         tint = MaterialTheme.colorScheme.onSurface,
                                     )
+                                }
+                                if (releaseSongs.isNotEmpty()) {
+                                    // The page's own tracks, in the order the page
+                                    // shows them, so the sheet has them already and
+                                    // Play, Shuffle and Open are the buttons beside
+                                    // the one that opened it rather than rows on it.
+                                    // Download lives in the sheet too — and the
+                                    // tracks arrive stamped with the album they came
+                                    // off, which is what the download record groups
+                                    // them under.
+                                    IconButton(
+                                        onClick = {
+                                            browseActions = BrowseTarget(
+                                                browseId = detail.browseId,
+                                                title = detail.title,
+                                                subtitle = detail.subtitle,
+                                                thumbnailUrl = detail.thumbnailUrl,
+                                                type = detail.type,
+                                                songs = releaseSongs.sortedForDetail(songSort).map { song ->
+                                                    if (detail.type == BrowseType.ALBUM) {
+                                                        song.copy(albumName = song.albumName ?: detail.title)
+                                                    } else {
+                                                        song
+                                                    }
+                                                },
+                                                fromCard = false,
+                                                downloadId = downloadIdFor(detail.browseId),
+                                            )
+                                        },
+                                    ) {
+                                        Icon(
+                                            Icons.Rounded.MoreHoriz,
+                                            contentDescription = stringResource(R.string.more),
+                                            tint = MaterialTheme.colorScheme.onSurface,
+                                        )
+                                    }
                                 }
                             }
                             // Left of the account photo, on an artist page: iOS's
@@ -3695,7 +3741,10 @@ private fun BitChordApp(
                             // [TopBarDownloadButton], which decides that for
                             // itself rather than being told.
                             TopBarDownloadButton(onClick = { showDownloadManager = true })
-                            TopBarAccountButton(
+                            // Not on a release page, whose pill already carries
+                            // three of its own controls — Apple Music leaves the
+                            // profile off its album pages too.
+                            if (!isReleaseDetail) TopBarAccountButton(
                                 account = account,
                                 onClick = {
                                     if (signedIn) {

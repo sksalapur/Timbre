@@ -598,7 +598,7 @@ private fun SongRowContent(
         }
         // Same sheet the long-press opens, for anyone who doesn't think to hold.
         if (onMore != null && !matching && !unavailable) {
-            RowMoreButton(onClick = onMore)
+            RowMoreButton(onClick = onMore, tint = subtitleColor)
         }
     }
 }
