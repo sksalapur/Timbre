@@ -185,7 +185,10 @@ object TvSettings {
             } catch (_: Exception) {
                 return false
             }
-            return MessageDigest.isEqual(computedHash, expectedHash)
+            val matches = MessageDigest.isEqual(computedHash, expectedHash)
+            // Re-hash at the current cost when the stored hash predates a bump in iterations.
+            if (matches && iterations < PIN_PBKDF2_ITERATIONS) setProfilePin(profileId, pin)
+            return matches
         }
 
         // Backward compatibility: compare legacy plaintext PIN in constant time and upgrade on match.
@@ -261,7 +264,7 @@ object TvSettings {
     private const val PIN_HASH_PREFIX = "pbkdf2_sha256"
     private const val PIN_SALT_BYTES = 16
     private const val PIN_HASH_BYTES = 32
-    private const val PIN_PBKDF2_ITERATIONS = 20_000
+    private const val PIN_PBKDF2_ITERATIONS = 120_000
     private const val PIN_ALGORITHM = "PBKDF2WithHmacSHA256"
 
     private const val KEY_TV_REFRESH_RATE = "tv_refresh_rate"

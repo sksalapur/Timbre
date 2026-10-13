@@ -34,7 +34,7 @@ class TvSettingsPinTest {
         val parts = rawStored.split(':')
         assertEquals("Stored hash should have 4 colon-separated parts", 4, parts.size)
         assertEquals("Algorithm prefix", "pbkdf2_sha256", parts[0])
-        assertEquals("Iterations", "20000", parts[1])
+        assertEquals("Iterations", "120000", parts[1])
         assertEquals("Salt length in hex (16 bytes = 32 hex chars)", 32, parts[2].length)
         assertEquals("Hash length in hex (32 bytes = 64 hex chars)", 64, parts[3].length)
     }
@@ -138,6 +138,23 @@ class TvSettingsPinTest {
 
         fakePrefs.edit().putString("tv_profile_pin_$profileId", "pbkdf2_sha256:20000:invalid_hex:1234").commit()
         assertFalse(TvSettings.verifyProfilePin(profileId, "1234"))
+    }
+
+    @Test
+    fun testOlderIterationCountVerifiesAndUpgradesOnSuccess() {
+        val profileId = "profile_old_cost"
+        val salt = ByteArray(16) { it.toByte() }
+        val hash = javax.crypto.SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256")
+            .generateSecret(javax.crypto.spec.PBEKeySpec("2468".toCharArray(), salt, 20_000, 256)).encoded
+        fun hex(b: ByteArray) = b.joinToString("") { "%02x".format(it) }
+        fakePrefs.edit().putString("tv_profile_pin_$profileId", "pbkdf2_sha256:20000:${hex(salt)}:${hex(hash)}").apply()
+
+        assertFalse(TvSettings.verifyProfilePin(profileId, "0000"))
+        assertEquals("20000", fakePrefs.getString("tv_profile_pin_$profileId", null)!!.split(':')[1])
+
+        assertTrue(TvSettings.verifyProfilePin(profileId, "2468"))
+        assertEquals("120000", fakePrefs.getString("tv_profile_pin_$profileId", null)!!.split(':')[1])
+        assertTrue(TvSettings.verifyProfilePin(profileId, "2468"))
     }
 }
 
