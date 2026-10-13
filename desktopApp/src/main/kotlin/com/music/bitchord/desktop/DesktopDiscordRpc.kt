@@ -63,10 +63,27 @@ internal object DesktopDiscordRpc {
                 ipc?.close()
                 ipc = found
                 _localClient.value = true
+                DesktopTrackLog.log("discord: local client on ${found.label}")
             } else {
                 _localClient.value = ipc != null
+                DesktopTrackLog.log("discord: no local client answering")
             }
         }
+    }
+
+    // One synchronous pipe probe. Called from the push path so a client that
+    // started or restarted mid session is picked up without reopening settings.
+    private fun reconnectOnce(reason: String): DesktopDiscordIpc? {
+        val found = DesktopDiscordIpc.connect(APPLICATION_ID)
+        if (found != null) {
+            ipc = found
+            _localClient.value = true
+            DesktopTrackLog.log("discord: reconnect ($reason) on ${found.label}")
+        } else {
+            _localClient.value = ipc != null
+            DesktopTrackLog.log("discord: reconnect ($reason) found nothing")
+        }
+        return found
     }
 
     private val _username = MutableStateFlow(DesktopPersistence().string(KEY_USERNAME, ""))
@@ -125,7 +142,6 @@ internal object DesktopDiscordRpc {
         }
         val key = "${song.videoId}|${state.durationMs}|$speed"
         if (key == lastKey) return
-        lastKey = key
         val position = state.positionMs
         val duration = state.durationMs.takeIf { it > 0 } ?: 0L
         scope.launch {
@@ -139,18 +155,45 @@ internal object DesktopDiscordRpc {
             }
             // The socket first, and the gateway only if there is no socket:
             // publishing through both would put the same presence up twice.
-            val local = ipc
+            // At most one re-probe per push, so a dead client costs one scan.
+            var local = ipc
+            var reprobed = false
+            if (local == null) {
+                local = reconnectOnce("track")
+                reprobed = true
+            }
             if (local != null) {
-                val sent = runCatching {
+                val sendFailure = runCatching {
                     local.setActivity(ipcActivity(song, title, now - elapsed, now + remaining))
-                }.isSuccess
-                if (sent) return@launch
+                }.exceptionOrNull()
+                if (sendFailure == null) {
+                    lastKey = key
+                    return@launch
+                }
+                DesktopTrackLog.log("discord: local push failed: ${sendFailure.message}")
                 // A client that has quit takes its socket with it.
-                ipc = null
+                runCatching { local.close() }
+                if (ipc === local) ipc = null
                 _localClient.value = false
+                if (!reprobed) {
+                    val retry = reconnectOnce("retry")
+                    if (retry != null) {
+                        val retryFailure = runCatching {
+                            retry.setActivity(ipcActivity(song, title, now - elapsed, now + remaining))
+                        }.exceptionOrNull()
+                        if (retryFailure == null) {
+                            lastKey = key
+                            return@launch
+                        }
+                        DesktopTrackLog.log("discord: local retry failed: ${retryFailure.message}")
+                        runCatching { retry.close() }
+                        if (ipc === retry) ipc = null
+                        _localClient.value = false
+                    }
+                }
             }
             if (_token.value.isBlank()) return@launch
-            runCatching {
+            val gatewayFailure = runCatching {
                 val client = rpc ?: KizzyRPC(
                     token = _token.value,
                     os = if (DesktopPlatform.isWindows) "Windows" else "Linux",
@@ -192,7 +235,8 @@ internal object DesktopDiscordRpc {
                     applicationId = APPLICATION_ID,
                     status = DesktopDiscordSettings.status.value,
                 )
-            }
+            }.exceptionOrNull()
+            if (gatewayFailure == null) lastKey = key
         }
     }
 
