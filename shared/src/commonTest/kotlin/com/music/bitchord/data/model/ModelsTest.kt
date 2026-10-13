@@ -27,6 +27,14 @@ class ModelsTest {
             "https://lh3.googleusercontent.com/a/ACg8oc=s512-c",
             "https://lh3.googleusercontent.com/a/ACg8oc=s96-c".artworkAt(512),
         )
+        assertEquals(
+            "https://example.test/cover=s88.jpg",
+            "https://example.test/cover=s88.jpg".artworkAt(512),
+        )
+        assertEquals(
+            "https://notggpht.com/avatar=s88.jpg",
+            "https://notggpht.com/avatar=s88.jpg".artworkAt(512),
+        )
     }
 
     private fun album(id: String) = ShelfItem(id, "", null, null, id)

@@ -250,8 +250,23 @@ fun String?.durationMillis(): Long {
 /** As [Song.artworkAt], for artwork that isn't a track's. */
 fun String?.artworkAt(px: Int): String? {
     if (this == null) return null
-    return this.replace(SIZE_HINT, "w$px-h$px")
-        .replace(PARAM_SIZE_HINT, "=s$px")
+    val sized = this.replace(SIZE_HINT, "w$px-h$px")
+    return if (isGoogleImageHost(this)) {
+        sized.replace(PARAM_SIZE_HINT, "=s$px")
+    } else {
+        sized
+    }
+}
+
+private fun isGoogleImageHost(url: String): Boolean {
+    val host = url.substringAfter("://", "")
+        .ifEmpty { url.substringAfter("//", "") }
+        .substringBefore('/')
+        .substringBefore(':')
+        .substringBefore('?')
+        .lowercase()
+    return host == "ggpht.com" || host.endsWith(".ggpht.com") ||
+        host == "googleusercontent.com" || host.endsWith(".googleusercontent.com")
 }
 
 private val SIZE_HINT = Regex("""w\d+-h\d+""")
