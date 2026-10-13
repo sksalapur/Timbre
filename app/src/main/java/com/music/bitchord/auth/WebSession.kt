@@ -124,9 +124,9 @@ object BrowserSession {
             }
         }
         runCatching {
-            manager.removeAllCookies(null)
+            val storage = android.webkit.WebStorage.getInstance()
+            GOOGLE_ORIGINS.forEach { origin -> storage.deleteOrigin(origin) }
             manager.flush()
-            android.webkit.WebStorage.getInstance().deleteAllData()
         }
         Log.d("BitChord", "cleared $cleared browser cookies for Google")
     }

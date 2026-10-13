@@ -89,12 +89,6 @@ fun YtMusicLoginScreen(
         modifier = modifier.fillMaxSize(),
         factory = { context ->
             if (mode == WebSessionMode.SIGN_IN) {
-                runCatching {
-                    val manager = CookieManager.getInstance()
-                    manager.removeAllCookies(null)
-                    manager.flush()
-                    android.webkit.WebStorage.getInstance().deleteAllData()
-                }
                 BrowserSession.clearGoogleCookies()
             } else initialCookie?.let(BrowserSession::installGoogleCookies)
             WebView(context).apply {
