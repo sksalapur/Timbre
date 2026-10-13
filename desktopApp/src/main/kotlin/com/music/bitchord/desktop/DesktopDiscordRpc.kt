@@ -1,5 +1,6 @@
 package com.music.bitchord.desktop
 
+import com.music.bitchord.data.NerdStats
 import com.music.bitchord.data.model.Song
 import com.music.bitchord.data.model.artworkAt
 import com.my.kizzy.rpc.KizzyRPC
@@ -140,7 +141,7 @@ internal object DesktopDiscordRpc {
             clear()
             return
         }
-        val key = "${song.videoId}|${state.durationMs}|$speed"
+        val key = "${song.videoId}|${state.durationMs}|$speed|${qualityLine()}"
         if (key == lastKey) return
         val position = state.positionMs
         val duration = state.durationMs.takeIf { it > 0 } ?: 0L
@@ -216,7 +217,7 @@ internal object DesktopDiscordRpc {
                         song.artworkAt(ART_PX)?.takeIf { it.startsWith("http") } ?: FALLBACK_ART_URL,
                     ),
                     smallImage = null,
-                    largeText = song.albumName,
+                    largeText = qualityLine(),
                     buttons = buttonLabels(song).takeIf { it.isNotEmpty() },
                     type = when (DesktopDiscordSettings.activityType.value) {
                         "playing" -> KizzyRPC.Type.PLAYING
@@ -269,7 +270,7 @@ internal object DesktopDiscordRpc {
         }
         putJsonObject("assets") {
             put("large_image", song.artworkAt(ART_PX)?.takeIf { it.startsWith("http") } ?: FALLBACK_ART_URL)
-            song.albumName?.let { put("large_text", it) }
+            qualityLine()?.let { put("large_text", it) }
         }
         val labels = buttonLabels(song)
         if (labels.isNotEmpty()) {
@@ -279,6 +280,12 @@ internal object DesktopDiscordRpc {
                 }
             }
         }
+    }
+
+    /** Measured premium line, or null when the toggle is off or the stream is lossy. */
+    internal fun qualityLine(): String? {
+        if (!DesktopDiscordSettings.showAudioQuality.value) return null
+        return desktopAudioQualityLine(NerdStats.current.value)
     }
 
     /** The buttons as configured: text with its variables filled in, and hidden ones dropped. */

@@ -1927,7 +1927,7 @@ fun BitChordDesktopApp() {
     }
     // Keyed on the same things, plus the rate: Discord counts the bar down on
     // its own clock, so only a change to what it was told is worth another push.
-    LaunchedEffect(playback.song?.videoId, playback.isPlaying, playback.durationMs, playbackSpeed) {
+    LaunchedEffect(playback.song?.videoId, playback.isPlaying, playback.durationMs, playbackSpeed, playback.streamFormat) {
         DesktopDiscordRpc.onPlaybackStateChanged(playback, playbackSpeed)
     }
     // The account's own history on YouTube Music, which is what the home feed is built out of.
