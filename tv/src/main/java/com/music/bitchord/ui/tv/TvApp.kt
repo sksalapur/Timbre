@@ -113,7 +113,61 @@ fun TvApp(
     val setupVersionCompleted by TvSettings.tvSetupVersionCompleted.collectAsState()
     var isRunningSetup by remember(setupVersionCompleted) { mutableStateOf(setupVersionCompleted == 0) }
     var isNowPlayingOpen by remember { mutableStateOf(false) }
-    var showAccountDialog by remember { mutableStateOf(false) }
+    val googleAccounts by viewModel.googleAccounts.collectAsState()
+    val activeAccountId by viewModel.activeAccountId.collectAsState()
+    val activeProfileId by viewModel.activeProfileId.collectAsState()
+
+    val initialProfileLocked = remember {
+        val profId = viewModel.activeProfileId.value
+            ?: viewModel.googleAccounts.value.firstOrNull { it.accountId == viewModel.activeAccountId.value }
+                ?.let { acc ->
+                    if (acc.profiles.isNotEmpty()) {
+                        acc.profiles.firstOrNull { !it.isBrandAccount }?.profileId
+                            ?: acc.profiles.firstOrNull()?.profileId
+                    } else {
+                        "default:${acc.accountId}"
+                    }
+                }
+            ?: viewModel.googleAccounts.value.firstOrNull()?.let { acc ->
+                if (acc.profiles.isNotEmpty()) {
+                    acc.profiles.firstOrNull { !it.isBrandAccount }?.profileId
+                        ?: acc.profiles.firstOrNull()?.profileId
+                } else {
+                    "default:${acc.accountId}"
+                }
+            }
+        profId != null && TvSettings.isProfileLocked(profId)
+    }
+
+    var sessionAuthenticated by remember { mutableStateOf(!initialProfileLocked) }
+    var showAccountDialog by remember { mutableStateOf(initialProfileLocked) }
+
+    val currentActiveProfileId = remember(googleAccounts, activeAccountId, activeProfileId) {
+        if (activeProfileId != null) {
+            activeProfileId
+        } else {
+            val account = googleAccounts.firstOrNull { it.accountId == activeAccountId }
+                ?: googleAccounts.firstOrNull()
+            if (account != null) {
+                if (account.profiles.isNotEmpty()) {
+                    account.profiles.firstOrNull { !it.isBrandAccount }?.profileId
+                        ?: account.profiles.firstOrNull()?.profileId
+                } else {
+                    "default:${account.accountId}"
+                }
+            } else {
+                null
+            }
+        }
+    }
+    val isCurrentProfileLocked = currentActiveProfileId != null && TvSettings.isProfileLocked(currentActiveProfileId)
+
+    LaunchedEffect(isCurrentProfileLocked) {
+        if (isCurrentProfileLocked && !sessionAuthenticated) {
+            showAccountDialog = true
+        }
+    }
+
     // Offered once per launch, and not over first-time setup. Settings'
     // "Software Update" row reopens it after it is dismissed.
     val update by viewModel.updateAvailable.collectAsState()
@@ -123,6 +177,14 @@ fun TvApp(
     LaunchedEffect(spatialAudio) {
         com.music.bitchord.ui.tv.audio.TvSpatialAudioEngine.setEnabled(spatialAudio)
     }
+
+    val signedIn by viewModel.signedIn.collectAsState()
+    LaunchedEffect(signedIn) {
+        if (!signedIn) {
+            TvSettings.wipeAllPins()
+        }
+    }
+
 
     Box(
         modifier = modifier
@@ -150,7 +212,10 @@ fun TvApp(
                         playerState = playerState,
                         covered = isNowPlayingOpen,
                         onOpenNowPlaying = { isNowPlayingOpen = true },
-                        onOpenAccount = { showAccountDialog = true },
+                        onOpenAccount = {
+                            sessionAuthenticated = false
+                            showAccountDialog = true
+                        },
                         onRunSetupAgain = { isRunningSetup = true },
                     )
                     AnimatedVisibility(
@@ -172,10 +237,13 @@ fun TvApp(
             }
         }
 
-        if (showAccountDialog) {
+        if (showAccountDialog && !isRunningSetup) {
             TvAccountDialog(
                 viewModel = viewModel,
-                onDismiss = { showAccountDialog = false },
+                onDismiss = {
+                    sessionAuthenticated = true
+                    showAccountDialog = false
+                },
                 allowPhoneSignIn = false,
             )
         }
@@ -240,6 +308,24 @@ private fun TvMainShell(
     var barHasFocus by remember { mutableStateOf(false) }
     // The card each pushed page was opened from, so Back can hand focus back to it.
     val returnFocus = remember { mutableListOf<FocusRequester?>() }
+
+    val signedIn by viewModel.signedIn.collectAsState()
+    val activeProfileId by viewModel.activeProfileId.collectAsState()
+    LaunchedEffect(signedIn, activeProfileId) {
+        if (!signedIn) {
+            if (detailStack.isNotEmpty()) {
+                detailStack.clear()
+                returnFocus.clear()
+                viewModel.clearDetail()
+            }
+            chrome.contentScrolled = false
+            destination = TvDestination.HOME
+        } else if (detailStack.isNotEmpty()) {
+            detailStack.clear()
+            returnFocus.clear()
+            viewModel.clearDetail()
+        }
+    }
 
     val select: (TvDestination) -> Unit = { next ->
         if (detailStack.isNotEmpty()) {
@@ -450,8 +536,19 @@ private fun TvTopBar(
     onOpenAccount: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val googleAccounts by viewModel.googleAccounts.collectAsState()
+    val activeAccountId by viewModel.activeAccountId.collectAsState()
+    val activeProfileId by viewModel.activeProfileId.collectAsState()
     val account by viewModel.account.collectAsState()
     val signedIn by viewModel.signedIn.collectAsState()
+
+    val avatarUrl = remember(googleAccounts, activeAccountId, activeProfileId, account) {
+        googleAccounts.firstOrNull { it.accountId == activeAccountId }
+            ?.profiles?.firstOrNull { it.profileId == activeProfileId }
+            ?.avatar
+            ?: account?.thumbnailUrl
+    }
+
     // Pages fill the screen from its top edge so they can scroll under this bar,
     // which puts them outside a plain "below" search from a tab. Point Down at them.
     val downToContent = Modifier.focusProperties { down = contentFocus }
@@ -472,7 +569,7 @@ private fun TvTopBar(
                 .aspectRatio(730f / 484f),
         )
         TvAvatarButton(
-            imageUrl = if (signedIn) account?.thumbnailUrl else null,
+            imageUrl = if (signedIn) avatarUrl else null,
             onClick = onOpenAccount,
             modifier = Modifier.align(Alignment.CenterEnd).then(downToContent),
         )
@@ -552,7 +649,7 @@ private fun TvAvatarButton(
                 modifier = Modifier.size(18.dp),
             )
         } else {
-            TvArtwork(url = imageUrl, px = 120, shape = CircleShape, modifier = Modifier.fillMaxSize())
+            TvArtwork(url = imageUrl, px = 256, shape = CircleShape, modifier = Modifier.fillMaxSize())
         }
     }
 }
