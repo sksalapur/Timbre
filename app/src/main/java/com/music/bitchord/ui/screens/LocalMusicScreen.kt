@@ -934,7 +934,7 @@ private fun albumEntries(
                 artist = group.firstOrNull()?.artist.orEmpty(),
                 thumbnailUrl = group.firstNotNullOfOrNull { it.thumbnailUrl },
                 playlist = false,
-                songs = group,
+                songs = group.sortedForAlbum(),
                 asked = false,
                 key = "tagged:$name",
             )
@@ -1416,6 +1416,9 @@ private fun DrillDownSongList(
         }
     } else {
         val listState = rememberLazyListState()
+        // An album's rows show the release's own numbers; an artist's mixed
+        // rows keep positional ones — see [useTrackTags].
+        val numberedByTag = remember(songs) { songs.useTrackTags() }
         LazyColumn(
             state = listState,
             modifier = Modifier.fillMaxSize(),
@@ -1445,7 +1448,7 @@ private fun DrillDownSongList(
                     isPlaying = song.isSameTrackAs(currentSong) && isPlaying,
                     searchPlayingStyle = true,
                     activeTint = PlayingAccent,
-                    trackNumber = index + 1,
+                    trackNumber = if (numberedByTag) song.trackNumber ?: (index + 1) else (index + 1),
                     onClick = { onSongClick(songs, index) },
                     onLongPress = { onSongLongPress(song) },
                     onMore = onSongMore?.let { more -> { more(song) } },
@@ -1486,6 +1489,30 @@ private fun List<Song>.sortedForLibrary(order: LocalMusicSort): List<Song> = whe
         compareByDescending<Song> { it.localDateModifiedSeconds ?: Long.MIN_VALUE }
             .thenBy(String.CASE_INSENSITIVE_ORDER) { it.title },
     )
+}
+
+/**
+ * Release order for one tag-derived album: by the file's own track number,
+ * falling back to title only for rows whose tags say nothing. Untagged rows
+ * sort after tagged ones rather than interleaving at the head.
+ */
+internal fun List<Song>.sortedForAlbum(): List<Song> {
+    if (none { it.trackNumber != null }) return this
+    return sortedWith(
+        compareBy<Song> { it.trackNumber ?: Int.MAX_VALUE }
+            .thenBy(String.CASE_INSENSITIVE_ORDER) { it.title },
+    )
+}
+
+/**
+ * Whether a drill-down list is one album's own tracks rather than an artist's
+ * mixed rows: every song names the same album and at least one carries a tag
+ * number. Artist groupings keep positional numbering.
+ */
+internal fun List<Song>.useTrackTags(): Boolean {
+    if (isEmpty() || none { it.trackNumber != null }) return false
+    val album = first().albumName ?: return false
+    return all { it.albumName == album }
 }
 
 /**
