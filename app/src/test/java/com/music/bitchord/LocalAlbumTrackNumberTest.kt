@@ -2,8 +2,8 @@ package com.music.bitchord
 
 import com.music.bitchord.data.LocalMediaRepository
 import com.music.bitchord.data.model.Song
-import com.music.bitchord.ui.screens.sortedForAlbum
-import com.music.bitchord.ui.screens.useTrackTags
+import com.music.bitchord.data.sortedForAlbum
+import com.music.bitchord.data.useTrackTags
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull

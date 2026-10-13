@@ -88,7 +88,9 @@ import com.music.bitchord.data.sources.TrackMatcher
 import com.music.bitchord.playback.AudioCache
 import com.music.bitchord.playback.StreamChoice
 import com.music.bitchord.ui.screens.CACHE_FOLDER_BROWSE_ID
-import com.music.bitchord.ui.screens.matchesSearch
+import com.music.bitchord.data.LocalGroup
+import com.music.bitchord.data.LocalGroups
+import com.music.bitchord.data.matchesSearch
 import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicLong
@@ -2437,7 +2439,15 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
          */
 
         fun browseTypeOf(browseId: String, fallback: BrowseType = BrowseType.OTHER): BrowseType = when {
-            browseId.startsWith(Downloads.PLAYLIST_PREFIX) -> BrowseType.PLAYLIST
+            // Built for playlists, but an album downloaded whole opens through
+            // the same prefix, and its page should read as the album it is.
+            browseId.startsWith(Downloads.PLAYLIST_PREFIX) ->
+                Downloads.recordIdOf(browseId)
+                    ?.let { Downloads.collections.value[it] }
+                    ?.takeIf { !it.playlist }
+                    ?.let { BrowseType.ALBUM }
+                    ?: BrowseType.PLAYLIST
+            browseId.startsWith(LocalGroups.PREFIX) -> LocalGroups.typeOf(browseId) ?: fallback
             browseId.startsWith("UC") -> BrowseType.ARTIST
             browseId.startsWith("MPREb") || browseId.startsWith("VLOLAK") || browseId.startsWith("OLAK") -> BrowseType.ALBUM
             browseId.startsWith("VL") || browseId.startsWith("PL") -> BrowseType.PLAYLIST
@@ -2558,37 +2568,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     if (it.browseId == browseId && it.songs is UiState.Loading) it.copy(songs = UiState.Success(onDevice)) else it
                 }
             }
+            if (localPlaylist != null) {
+                name = localPlaylist.title
+                credit = getApplication<Application>().getString(R.string.local_playlist_subtitle, localPlaylist.songs.size)
+                artwork = localPlaylist.songs.firstOrNull { !it.thumbnailUrl.isNullOrBlank() }?.thumbnailUrl
+            }
+            val local = localPageState(browseId)
             val state = when {
-                localPlaylist != null -> {
-                    name = localPlaylist.title
-                    credit = getApplication<Application>().getString(R.string.local_playlist_subtitle, localPlaylist.songs.size)
-                    artwork = localPlaylist.songs.firstOrNull { !it.thumbnailUrl.isNullOrBlank() }?.thumbnailUrl
-                    if (localPlaylist.songs.isEmpty()) UiState.Error(text(R.string.spotify_import_empty_playlist))
-                    else UiState.Success(localPlaylist.songs)
-                }
-                remote != null -> remoteSongsState(remote)
-                Downloads.recordIdOf(browseId) != null -> {
-                    val songs = downloadedPlaylist(browseId)
-                    if (songs.isEmpty()) UiState.Error(text(R.string.downloaded_playlist_empty))
-                    else UiState.Success(songs)
-                }
-                browseId == "local:downloads" -> {
-                    val context = getApplication<Application>()
-                    val songs = Downloads.getDownloadedSongs(context)
-                    if (songs.isEmpty()) UiState.Error("No downloaded tracks")
-                    else UiState.Success(songs)
-                }
-                browseId == CACHE_FOLDER_BROWSE_ID -> cachedSongsState()
-                browseId == "local:all" -> {
-                    val context = getApplication<Application>()
-                    if (!LocalMediaRepository.hasStoragePermission(context)) {
-                        UiState.Error(text(R.string.storage_required_read))
-                    } else {
-                        val songs = LocalMediaRepository.getLocalMusic(context)
-                        if (songs.isEmpty()) UiState.Error(text(R.string.no_local_audio_found))
-                        else UiState.Success(songs)
-                    }
-                }
+                local != null -> local
                 resolved == BrowseType.ARTIST -> {
                     YtMusicRepository.artistPage(browseId).fold(
                         onSuccess = { page ->
@@ -2756,44 +2743,75 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         albumName = album,
     )
 
+    /**
+     * Pushes one album, playlist or artist out of a device folder as a page of
+     * its own, with the rows the folder already had in hand — so it opens on
+     * its tracks rather than on a skeleton while the folder is read again.
+     * [reloadLocalDetail] keeps it current from there, like any `local:` page.
+     */
+    fun openLocalGroup(group: LocalGroup) {
+        if (_detailStack.value.lastOrNull()?.browseId == group.browseId) return
+        _detailStack.value += DetailPage(
+            browseId = group.browseId,
+            title = group.title,
+            subtitle = group.subtitle,
+            thumbnailUrl = group.thumbnailUrl,
+            songs = if (group.songs.isEmpty()) UiState.Error(text(R.string.no_tracks_here)) else UiState.Success(group.songs),
+            type = group.type,
+        )
+    }
+
     fun reloadLocalDetail(browseId: String) {
         viewModelScope.launch {
-            val context = getApplication<Application>()
-            val localPlaylist = com.music.bitchord.data.spotify.LocalPlaylistStore.getPlaylist(browseId)
-            val remote = remoteLibrary(browseId)
-            val state: UiState<List<Song>> = when {
-                localPlaylist != null -> {
-                    if (localPlaylist.songs.isEmpty()) UiState.Error(text(R.string.spotify_import_empty_playlist))
-                    else UiState.Success(localPlaylist.songs)
-                }
-                remote != null -> remoteSongsState(remote)
-                Downloads.recordIdOf(browseId) != null -> {
-                    val songs = downloadedPlaylist(browseId)
-                    if (songs.isEmpty()) UiState.Error(text(R.string.downloaded_playlist_empty))
-                    else UiState.Success(songs)
-                }
-                browseId == "local:downloads" -> {
-                    val songs = Downloads.getDownloadedSongs(context)
-                    if (songs.isEmpty()) UiState.Error("No downloaded tracks")
-                    else UiState.Success(songs)
-                }
-                browseId == CACHE_FOLDER_BROWSE_ID -> cachedSongsState()
-                browseId == "local:all" -> {
-                    if (!LocalMediaRepository.hasStoragePermission(context)) {
-                        UiState.Error(text(R.string.storage_required_read))
-                    } else {
-                        val songs = LocalMediaRepository.getLocalMusic(context)
-                        if (songs.isEmpty()) UiState.Error(text(R.string.no_local_audio_found))
-                        else UiState.Success(songs)
-                    }
-                }
-                else -> return@launch
-            }
+            val state = localPageState(browseId) ?: return@launch
             _detailStack.value = _detailStack.value.map {
                 if (it.browseId == browseId) {
                     it.copy(songs = state)
                 } else it
             }
+        }
+    }
+
+    /**
+     * The listing behind a page whose tracks come from this device or a file
+     * server rather than YouTube — a device folder, a release downloaded whole,
+     * a playlist in the app's own store, a remote library, or one album or
+     * artist grouped out of a folder — or null for every other page.
+     *
+     * The one place each of those is read, so opening a page, refreshing it
+     * and queueing it from a menu can't disagree about what is on it.
+     */
+    private suspend fun localPageState(browseId: String): UiState<List<Song>>? {
+        val context = getApplication<Application>()
+        fun nonEmpty(songs: List<Song>, empty: () -> String): UiState<List<Song>> =
+            if (songs.isEmpty()) UiState.Error(empty()) else UiState.Success(songs)
+
+        com.music.bitchord.data.spotify.LocalPlaylistStore.getPlaylist(browseId)?.let { playlist ->
+            return nonEmpty(playlist.songs) { text(R.string.spotify_import_empty_playlist) }
+        }
+        remoteLibrary(browseId)?.let { return remoteSongsState(it) }
+        LocalGroups.folderOf(browseId)?.let { folderId ->
+            // Read off a fresh listing of the folder it came from: a grouping
+            // has nothing of its own to read, and whatever the folder says
+            // when it can't be listed is what this page says too.
+            return when (val folder = localPageState(folderId)) {
+                is UiState.Success -> nonEmpty(LocalGroups.songsOf(browseId, folder.data)) { text(R.string.no_tracks_here) }
+                null -> UiState.Error(text(R.string.no_tracks_here))
+                else -> folder
+            }
+        }
+        return when {
+            Downloads.recordIdOf(browseId) != null ->
+                nonEmpty(downloadedPlaylist(browseId)) { text(R.string.downloaded_playlist_empty) }
+            browseId == "local:downloads" ->
+                nonEmpty(Downloads.getDownloadedSongs(context)) { "No downloaded tracks" }
+            browseId == CACHE_FOLDER_BROWSE_ID -> cachedSongsState()
+            browseId == "local:all" -> if (!LocalMediaRepository.hasStoragePermission(context)) {
+                UiState.Error(text(R.string.storage_required_read))
+            } else {
+                nonEmpty(LocalMediaRepository.getLocalMusic(context)) { text(R.string.no_local_audio_found) }
+            }
+            else -> null
         }
     }
 
@@ -2932,33 +2950,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         onResult: (Result<List<Song>>) -> Unit,
     ) {
         viewModelScope.launch {
-            val context = getApplication<Application>()
-            val remote = remoteLibrary(browseId)
-            val result = when {
-                remote != null -> runCatching {
-                    remote.songs().ifEmpty { error(text(remote.emptyRes)) }
-                }
-                Downloads.recordIdOf(browseId) != null -> runCatching {
-                    downloadedPlaylist(browseId).ifEmpty {
-                        error(text(R.string.downloaded_playlist_empty))
-                    }
-                }
-                browseId == "local:downloads" -> runCatching {
-                    Downloads.getDownloadedSongs(context)
-                        .ifEmpty { error("No downloaded tracks") }
-                }
-                browseId == CACHE_FOLDER_BROWSE_ID -> runCatching {
-                    AudioCache.cachedSongs().map { it.song }
-                        .ifEmpty { error(text(R.string.cached_songs_empty)) }
-                }
-                browseId == "local:all" -> runCatching {
-                    if (!LocalMediaRepository.hasStoragePermission(context)) {
-                        error(text(R.string.storage_required_read))
-                    }
-                    LocalMediaRepository.getLocalMusic(context)
-                        .ifEmpty { error(text(R.string.no_local_audio_found)) }
-                }
-                else -> YtMusicRepository.allSongs(browseId)
+            val result = when (val local = localPageState(browseId)) {
+                is UiState.Success -> Result.success(local.data)
+                is UiState.Error -> Result.failure(IllegalStateException(local.message))
+                UiState.Loading -> Result.failure(IllegalStateException(text(R.string.no_tracks_here)))
+                null -> YtMusicRepository.allSongs(browseId)
             }
             onResult(result.map { it.withArtwork(artworkFallback) })
         }

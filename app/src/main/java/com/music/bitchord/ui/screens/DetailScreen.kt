@@ -113,6 +113,13 @@ import androidx.compose.runtime.mutableIntStateOf
 import kotlinx.coroutines.delay
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.unit.Constraints
+import androidx.compose.material.icons.automirrored.rounded.QueueMusic
+import androidx.compose.material.icons.rounded.Album
+import com.music.bitchord.data.LocalGroups
+import com.music.bitchord.data.matchesSearch
+import com.music.bitchord.data.sortedForLibrary
+import com.music.bitchord.data.useTrackTags
+import com.music.bitchord.ui.components.CoverPlaceholder
 import com.music.bitchord.data.canvas.AppleArtistArt
 import com.music.bitchord.data.canvas.AppleArtistArtRepository
 import com.music.bitchord.data.canvas.keyColors
@@ -305,14 +312,29 @@ fun DetailScreen(
      * photo, not in this header.
      */
     songSort: SongSort = SongSort.DEFAULT,
+    /**
+     * Set when this page is a device folder — Downloads, Local Music and the
+     * like. The header is the same as any playlist's; under it, instead of one
+     * running order, come the folder's Songs / Artists / Albums tabs. See
+     * [LocalFolder].
+     */
+    folder: LocalFolder? = null,
 ) {
     val rawSongs = (page.songs as? UiState.Success)?.data.orEmpty()
-    val songs = remember(rawSongs, songSort) { rawSongs.sortedForDetail(songSort) }
+    // A folder keeps its own sort — the one its top bar menu sets — rather
+    // than the per-page one a release takes.
+    val folderSort = folder?.sort
+    val songs = remember(rawSongs, songSort, folderSort) {
+        if (folderSort != null) rawSongs.sortedForLibrary(folderSort) else rawSongs.sortedForDetail(songSort)
+    }
     // What a numbered row shows regardless of [songSort] — an album's track
     // numbers are the sleeve's own and must not relabel themselves to match
-    // wherever a sort put the row.
+    // wherever a sort put the row. An album grouped off a device's files
+    // numbers from its tags where they say, since a release with a track
+    // missing must not renumber the rest.
     val originalTrackNumbers = remember(rawSongs) {
-        rawSongs.withIndex().associate { (i, s) -> s.videoId to i + 1 }
+        val byTag = rawSongs.useTrackTags()
+        rawSongs.withIndex().associate { (i, s) -> s.videoId to ((if (byTag) s.trackNumber else null) ?: (i + 1)) }
     }
     val isArtist = page.type == BrowseType.ARTIST
     // Whether the top release card's album is already saved isn't on the shelf
@@ -365,6 +387,17 @@ fun DetailScreen(
     val suggested = remember(page.suggestedSongs, query) {
         page.suggestedSongs.matching(query).map { it.value }
     }
+
+    // A device folder's tab and Downloads selection. The selection answers
+    // Back before the search does: it is registered after it, so it is asked
+    // first while it is on.
+    val folderState = folder?.state
+    val folderGroups = if (folder != null && folderState != null) {
+        rememberLocalFolderGroups(page.browseId, folder, folderState.tab, rawSongs, query)
+    } else {
+        emptyList()
+    }
+    BackHandler(enabled = folderState?.selecting == true) { folderState?.clear() }
 
     // What marks a row as already downloaded, tinted from the sleeve like the
     // rest of the page. Null on any page that is itself a reading of this
@@ -440,6 +473,9 @@ fun DetailScreen(
                 // the narrow one it was written for.
                 val artHeight = (maxWidth / ARTIST_PHOTO_RATIO).coerceAtMost(maxHeight * 0.6f)
                 val sleeveSize = (maxWidth * SLEEVE_FRACTION).coerceAtMost(maxHeight * SLEEVE_MAX_HEIGHT)
+                // A folder's grid view: the same column count the Library's
+                // "Show all" grids reach at this width.
+                val gridColumns = libraryGrid(maxWidth - PAGE_GUTTER * 2).columns
 
                 // The artist photo is drawn behind the list rather than in it, so
                 // both need to agree on its height without being able to ask each
@@ -476,7 +512,8 @@ fun DetailScreen(
                         songs = songs,
                         onPlay = { onSongClick(songs, 0) },
                         onShuffle = { onShuffle(songs) },
-                        onArtistClick = onArtistClick,
+                        // A folder's credit says where its tracks live, not who made them.
+                        onArtistClick = onArtistClick.takeIf { folder == null },
                         onToggleLibrary = onToggleLibrary,
                     )
                 }
@@ -572,7 +609,22 @@ fun DetailScreen(
             when (val state = page.songs) {
                 is UiState.Loading -> detailSkeleton(isArtist)
                 is UiState.Error -> item { MessageState(state.message) }
-                is UiState.Success -> if (isArtist) {
+                is UiState.Success -> if (folder != null && folderState != null) {
+                    localFolderItems(
+                        folder = folder,
+                        state = folderState,
+                        songs = queue,
+                        groups = folderGroups,
+                        query = query,
+                        columns = gridColumns,
+                        palette = palette,
+                        currentSong = currentSong,
+                        isPlaying = isPlaying,
+                        onSongClick = onSongClick,
+                        onSongLongPress = onSongLongPress,
+                        onSongSwipe = onSongSwipe,
+                    )
+                } else if (isArtist) {
                     // An artist's full song list would bury the album shelves, so
                     // it pages sideways four at a time and stops at twenty.
                     item {
@@ -724,6 +776,17 @@ fun DetailScreen(
             if (isArtist) aboutItem()
         }
 
+                if (folder != null && folderState != null && folderState.selecting) {
+                    LocalFolderSelectionBar(
+                        folder = folder,
+                        state = folderState,
+                        songs = songs,
+                        modifier = Modifier
+                            .align(Alignment.TopCenter)
+                            .padding(top = topBarContentPadding(), start = PAGE_GUTTER, end = PAGE_GUTTER),
+                    )
+                }
+
     }
 } else {
     ArtistShelfGridPage(
@@ -756,7 +819,7 @@ private fun ReleaseHeader(
     songs: List<Song>,
     onPlay: () -> Unit,
     onShuffle: () -> Unit,
-    onArtistClick: (String, String) -> Unit,
+    onArtistClick: ((String, String) -> Unit)?,
     onToggleLibrary: (() -> Unit)?,
 ) {
     val (credit, meta) = page.headerLines(songs.size, songs.playtime())
@@ -779,10 +842,25 @@ private fun ReleaseHeader(
                 .background(palette.elevated)
                 .thumbnailBorder(SLEEVE_SHAPE),
         ) {
+            // A cover that isn't there, or wouldn't load — a device folder, a
+            // playlist with nothing on it yet, files with no picture — gets a
+            // placeholder sleeve rather than an empty square. Not shown while a
+            // real one is still on its way, so a loading cover doesn't flash
+            // a glyph first.
+            var artFailed by remember(page.thumbnailUrl) { mutableStateOf(false) }
+            if (page.thumbnailUrl == null || artFailed) {
+                CoverPlaceholder(
+                    icon = page.placeholderIcon(),
+                    base = palette.elevated,
+                    tint = palette.onBackgroundVariant,
+                    modifier = Modifier.matchParentSize(),
+                )
+            }
             AsyncImage(
                 model = page.thumbnailUrl.artworkAt(HEADER_ART_PX),
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
+                onState = { artFailed = it is AsyncImagePainter.State.Error },
                 modifier = Modifier.matchParentSize(),
             )
             // Animated cover art, inside the same frame. Always running:
@@ -823,7 +901,7 @@ private fun ReleaseHeader(
                     .padding(horizontal = HEADER_GUTTER)
                     .let { m ->
                         val id = artist?.artistId
-                        if (id == null) {
+                        if (id == null || onArtistClick == null) {
                             m
                         } else {
                             m.clip(RoundedCornerShape(6.dp))
@@ -858,6 +936,29 @@ private fun ReleaseHeader(
                 horizontalArrangement = Arrangement.spacedBy(RELEASE_ACTION_GAP),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
+                if (page.browseId.startsWith("local:")) {
+                    // Already on this device — a folder, a download, a local
+                    // playlist — so there is no library to add it to, and a
+                    // greyed-out plus would only promise one. Apple Music's
+                    // own pair for that case: Play and Shuffle, side by side.
+                    ActionPill(
+                        icon = BitChordIcons.Play,
+                        label = stringResource(R.string.play),
+                        onClick = onPlay,
+                        filled = true,
+                        size = RELEASE_SIDE_BUTTON,
+                        modifier = Modifier.weight(1f),
+                    )
+                    ActionPill(
+                        icon = BitChordIcons.Shuffle,
+                        label = stringResource(R.string.shuffle),
+                        onClick = onShuffle,
+                        filled = false,
+                        size = RELEASE_SIDE_BUTTON,
+                        modifier = Modifier.weight(1f),
+                    )
+                    return@Row
+                }
                 CircleIconButton(
                     icon = BitChordIcons.Shuffle,
                     contentDescription = stringResource(R.string.shuffle),
@@ -865,8 +966,11 @@ private fun ReleaseHeader(
                     haptic = Haptic.Resume,
                     size = RELEASE_SIDE_BUTTON,
                 )
-                PlayPill(
+                ActionPill(
+                    icon = BitChordIcons.Play,
+                    label = stringResource(R.string.play),
                     onClick = onPlay,
+                    filled = true,
                     size = RELEASE_SIDE_BUTTON,
                     modifier = Modifier.weight(1f),
                 )
@@ -1027,11 +1131,7 @@ internal fun List<Song>.sortedForDetail(sort: SongSort): List<Song> = when (sort
 internal fun List<Song>.matching(query: String): List<IndexedValue<Song>> {
     val all = withIndex().toList()
     if (query.isBlank()) return all
-    return all.filter { (_, song) ->
-        song.title.contains(query, ignoreCase = true) ||
-            song.artist.contains(query, ignoreCase = true) ||
-            song.albumName?.contains(query, ignoreCase = true) == true
-    }
+    return all.filter { (_, song) -> song.matchesSearch(query) }
 }
 
 /**
@@ -1318,24 +1418,38 @@ private fun ActionRow(
 }
 
 /**
- * The release page's Play: a white pill with a label, which fills whatever
- * width the row leaves it between Shuffle and Add. White with black content,
- * so the primary action survives every palette.
+ * A labelled pill in the release page's action row. [filled] is Play: white
+ * with black content, so the primary action survives every palette, filling
+ * whatever width the row leaves it. Otherwise it wears the light veil and glass
+ * rim of the circles beside it — Shuffle, on a page with no Add to sit opposite.
  */
 @Composable
-private fun PlayPill(
+private fun ActionPill(
+    icon: ImageVector,
+    label: String,
     onClick: () -> Unit,
+    filled: Boolean,
     modifier: Modifier = Modifier,
     size: Dp = 50.dp,
 ) {
-    // Resume rather than a flat tap: this button starts a queue, and the rising
-    // pair says so.
+    // Resume rather than a flat tap: both start a queue, and the rising pair
+    // says so.
     val haptics = rememberHaptics()
+    val content = if (filled) Color.Black else MaterialTheme.colorScheme.onSurface
     Row(
         modifier = modifier
             .height(size)
             .clip(CircleShape)
-            .background(Color.White)
+            .then(
+                if (filled) {
+                    Modifier.background(Color.White)
+                } else {
+                    Modifier
+                        .background(Color.White.copy(alpha = LIGHT_FILL_ALPHA), CircleShape)
+                        .liquidGlassRim(CircleShape)
+                        .border(1.dp, Color.White.copy(alpha = TOP_RELEASE_EDGE_ALPHA), CircleShape)
+                },
+            )
             .clickable {
                 haptics.play(Haptic.Resume)
                 onClick()
@@ -1345,16 +1459,16 @@ private fun PlayPill(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(
-            imageVector = BitChordIcons.Play,
+            imageVector = icon,
             contentDescription = null,
-            tint = Color.Black,
+            tint = content,
             modifier = Modifier.size(18.dp),
         )
         Spacer(Modifier.width(8.dp))
         Text(
-            text = stringResource(R.string.play),
+            text = label,
             style = MaterialTheme.typography.titleMedium,
-            color = Color.Black,
+            color = content,
             maxLines = 1,
         )
     }
@@ -1985,8 +2099,11 @@ private fun DetailPage.headerLines(trackCount: Int, playtime: String? = null): P
     val credit = parts.filter { it != year && it != kind }.joinToString(", ")
     // Title case, "Playlist · 2022 · 10 Tracks · 38 min" — except the
     // playtime, whose "min" and "1h 25m" are units, not words.
+    // An artist grouped out of a device folder is a plain track list, not an
+    // artist page, but it is still billed as the artist it is.
+    val localKind = if (LocalGroups.isArtist(browseId)) stringResource(R.string.artist) else null
     val meta = listOfNotNull(
-        (kind ?: type.localizedLabel())?.capitalizeWords(),
+        (kind ?: type.localizedLabel() ?: localKind)?.capitalizeWords(),
         year,
         trackCount.takeIf { it > 0 }?.let {
             pluralStringResource(R.plurals.track_count_plural, it, it).capitalizeWords()
@@ -1994,6 +2111,14 @@ private fun DetailPage.headerLines(trackCount: Int, playtime: String? = null): P
         playtime,
     ).joinToString(" · ")
     return credit to meta
+}
+
+/** The glyph on a release page's placeholder sleeve: what kind of thing has no cover. */
+private fun DetailPage.placeholderIcon(): ImageVector = deviceFolderIcon(browseId) ?: when {
+    LocalGroups.isArtist(browseId) -> Icons.Rounded.Person
+    type == BrowseType.ALBUM -> Icons.Rounded.Album
+    type == BrowseType.PLAYLIST -> Icons.AutoMirrored.Rounded.QueueMusic
+    else -> BitChordIcons.MusicNote
 }
 
 /** "10 tracks" → "10 Tracks", "playlist" → "Playlist". */
