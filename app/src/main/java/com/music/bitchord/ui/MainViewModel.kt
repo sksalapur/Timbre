@@ -3136,8 +3136,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val profile = supplied ?: source.profiles.firstOrNull { it.profileId == selectedProfileId } ?: return
         if (accountId == _activeAccountId.value && profile.profileId == _activeProfileId.value) return
         cacheCurrentListener()
+        val index = source.profiles.indexOfFirst { it.profileId == profile.profileId }
+        val updatedProfiles = if (index >= 0) {
+            source.profiles.toMutableList().apply { set(index, profile) }
+        } else {
+            source.profiles + profile
+        }
         val updated = source.copy(
-            profiles = (source.profiles.filterNot { it.profileId == profile.profileId } + profile),
+            profiles = updatedProfiles,
             activeProfileId = profile.profileId,
         )
         authStore.upsertSession(updated)
