@@ -2,8 +2,14 @@ package com.music.bitchord.ui.tv.dialogs
 
 import android.view.KeyEvent
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -45,6 +51,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -75,7 +82,10 @@ import com.music.bitchord.auth.WebSessionMode
 import com.music.bitchord.auth.YouTubeProfile
 import com.music.bitchord.data.lyrics.LyricsSource
 import com.music.bitchord.data.settings.AppSettings
+import com.music.bitchord.data.settings.TvPinThrottle
 import com.music.bitchord.data.settings.TvSettings
+import kotlin.math.ceil
+import kotlinx.coroutines.delay
 import com.music.bitchord.ui.MainViewModel
 import com.music.bitchord.ui.configureTvSignInWebView
 import com.music.bitchord.ui.onSignedIn
@@ -244,8 +254,10 @@ private fun TvProfileSwitcher(
             title = "Enter 4-Digit PIN",
             message = "Profile is locked. Enter PIN for ${unlockPair.second.name}",
             errorMessage = unlockError,
+            throttleKey = unlockPair.second.profileId,
             onPinEntered = { entered ->
-                if (TvSettings.verifyProfilePin(unlockPair.second.profileId, entered)) {
+                val correct = TvSettings.verifyProfilePin(unlockPair.second.profileId, entered)
+                if (correct) {
                     unlockError = null
                     val (account, profile) = unlockPair
                     pendingUnlockProfile = null
@@ -253,6 +265,7 @@ private fun TvProfileSwitcher(
                 } else {
                     unlockError = "Incorrect PIN. Try again."
                 }
+                correct
             },
             onDismiss = {
                 pendingUnlockProfile = null
@@ -511,6 +524,7 @@ private fun TvAccountSettingsDialog(
                     tempPin = entered
                     pinError = null
                     pinMode = PinMode.Confirm
+                    true
                 },
                 onDismiss = { pinMode = null; pinError = null },
             )
@@ -526,9 +540,11 @@ private fun TvAccountSettingsDialog(
                         isLocked = true
                         pinMode = null
                         pinError = null
+                        true
                     } else {
                         pinError = "PINs did not match. Try again."
                         pinMode = PinMode.Set
+                        false
                     }
                 },
                 onDismiss = { pinMode = null; pinError = null },
@@ -539,8 +555,10 @@ private fun TvAccountSettingsDialog(
                 title = "Turn Off App Lock",
                 message = "Enter current 4-digit PIN to remove lock",
                 errorMessage = pinError,
+                throttleKey = profile.profileId,
                 onPinEntered = { entered ->
-                    if (TvSettings.verifyProfilePin(profile.profileId, entered)) {
+                    val correct = TvSettings.verifyProfilePin(profile.profileId, entered)
+                    if (correct) {
                         TvSettings.setProfilePin(profile.profileId, null)
                         isLocked = false
                         pinMode = null
@@ -548,6 +566,7 @@ private fun TvAccountSettingsDialog(
                     } else {
                         pinError = "Incorrect PIN"
                     }
+                    correct
                 },
                 onDismiss = { pinMode = null; pinError = null },
             )
@@ -615,11 +634,79 @@ private fun TvPinDialog(
     title: String,
     message: String,
     errorMessage: String? = null,
-    onPinEntered: (String) -> Unit,
+    throttleKey: String? = null,
+    onPinEntered: (String) -> Boolean,
     onDismiss: () -> Unit,
 ) {
     var pin by remember { mutableStateOf("") }
     var localError by remember { mutableStateOf(errorMessage) }
+    var throttleText by remember { mutableStateOf<String?>(null) }
+    var cooldownTrigger by remember { mutableLongStateOf(0L) }
+    var isInputBlocked by remember { mutableStateOf(false) }
+
+    val cancelFocusRequester = remember { FocusRequester() }
+    val firstKeyFocusRequester = remember { FocusRequester() }
+
+    val keypadAlpha by animateFloatAsState(
+        targetValue = if (isInputBlocked) 0.35f else 1f,
+        animationSpec = tween(250),
+        label = "keypadAlpha",
+    )
+
+    LaunchedEffect(isInputBlocked) {
+        if (isInputBlocked) {
+            runCatching { cancelFocusRequester.requestFocus() }
+        } else {
+            runCatching { firstKeyFocusRequester.requestFocus() }
+        }
+    }
+
+    LaunchedEffect(errorMessage) {
+        if (!errorMessage.isNullOrBlank()) {
+            localError = errorMessage
+        }
+    }
+
+    LaunchedEffect(throttleKey, cooldownTrigger) {
+        val remainingMs = throttleKey?.let { TvPinThrottle.getDelayRemainingMs(it) } ?: 0L
+
+        if (remainingMs > 0L) {
+            isInputBlocked = true
+            val sec = ceil(remainingMs / 1000.0).toInt()
+            val timeStr = TvPinThrottle.formatDuration(sec)
+            throttleText = "Try again in $timeStr"
+            delay(remainingMs)
+            isInputBlocked = false
+            throttleText = null
+            localError = null
+        } else {
+            isInputBlocked = false
+            throttleText = null
+        }
+    }
+
+    val submitPin: (String) -> Unit = { candidate ->
+        if (!isInputBlocked && candidate.length == 4) {
+            val success = onPinEntered(candidate)
+            if (!success) {
+                pin = ""
+                val delayMs = throttleKey?.let { TvPinThrottle.recordFailure(it) } ?: 0L
+                localError = errorMessage ?: "Incorrect PIN"
+                if (delayMs > 0L) {
+                    val sec = ceil(delayMs / 1000.0).toInt()
+                    val timeStr = TvPinThrottle.formatDuration(sec)
+                    throttleText = "Try again in $timeStr"
+                    isInputBlocked = true
+                    cooldownTrigger = System.currentTimeMillis()
+                } else {
+                    throttleText = null
+                    isInputBlocked = false
+                }
+            } else {
+                throttleKey?.let { TvPinThrottle.recordSuccess(it) }
+            }
+        }
+    }
 
     Dialog(
         onDismissRequest = onDismiss,
@@ -638,6 +725,7 @@ private fun TvPinDialog(
                 .background(Color(0xF2111113))
                 .onPreviewKeyEvent { event ->
                     if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+
                     val digit = when (event.nativeKeyEvent.keyCode) {
                         KeyEvent.KEYCODE_0, KeyEvent.KEYCODE_NUMPAD_0 -> '0'
                         KeyEvent.KEYCODE_1, KeyEvent.KEYCODE_NUMPAD_1 -> '1'
@@ -651,19 +739,28 @@ private fun TvPinDialog(
                         KeyEvent.KEYCODE_9, KeyEvent.KEYCODE_NUMPAD_9 -> '9'
                         else -> null
                     }
-                    if (digit != null && pin.length < 4) {
-                        localError = null
-                        val next = pin + digit
-                        pin = next
-                        if (next.length == 4) {
-                            onPinEntered(next)
+                    if (digit != null) {
+                        if (isInputBlocked) return@onPreviewKeyEvent true
+                        if (pin.length < 4) {
+                            localError = null
+                            val next = pin + digit
+                            pin = next
+                            if (next.length == 4) {
+                                submitPin(next)
+                            }
+                            return@onPreviewKeyEvent true
                         }
-                        true
-                    } else if (event.nativeKeyEvent.keyCode == KeyEvent.KEYCODE_DEL && pin.isNotEmpty()) {
-                        pin = pin.dropLast(1)
-                        localError = null
-                        true
-                    } else false
+                        return@onPreviewKeyEvent true
+                    } else if (event.nativeKeyEvent.keyCode == KeyEvent.KEYCODE_DEL) {
+                        if (isInputBlocked) return@onPreviewKeyEvent true
+                        if (pin.isNotEmpty()) {
+                            pin = pin.dropLast(1)
+                            localError = null
+                            return@onPreviewKeyEvent true
+                        }
+                        return@onPreviewKeyEvent false
+                    }
+                    false
                 },
             contentAlignment = Alignment.Center,
         ) {
@@ -715,10 +812,22 @@ private fun TvPinDialog(
                     }
                 }
 
-                if (!localError.isNullOrBlank()) {
+                val displayError = when {
+                    throttleText != null -> {
+                        val base = localError
+                            ?.removeSuffix(".")
+                            ?.replace(Regex("\\.?\\s*Try again\\.?$", RegexOption.IGNORE_CASE), "")
+                            ?.trim()
+                        if (!base.isNullOrBlank()) "$base. $throttleText" else throttleText
+                    }
+                    !localError.isNullOrBlank() -> localError
+                    else -> null
+                }
+
+                if (!displayError.isNullOrBlank()) {
                     Spacer(modifier = Modifier.height(12.dp))
                     Text(
-                        text = localError!!,
+                        text = displayError,
                         style = TvType.Caption.copy(fontWeight = FontWeight.SemiBold),
                         color = TvGlass.Destructive,
                         textAlign = TextAlign.Center,
@@ -735,6 +844,7 @@ private fun TvPinDialog(
                 )
 
                 Column(
+                    modifier = Modifier.graphicsLayer { alpha = keypadAlpha },
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
@@ -747,9 +857,19 @@ private fun TvPinDialog(
                                 Box(
                                     modifier = Modifier
                                         .size(width = 68.dp, height = 44.dp)
-                                        .tvLift(interaction, RoundedCornerShape(10.dp), focusedScale = 1.1f, elevation = 8.dp)
-                                        .tvPlatter(interaction, resting = TvGlass.Fill, focused = TvGlass.Platter)
-                                        .tvClick(interaction) {
+                                        .tvLift(
+                                            interaction,
+                                            RoundedCornerShape(10.dp),
+                                            focusedScale = if (isInputBlocked) 1f else 1.1f,
+                                            elevation = if (isInputBlocked) 0.dp else 8.dp,
+                                        )
+                                        .tvPlatter(
+                                            interaction,
+                                            resting = TvGlass.Fill,
+                                            focused = if (isInputBlocked) TvGlass.Fill else TvGlass.Platter,
+                                        )
+                                        .tvClick(interaction, enabled = !isInputBlocked) {
+                                            if (isInputBlocked) return@tvClick
                                             when (label) {
                                                 "C" -> {
                                                     pin = ""
@@ -767,19 +887,26 @@ private fun TvPinDialog(
                                                         val next = pin + label
                                                         pin = next
                                                         if (next.length == 4) {
-                                                            onPinEntered(next)
+                                                            submitPin(next)
                                                         }
                                                     }
                                                 }
                                             }
                                         }
-                                        .then(if (rowIndex == 0 && label == "1") Modifier.tvInitialFocus() else Modifier),
+                                        .then(
+                                            if (rowIndex == 0 && label == "1") {
+                                                Modifier
+                                                    .focusRequester(firstKeyFocusRequester)
+                                                    .tvInitialFocus()
+                                            } else Modifier
+                                        ),
                                     contentAlignment = Alignment.Center,
                                 ) {
                                     Text(
                                         text = label,
                                         style = TvType.Body.copy(fontWeight = FontWeight.Bold, fontSize = 16.sp),
-                                        color = if (focused) TvGlass.OnPlatter else TvGlass.TextPrimary,
+                                        color = if (isInputBlocked) TvGlass.TextSecondary.copy(alpha = 0.5f)
+                                                else if (focused) TvGlass.OnPlatter else TvGlass.TextPrimary,
                                     )
                                 }
                             }
@@ -792,6 +919,7 @@ private fun TvPinDialog(
                 TvButton(
                     text = "Cancel",
                     onClick = onDismiss,
+                    modifier = Modifier.focusRequester(cancelFocusRequester),
                 )
             }
         }

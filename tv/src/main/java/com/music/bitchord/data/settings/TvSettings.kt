@@ -37,6 +37,7 @@ object TvSettings {
 
     fun init(preferences: SharedPreferences) {
         prefs = preferences
+        TvPinThrottle.init(preferences)
         tvRefreshRate.value = prefs.getString(KEY_TV_REFRESH_RATE, "AUTO") ?: "AUTO"
         tvNickname.value = prefs.getString(KEY_TV_NICKNAME, "Listener") ?: "Listener"
         tvTheme.value = prefs.getString(KEY_TV_THEME, "dynamic_artwork") ?: "dynamic_artwork"
@@ -161,6 +162,7 @@ object TvSettings {
                 putString("$KEY_PROFILE_PIN_PREFIX$profileId", stored)
             }
         }
+        TvPinThrottle.reset(profileId)
     }
 
     /**
@@ -209,6 +211,17 @@ object TvSettings {
                 .filter { it.startsWith(KEY_PROFILE_PIN_PREFIX) }
                 .forEach { key -> remove(key) }
         }
+        TvPinThrottle.resetAll()
+    }
+
+    fun getPinThrottleDelayRemainingMs(profileId: String): Long =
+        TvPinThrottle.getDelayRemainingMs(profileId)
+
+    fun recordFailedPinAttempt(profileId: String): Long =
+        TvPinThrottle.recordFailure(profileId)
+
+    fun recordSuccessfulPinAttempt(profileId: String) {
+        TvPinThrottle.recordSuccess(profileId)
     }
 
     private fun hashPin(pin: String, salt: ByteArray, iterations: Int = PIN_PBKDF2_ITERATIONS): ByteArray {
