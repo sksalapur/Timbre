@@ -1,5 +1,6 @@
 package com.music.bitchord.desktop
 
+import com.music.bitchord.data.discord.DiscordApplication
 import com.music.bitchord.data.model.Song
 import com.music.bitchord.data.model.artworkAt
 import com.my.kizzy.rpc.KizzyRPC
@@ -58,7 +59,7 @@ internal object DesktopDiscordRpc {
     /** Looks for a local Discord. Cheap, and the answer changes when one starts. */
     fun refreshLocalClient() {
         scope.launch {
-            val found = DesktopDiscordIpc.connect(APPLICATION_ID)
+            val found = DesktopDiscordIpc.connect(DiscordApplication.ID)
             if (found != null) {
                 ipc?.close()
                 ipc = found
@@ -166,12 +167,11 @@ internal object DesktopDiscordRpc {
                     details = title,
                     state = song.artist,
                     detailsUrl = watchUrl(song),
-                    // Never null: an activity with no large image falls back to
-                    // whatever icon the application id points at, which is not
-                    // ours to set.
-                    largeImage = RpcImage.ExternalImage(
-                        song.artworkAt(ART_PX)?.takeIf { it.startsWith("http") } ?: FALLBACK_ART_URL,
-                    ),
+                    // No usable artwork sends none, and Discord draws the
+                    // BitChord application's icon instead.
+                    largeImage = song.artworkAt(ART_PX)
+                        ?.takeIf { it.startsWith("http") }
+                        ?.let(RpcImage::ExternalImage),
                     smallImage = null,
                     largeText = song.albumName,
                     buttons = buttonLabels(song).takeIf { it.isNotEmpty() },
@@ -189,7 +189,7 @@ internal object DesktopDiscordRpc {
                     since = now,
                     startTime = now - elapsed,
                     endTime = now + remaining,
-                    applicationId = APPLICATION_ID,
+                    applicationId = DiscordApplication.ID,
                     status = DesktopDiscordSettings.status.value,
                 )
             }
@@ -224,7 +224,7 @@ internal object DesktopDiscordRpc {
             put("end", endMs)
         }
         putJsonObject("assets") {
-            put("large_image", song.artworkAt(ART_PX)?.takeIf { it.startsWith("http") } ?: FALLBACK_ART_URL)
+            song.artworkAt(ART_PX)?.takeIf { it.startsWith("http") }?.let { put("large_image", it) }
             song.albumName?.let { put("large_text", it) }
         }
         val labels = buttonLabels(song)
@@ -288,11 +288,8 @@ internal object DesktopDiscordRpc {
     private const val KEY_USERNAME = "discord_username"
     private const val KEY_ENABLED = "discord_rpc_enabled"
 
-    private const val APPLICATION_ID = "1411019391843172514"
     private const val PROJECT_URL = "https://github.com/kushagrasinghx/BitChord"
     private const val ART_PX = 480
-    private const val FALLBACK_ART_URL =
-        "https://raw.githubusercontent.com/kushagrasinghx/BitChord/main/app/src/main/ic_launcher-playstore.png"
     private const val CLIENT_VERSION = "0.0.83"
     private const val CLIENT_BUILD = "352675"
     private const val USER_AGENT =
