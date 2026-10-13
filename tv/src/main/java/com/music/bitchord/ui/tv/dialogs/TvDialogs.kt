@@ -1,5 +1,8 @@
 package com.music.bitchord.ui.tv.dialogs
 
+import android.app.Activity
+import android.content.Context
+import android.content.ContextWrapper
 import android.view.KeyEvent
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
@@ -74,6 +77,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.music.bitchord.BuildConfig
@@ -110,6 +114,12 @@ import com.music.bitchord.ui.tv.theme.TvGlass
 import com.music.bitchord.ui.tv.theme.TvType
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+
+private tailrec fun Context.findActivity(): Activity? = when (this) {
+    is Activity -> this
+    is ContextWrapper -> baseContext.findActivity()
+    else -> null
+}
 
 private enum class AccountDialogMode { Profiles, SignInChoose, SignInPhone, SignInTv }
 
@@ -214,8 +224,10 @@ private fun TvProfileSwitcher(
     onDismiss: () -> Unit,
 ) {
     var pendingUnlockProfile by remember { mutableStateOf<Pair<GoogleAccountSession, YouTubeProfile>?>(null) }
+    var pendingUnlockSettingsProfile by remember { mutableStateOf<Pair<GoogleAccountSession, YouTubeProfile>?>(null) }
     var selectedAccountForSettings by remember { mutableStateOf<Pair<GoogleAccountSession, YouTubeProfile>?>(null) }
     var unlockError by remember { mutableStateOf<String?>(null) }
+    var unlockSettingsError by remember { mutableStateOf<String?>(null) }
 
     val allProfiles = remember(googleAccounts) {
         googleAccounts.flatMap { account ->
@@ -234,6 +246,18 @@ private fun TvProfileSwitcher(
             }
         }
     }
+
+    val currentSelectedProfile = remember(allProfiles, activeAccountId, activeProfileId) {
+        if (activeProfileId != null) {
+            allProfiles.firstOrNull { it.second.profileId == activeProfileId }?.second
+        } else if (activeAccountId != null) {
+            allProfiles.firstOrNull { it.first.accountId == activeAccountId }?.second
+        } else {
+            allProfiles.firstOrNull()?.second
+        }
+    }
+    val isCurrentProfileLocked = currentSelectedProfile?.let { TvSettings.isProfileLocked(it.profileId) } == true
+    val context = LocalContext.current
 
     val settingsPair = selectedAccountForSettings
     if (settingsPair != null) {
@@ -274,16 +298,52 @@ private fun TvProfileSwitcher(
         )
     }
 
+    val unlockSettingsPair = pendingUnlockSettingsProfile
+    if (unlockSettingsPair != null) {
+        TvPinDialog(
+            title = "Enter 4-Digit PIN",
+            message = "Profile is locked. Enter PIN for ${unlockSettingsPair.second.name}",
+            errorMessage = unlockSettingsError,
+            throttleKey = unlockSettingsPair.second.profileId,
+            onPinEntered = { entered ->
+                val correct = TvSettings.verifyProfilePin(unlockSettingsPair.second.profileId, entered)
+                if (correct) {
+                    unlockSettingsError = null
+                    val (account, profile) = unlockSettingsPair
+                    pendingUnlockSettingsProfile = null
+                    selectedAccountForSettings = account to profile
+                } else {
+                    unlockSettingsError = "Incorrect PIN. Try again."
+                }
+                correct
+            },
+            onDismiss = {
+                pendingUnlockSettingsProfile = null
+                unlockSettingsError = null
+            },
+        )
+    }
+
     Dialog(
-        onDismissRequest = onDismiss,
+        onDismissRequest = {
+            if (!isCurrentProfileLocked) {
+                onDismiss()
+            }
+        },
         properties = DialogProperties(
-            dismissOnBackPress = true,
+            dismissOnBackPress = !isCurrentProfileLocked,
             dismissOnClickOutside = false,
             usePlatformDefaultWidth = false,
             decorFitsSystemWindows = false,
         ),
     ) {
-        BackHandler { onDismiss() }
+        BackHandler {
+            if (isCurrentProfileLocked) {
+                context.findActivity()?.finish()
+            } else {
+                onDismiss()
+            }
+        }
 
         Box(
             modifier = Modifier
@@ -367,19 +427,26 @@ private fun TvProfileSwitcher(
                                     if (index == allProfiles.lastIndex) right = FocusRequester.Cancel
                                 },
                                 onClick = {
-                                    selectedAccountForSettings = account to profile
+                                    if (TvSettings.isProfileLocked(profile.profileId)) {
+                                        unlockSettingsError = null
+                                        pendingUnlockSettingsProfile = account to profile
+                                    } else {
+                                        selectedAccountForSettings = account to profile
+                                    }
                                 },
                             )
                         }
                     }
                 }
 
-                Spacer(modifier = Modifier.height(28.dp))
+                if (!isCurrentProfileLocked) {
+                    Spacer(modifier = Modifier.height(28.dp))
 
-                TvButton(
-                    text = "Cancel",
-                    onClick = onDismiss,
-                )
+                    TvButton(
+                        text = "Cancel",
+                        onClick = onDismiss,
+                    )
+                }
             }
         }
     }
@@ -500,7 +567,7 @@ private fun TvProfileSettingsButton(
     }
 }
 
-private enum class PinMode { Set, Confirm, Remove }
+private enum class PinMode { Set, Confirm, Remove, SignOut }
 
 @Composable
 private fun TvAccountSettingsDialog(
@@ -571,6 +638,28 @@ private fun TvAccountSettingsDialog(
                 onDismiss = { pinMode = null; pinError = null },
             )
         }
+        PinMode.SignOut -> {
+            TvPinDialog(
+                title = "Sign Out",
+                message = "Enter 4-digit PIN to sign out ${profile.name}",
+                errorMessage = pinError,
+                throttleKey = profile.profileId,
+                onPinEntered = { entered ->
+                    val correct = TvSettings.verifyProfilePin(profile.profileId, entered)
+                    if (correct) {
+                        TvSettings.wipeAllPins()
+                        pinMode = null
+                        pinError = null
+                        onSignOut()
+                        onDismiss()
+                    } else {
+                        pinError = "Incorrect PIN"
+                    }
+                    correct
+                },
+                onDismiss = { pinMode = null; pinError = null },
+            )
+        }
         null -> {
             val isFirstProfile = !profile.isBrandAccount ||
                 account.profiles.firstOrNull { !it.isBrandAccount }?.profileId == profile.profileId ||
@@ -613,9 +702,14 @@ private fun TvAccountSettingsDialog(
                             destructive = true,
                             leadingIcon = Icons.AutoMirrored.Rounded.Logout,
                             onClick = {
-                                TvSettings.wipeAllPins()
-                                onSignOut()
-                                onDismiss()
+                                if (isLocked) {
+                                    pinError = null
+                                    pinMode = PinMode.SignOut
+                                } else {
+                                    TvSettings.wipeAllPins()
+                                    onSignOut()
+                                    onDismiss()
+                                }
                             },
                         )
                     }
