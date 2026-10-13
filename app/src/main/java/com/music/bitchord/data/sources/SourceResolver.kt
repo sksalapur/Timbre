@@ -111,8 +111,22 @@ object SourceResolver {
             configId = configId,
             trackId = trackId,
             target = targetIn(uri),
+            pickedMix = uri.getQueryParameter(MIX_PARAM),
         )
     }
+
+    /**
+     * `&mix=` on an addon row's playback URI: which mix the row itself was,
+     * [MIX_ATMOS] or [MIX_STEREO], as its search answer tagged it.
+     *
+     * Present only on addon rows, which reach the queue one way — picked by
+     * hand from the Addons search, then replayed from history or a playlist.
+     * It makes that play strict: the row the listener chose, never its Atmos
+     * sibling or another source's better copy. Absent, nothing changes.
+     */
+    const val MIX_PARAM = "mix"
+    const val MIX_STEREO = "stereo"
+    const val MIX_ATMOS = "atmos"
 
     /**
      * The recording a playback URI describes, for matching it elsewhere.
@@ -140,6 +154,7 @@ object SourceResolver {
         configId: String,
         trackId: String,
         target: TrackMatcher.Target,
+        pickedMix: String? = null,
     ): SourceStream? {
         val request = requestForNow()
         val active = SourceRegistry.activeForPlayback()
@@ -155,7 +170,9 @@ object SourceResolver {
         // asking first. This is the whole reason the list is ordered — it is
         // what makes "my own FLAC of this, if I have one, else stream it"
         // expressible.
-        if (request is StreamRequest.Lossless && pinned?.kind?.canServeLossless != true) {
+        // A row picked by hand is not up for substitution — see [MIX_PARAM].
+        val picked = pickedMix != null && pinned is AddonSource
+        if (!picked && request is StreamRequest.Lossless && pinned?.kind?.canServeLossless != true) {
             for (source in rankedAbove(configId, active)) {
                 if (!source.kind.canServeLossless) continue
                 val upgraded = matchAndStream(source, target, request) ?: continue
@@ -173,7 +190,13 @@ object SourceResolver {
         }
 
         if (pinned != null) {
-            attempt(pinned) { pinned.stream(trackId, request) }
+            attempt(pinned) {
+                if (picked) {
+                    (pinned as AddonSource).stream(trackId, request, stereoOnly = pickedMix == MIX_STEREO)
+                } else {
+                    pinned.stream(trackId, request)
+                }
+            }
                 ?.let { return it.copy(sourceConfigId = pinned.configId) }
         }
 

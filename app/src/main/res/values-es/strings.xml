@@ -240,6 +240,8 @@
     <string name="stop_music_on_close_subtitle">Detiene la reproducción al quitar la app de recientes</string>
     <string name="hide_volume_bar">Ocultar barra de volumen</string>
     <string name="hide_volume_bar_subtitle">Quita el control de volumen del reproductor principal</string>
+    <string name="hide_status_bar_in_player">Ocultar barra de estado en el reproductor</string>
+    <string name="hide_status_bar_in_player_subtitle">Oculta el reloj, la batería y los iconos de notificación mientras el reproductor principal está abierto</string>
     <string name="hide_song_status">Ocultar estado de la canción</string>
     <string name="hide_song_status_subtitle">Oculta el texto «Reproduciendo desde» o «Reproducido por» en el reproductor principal</string>
     <string name="off">Desactivado</string>
@@ -1267,8 +1269,6 @@
     <string name="search_addons_none">No hay addons activados. Añade uno en Ajustes → Fuentes.</string>
     <string name="app_icon">Icono de la app</string>
     <string name="app_icon_default">Predeterminado</string>
-    <string name="app_icon_light">Liquid Glass</string>
-    <string name="app_icon_dark">Liquid Dark</string>
     <string name="show_queue_history">Mostrar historial de la cola</string>
     <string name="show_queue_history_subtitle">Muestra hasta 25 canciones reproducidas antes de «Reproduciendo ahora» en la cola</string>
     <string name="not_enough_this_week">Escucha unas cuantas canciones más esta semana para desbloquear tu Replay.</string>

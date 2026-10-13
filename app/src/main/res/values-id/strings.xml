@@ -222,6 +222,8 @@
     <string name="stop_music_on_close_subtitle">Menghentikan pemutaran saat aplikasi digeser keluar dari aplikasi terbaru</string>
     <string name="hide_volume_bar">Sembunyikan bilah volume</string>
     <string name="hide_volume_bar_subtitle">Menghapus penggeser volume dari pemutar utama</string>
+    <string name="hide_status_bar_in_player">Sembunyikan bilah status di pemutar</string>
+    <string name="hide_status_bar_in_player_subtitle">Menyembunyikan jam, baterai, dan ikon notifikasi saat pemutar utama terbuka</string>
     <string name="hide_song_status">Sembunyikan status lagu</string>
     <string name="hide_song_status_subtitle">Menyembunyikan teks “Diputar dari” atau “Diputar oleh” di pemutar utama</string>
     <string name="off">Nonaktif</string>
@@ -1272,8 +1274,6 @@
     <string name="search_addons_none">Tidak ada addon yang aktif. Tambahkan satu di Pengaturan → Sumber.</string>
     <string name="app_icon">Ikon aplikasi</string>
     <string name="app_icon_default">Default</string>
-    <string name="app_icon_light">Liquid Glass</string>
-    <string name="app_icon_dark">Liquid Dark</string>
     <string name="show_queue_history">Tampilkan riwayat antrean</string>
     <string name="show_queue_history_subtitle">Menampilkan hingga 25 lagu yang sudah diputar di atas “Sedang diputar” di antrean</string>
     <string name="not_enough_this_week">Putar beberapa lagu lagi minggu ini untuk membuka Replay Anda.</string>

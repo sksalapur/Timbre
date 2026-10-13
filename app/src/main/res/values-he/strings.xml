@@ -228,6 +228,8 @@
     <string name="stop_music_on_close_subtitle">עוצר את ההשמעה כשמחליקים את האפליקציה החוצה ממסך האפליקציות האחרונות</string>
     <string name="hide_volume_bar">הסתרת סרגל עוצמת הקול</string>
     <string name="hide_volume_bar_subtitle">מסיר את מחוון עוצמת הקול מהנגן הראשי</string>
+    <string name="hide_status_bar_in_player">הסתרת שורת המצב בנגן</string>
+    <string name="hide_status_bar_in_player_subtitle">מסתיר את השעון, הסוללה וסמלי ההתראות כשהנגן הראשי פתוח</string>
     <string name="hide_song_status">הסתרת סטטוס השיר</string>
     <string name="hide_song_status_subtitle">מסתיר את הטקסט „מושמע מתוך” או „הושמע על ידי” בנגן הראשי</string>
     <string name="off">כבוי</string>
@@ -1300,8 +1302,6 @@
     <string name="search_addons_none">אין תוספים מופעלים. אפשר להוסיף אחד בהגדרות ← מקורות.</string>
     <string name="app_icon">סמל האפליקציה</string>
     <string name="app_icon_default">ברירת מחדל</string>
-    <string name="app_icon_light">Liquid Glass</string>
-    <string name="app_icon_dark">Liquid Dark</string>
     <string name="show_queue_history">הצגת היסטוריית התור</string>
     <string name="show_queue_history_subtitle">מציג עד 25 שירים שהושמעו מעל \"מתנגן עכשיו\" בתור</string>
     <string name="not_enough_this_week">השמיעו עוד כמה שירים השבוע כדי לפתוח את ה-Replay שלכם.</string>

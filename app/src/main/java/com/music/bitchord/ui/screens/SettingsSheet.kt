@@ -13,6 +13,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -73,6 +74,7 @@ import androidx.compose.material.icons.rounded.Storage
 import androidx.compose.material.icons.rounded.SurroundSound
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material.icons.rounded.VolumeOff
+import androidx.compose.material.icons.rounded.WebAssetOff
 import androidx.compose.material.icons.rounded.VolumeUp
 import androidx.compose.material.icons.rounded.Waves
 import androidx.compose.material.icons.rounded.Wifi
@@ -105,6 +107,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -233,6 +236,7 @@ fun SettingsScreen(
     val exportDownloads by AppSettings.exportDownloads.collectAsStateWithLifecycle()
     val stopOnTaskRemoved by AppSettings.stopOnTaskRemoved.collectAsStateWithLifecycle()
     val hideVolumeBar by AppSettings.hideVolumeBar.collectAsStateWithLifecycle()
+    val hideStatusBarInPlayer by AppSettings.hideStatusBarInPlayer.collectAsStateWithLifecycle()
     val hideSongStatus by AppSettings.hideSongStatus.collectAsStateWithLifecycle()
     val showQueueHistory by AppSettings.showQueueHistory.collectAsStateWithLifecycle()
     val swipeToPlayNext by AppSettings.swipeToPlayNext.collectAsStateWithLifecycle()
@@ -1322,6 +1326,25 @@ fun SettingsScreen(
                     onClick = { AppSettings.setHideVolumeBar(!hideVolumeBar) },
                 )
             }
+            val hideStatusBarTitle = stringResource(R.string.hide_status_bar_in_player)
+            row(hideStatusBarTitle, "status bar", "immersive", "fullscreen", "player") {
+                SettingsRow(
+                    icon = Icons.Rounded.WebAssetOff,
+                    title = hideStatusBarTitle,
+                    subtitle = stringResource(R.string.hide_status_bar_in_player_subtitle),
+                    trailing = {
+                        Switch(
+                            checked = hideStatusBarInPlayer,
+                            onCheckedChange = AppSettings::setHideStatusBarInPlayer,
+                            colors = SwitchDefaults.colors(
+                                checkedTrackColor = MaterialTheme.colorScheme.primary,
+                                checkedBorderColor = MaterialTheme.colorScheme.primary,
+                            ),
+                        )
+                    },
+                    onClick = { AppSettings.setHideStatusBarInPlayer(!hideStatusBarInPlayer) },
+                )
+            }
             val showQueueHistoryTitle = stringResource(R.string.show_queue_history)
             row(showQueueHistoryTitle, "player", "queue", "history", "previously played") {
                 SettingsRow(
@@ -1422,6 +1445,7 @@ fun SettingsScreen(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState())
                         .padding(start = ROW_INSET, end = ROW_INSET, bottom = 14.dp),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
@@ -1429,7 +1453,7 @@ fun SettingsScreen(
                         val selected = option == selectedIcon
                         Column(
                             modifier = Modifier
-                                .weight(1f)
+                                .width(84.dp)
                                 .clip(RoundedCornerShape(16.dp))
                                 .clickable {
                                     selectedIcon = option
@@ -1438,9 +1462,11 @@ fun SettingsScreen(
                                 .padding(vertical = 6.dp),
                             horizontalAlignment = Alignment.CenterHorizontally,
                         ) {
-                            // The glass PNGs carry their own rounded corners, so they are
-                            // drawn whole; only the adaptive default needs a mask.
-                            if (option == AppIcon.Default) {
+                            // A glass foreground holds the finished icon in its own shape on the
+                            // central 72 of 108 dp: scaled 1.5× it fills the tile as designed.
+                            // Only the default goes through an adaptive mask.
+                            val preview = option.previewRes
+                            if (preview == null) {
                                 AndroidView(
                                     factory = { ctx ->
                                         android.widget.ImageView(ctx).apply { setImageResource(option.iconRes) }
@@ -1451,20 +1477,18 @@ fun SettingsScreen(
                                 )
                             } else {
                                 Image(
-                                    painter = painterResource(option.iconRes),
+                                    painter = painterResource(preview),
                                     contentDescription = null,
                                     contentScale = ContentScale.Fit,
-                                    modifier = Modifier.size(68.dp),
+                                    modifier = Modifier
+                                        .size(68.dp)
+                                        .scale(1.5f),
                                 )
                             }
                             Text(
-                                text = stringResource(
-                                    when (option) {
-                                        AppIcon.Default -> R.string.app_icon_default
-                                        AppIcon.GlassLight -> R.string.app_icon_light
-                                        AppIcon.GlassDark -> R.string.app_icon_dark
-                                    },
-                                ),
+                                text = stringResource(option.labelRes),
+                                textAlign = TextAlign.Center,
+                                maxLines = 2,
                                 style = MaterialTheme.typography.labelMedium,
                                 color = if (selected) MaterialTheme.colorScheme.primary
                                 else MaterialTheme.colorScheme.onSurfaceVariant,

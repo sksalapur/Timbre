@@ -70,7 +70,7 @@ import com.music.bitchord.data.model.SearchFilter
 import com.music.bitchord.data.model.artworkAt
 import com.music.bitchord.data.model.SearchResult
 import com.music.bitchord.data.model.Song
-import com.music.bitchord.data.model.isSameTrackAs
+import com.music.bitchord.data.model.playingRowMatcher
 import com.music.bitchord.data.model.UiState
 import com.music.bitchord.data.model.SearchHistoryEntity
 import com.music.bitchord.data.model.EntityType
@@ -309,6 +309,7 @@ fun SearchScreen(
                             is SearchResult.Browse -> null
                             else -> null
                         } }
+                    val isCurrentRow = playingRowMatcher(tracks, currentSong)
                     val topResult = results.data.filterIsInstance<SearchResult.TopTrack>().firstOrNull()
                     if (filter == SearchFilter.ALL && topResult != null) {
                         item(key = "search:top-result:${topResult.song.videoId}") {
@@ -355,8 +356,8 @@ fun SearchScreen(
                                     },
                                     onLongPress = { onSongLongPress(row.song) },
                                     onSwipeToQueue = { onSongSwipe(row.song) },
-                                    isCurrent = row.song.isSameTrackAs(currentSong),
-                                    isPlaying = isPlaying && row.song.isSameTrackAs(currentSong),
+                                    isCurrent = isCurrentRow(row.song),
+                                    isPlaying = isPlaying && isCurrentRow(row.song),
                                     searchPlayingStyle = true,
                                     activeTint = PlayingAccent,
                                 )
@@ -443,16 +444,18 @@ private fun LazyListScope.librarySearchResults(
             }
         } else {
             val tracks = results.data
+            val isCurrentRow = playingRowMatcher(tracks, currentSong)
             itemsIndexed(tracks, key = { index, song -> "${if (addons) "addon" else "library"}_${song.videoId}_$index" }) { index, song ->
                 SongRow(
                     song = song,
                     onClick = { onSongClick(tracks, index) },
                     onLongPress = { onSongLongPress(song) },
                     onSwipeToQueue = { onSongSwipe(song) },
-                    isCurrent = song.isSameTrackAs(currentSong),
-                    isPlaying = isPlaying && song.isSameTrackAs(currentSong),
+                    isCurrent = isCurrentRow(song),
+                    isPlaying = isPlaying && isCurrentRow(song),
                     searchPlayingStyle = true,
                     activeTint = PlayingAccent,
+                    showSourceQuality = addons,
                 )
                 if (index < tracks.lastIndex) {
                     HorizontalDivider(
@@ -651,6 +654,10 @@ private fun LazyListScope.searchTypeaheadDropdown(
     currentSong: Song?,
     isPlaying: Boolean,
 ) {
+    val isCurrentRow = playingRowMatcher(
+        typeaheadResults.mapNotNull { (it as? SearchResult.Track)?.song ?: (it as? SearchResult.TopTrack)?.song },
+        currentSong,
+    )
     item(key = "typeahead:divider") {
         HorizontalDivider(
             modifier = Modifier.padding(start = PAGE_GUTTER, end = PAGE_GUTTER),
@@ -670,8 +677,8 @@ private fun LazyListScope.searchTypeaheadDropdown(
                 song = result.song,
                 onClick = { onSongClick(result.song) },
                 onLongPress = onSongLongPress?.let { { it(result.song) } },
-                isCurrent = result.song.isSameTrackAs(currentSong),
-                isPlaying = isPlaying && result.song.isSameTrackAs(currentSong),
+                isCurrent = isCurrentRow(result.song),
+                isPlaying = isPlaying && isCurrentRow(result.song),
             )
             is SearchResult.Browse -> BrowseRow(
                 item = result.item,
@@ -682,8 +689,8 @@ private fun LazyListScope.searchTypeaheadDropdown(
                 song = result.song,
                 onClick = { onSongClick(result.song) },
                 onLongPress = onSongLongPress?.let { { it(result.song) } },
-                isCurrent = result.song.isSameTrackAs(currentSong),
-                isPlaying = isPlaying && result.song.isSameTrackAs(currentSong),
+                isCurrent = isCurrentRow(result.song),
+                isPlaying = isPlaying && isCurrentRow(result.song),
             )
         }
     }

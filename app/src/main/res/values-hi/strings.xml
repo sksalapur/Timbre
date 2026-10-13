@@ -227,6 +227,8 @@
     <string name="stop_music_on_close_subtitle">ऐप को हाल के ऐप्स से हटाने पर प्लेबैक रोक देता है</string>
     <string name="hide_volume_bar">वॉल्यूम बार छिपाएं</string>
     <string name="hide_volume_bar_subtitle">मुख्य प्लेयर से वॉल्यूम स्लाइडर हटा देता है</string>
+    <string name="hide_status_bar_in_player">प्लेयर में स्टेटस बार छिपाएं</string>
+    <string name="hide_status_bar_in_player_subtitle">मुख्य प्लेयर खुला रहने पर घड़ी, बैटरी और नोटिफ़िकेशन आइकन छिपा देता है</string>
     <string name="hide_song_status">गाने का स्टेटस छिपाएँ</string>
     <string name="hide_song_status_subtitle">मुख्य प्लेयर में “यहाँ से चल रहा है” या “इन्होंने चलाया” टेक्स्ट छिपाता है</string>
     <string name="off">बंद</string>
@@ -1295,8 +1297,6 @@
     <string name="search_addons_none">कोई ऐडऑन चालू नहीं है। सेटिंग → स्रोत में जाकर एक जोड़ें।</string>
     <string name="app_icon">ऐप आइकन</string>
     <string name="app_icon_default">डिफ़ॉल्ट</string>
-    <string name="app_icon_light">Liquid Glass</string>
-    <string name="app_icon_dark">Liquid Dark</string>
     <string name="show_queue_history">कतार का इतिहास दिखाएँ</string>
     <string name="show_queue_history_subtitle">कतार में “अभी चल रहा है” के ऊपर पहले चले 25 तक गाने दिखाएँ</string>
     <string name="not_enough_this_week">अपना Replay अनलॉक करने के लिए इस हफ़्ते कुछ और गाने सुनें।</string>

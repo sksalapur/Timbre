@@ -13,6 +13,8 @@ import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.mutableStateListOf
 import com.music.bitchord.ui.components.PAGE_GUTTER
+import com.music.bitchord.ui.components.SourceQualityBadge
+import com.music.bitchord.ui.components.sourceQualityBadge
 import com.music.bitchord.ui.components.trackColumnWidth
 import com.music.bitchord.ui.replay.ReplayCreditCard
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
@@ -289,6 +291,7 @@ import com.music.bitchord.data.model.durationMillis
 import com.music.bitchord.data.model.isMatchMissing
 import com.music.bitchord.data.model.isMatchPending
 import com.music.bitchord.data.model.isSameTrackAs
+import com.music.bitchord.data.model.playingRowMatcher
 import com.music.bitchord.data.model.isUnresolvedSpotify
 import com.music.bitchord.data.spotify.SPOTIFY_PAGE_PREFIX
 import com.music.bitchord.data.spotify.SpotifyLibrary
@@ -5216,6 +5219,7 @@ private fun DesktopHistoryPage(
     menu: (@Composable (Song) -> Unit)? = null,
 ) {
     DesktopPageScaffold(contentPadding) {
+        val isCurrentRow = rememberPlayingRowMatcher(history)
         LazyColumn(
             contentPadding = pagePadding(start = DesktopPageGutter, end = DesktopPageGutter, bottom = 32.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
@@ -5224,6 +5228,7 @@ private fun DesktopHistoryPage(
             else items(history, key = Song::videoId) {
                 DesktopSongRow(
                     song = it,
+                    isCurrent = isCurrentRow(it),
                     liked = false,
                     onClick = onSongClick,
                     onToggleLike = null,
@@ -5396,6 +5401,7 @@ private fun DesktopLibrarySongContent(
             }
         }
     } else {
+        val isCurrentRow = rememberPlayingRowMatcher(songs)
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
             contentPadding = pagePadding(bottom = 32.dp),
@@ -5404,6 +5410,7 @@ private fun DesktopLibrarySongContent(
             items(songs, key = Song::videoId) { song ->
                 DesktopSongRow(
                     song,
+                    isCurrent = isCurrentRow(song),
                     liked = false,
                     onClick = onSongClick,
                     onToggleLike = null,
@@ -6583,6 +6590,7 @@ private fun DesktopCollectionPage(
         if (seconds > 0) add(formatCollectionDuration(seconds))
     }.joinToString(" • ").uppercase()
     DesktopPageScaffold(contentPadding) {
+        val isCurrentRow = rememberPlayingRowMatcher(songs)
         LazyColumn(
             contentPadding = pagePadding(
                 start = DesktopPageGutter,
@@ -6738,6 +6746,7 @@ private fun DesktopCollectionPage(
                     // alternates.
                     striped = position % 2 == 1,
                     song = song,
+                    isCurrent = isCurrentRow(song),
                     collectionType = collection.type,
                     liked = song.videoId in likedIds,
                     onClick = { _ -> onPlaySongs(songs, index) },
@@ -6782,6 +6791,8 @@ private fun collectionActionsWidth(hasRemove: Boolean): Dp =
 @Composable
 private fun DesktopCollectionSongRow(
     song: Song,
+    /** From the list's [rememberPlayingRowMatcher]; null falls back to the name rule. */
+    isCurrent: Boolean? = null,
     collectionType: BrowseType,
     liked: Boolean,
     onClick: (Song) -> Unit,
@@ -6809,7 +6820,7 @@ private fun DesktopCollectionSongRow(
             .padding(horizontal = 8.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        val nowPlaying = song.isNowPlaying()
+        val nowPlaying = isCurrent ?: song.isNowPlaying()
         Box(Modifier.width(28.dp), contentAlignment = Alignment.Center) {
             if (song.isMatchPending) {
                 CircularProgressIndicator(color = DesktopSecondary, strokeWidth = 1.5.dp, modifier = Modifier.size(12.dp))
@@ -6915,6 +6926,13 @@ private val LocalNowPlaying = compositionLocalOf<Song?> { null }
 /** Whether this row is the track being played, for the now-playing highlight. */
 @Composable
 private fun Song.isNowPlaying(): Boolean = isSameTrackAs(LocalNowPlaying.current)
+
+/** Which of [rows] is the track being played: the one that was played, not every namesake. */
+@Composable
+private fun rememberPlayingRowMatcher(rows: List<Song>): (Song) -> Boolean {
+    val current = LocalNowPlaying.current
+    return remember(rows, current) { playingRowMatcher(rows, current) }
+}
 
 /** The frosted pane the floating bars are made of. */
 @Composable
@@ -7223,6 +7241,8 @@ private fun DesktopShelfCard(item: ShelfItem, onClick: (ShelfItem) -> Unit) {
 @Composable
 private fun DesktopSongRow(
     song: Song,
+    /** From the list's [rememberPlayingRowMatcher]; null falls back to the name rule. */
+    isCurrent: Boolean? = null,
     liked: Boolean,
     onClick: (Song) -> Unit,
     onToggleLike: ((Song) -> Unit)?,
@@ -7265,23 +7285,17 @@ private fun DesktopSongRow(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 fontWeight = FontWeight.Medium,
-                color = if (song.isNowPlaying()) Color.White else Color.White.copy(alpha = 0.75f),
+                color = if (isCurrent ?: song.isNowPlaying()) Color.White else Color.White.copy(alpha = 0.75f),
             )
             Text(listOfNotNull(song.artist.takeIf(String::isNotBlank), song.durationText).joinToString(" · "), color = DesktopSecondary, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
-        song.sourceQuality?.let { quality ->
-            val badge = quality.uppercase().takeIf { value ->
-                value in setOf("LOSSLESS", "FLAC", "HI-RES", "HIRES", "HIGH", "320")
-            }
-            if (badge != null) {
-                Text(
-                    badge,
-                    color = DesktopAccent,
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.padding(horizontal = 8.dp),
-                )
-            }
+        song.sourceQualityBadge()?.let { quality ->
+            SourceQualityBadge(
+                quality = quality,
+                color = DesktopSecondary,
+                style = MaterialTheme.typography.labelSmall,
+                modifier = Modifier.padding(horizontal = 8.dp),
+            )
         }
         if (onToggleLike != null) {
             IconButton(onClick = { onToggleLike(song) }) { Icon(if (liked) BitChordIcons.HeartFilled else BitChordIcons.Heart, "Favorite", tint = if (liked) DesktopAccent else DesktopSecondary) }

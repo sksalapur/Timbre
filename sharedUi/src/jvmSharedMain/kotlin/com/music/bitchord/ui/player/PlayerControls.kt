@@ -18,6 +18,7 @@ import org.jetbrains.compose.resources.DrawableResource
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -545,10 +546,10 @@ internal fun VolumeRow(
 /**
  * Lyrics, the capsule, and the queue — the row both layouts end on.
  *
- * Lyrics and queue are the two things that are true of the player in every
- * state, so they are simply always here. Only the capsule between them swaps:
- * output and party normally, the three playback modes while the queue is up,
- * since that is when they are what you are about to reach for.
+ * The capsule swaps: output and party normally, the three playback modes while
+ * the queue is up, since that is when they are what you are about to reach for.
+ * With the queue up the lyrics glyph steps aside and the capsule slides over
+ * into its place, leaving the queue glyph — lit — as the way back.
  */
 @Composable
 internal fun PlayerActionRow(
@@ -573,20 +574,49 @@ internal fun PlayerActionRow(
         // swap, and the lyrics and queue glyphs would slide with it.
         val widestRow = BOTTOM_ACTION_SIZE * 2 + pillWidth(3)
         val edgeInset = ((maxWidth - widestRow) / 4).coerceAtLeast(0.dp)
-        Row(
+        // 0 with the capsule centred between lyrics and queue, 1 with it moved
+        // over to where the lyrics glyph sits. Read only while placing, so the
+        // slide relays out the row and recomposes nothing.
+        val toStart = animateFloatAsState(
+            targetValue = if (queueOpen) 1f else 0f,
+            animationSpec = tween(PILL_SLIDE_MS, easing = FastOutSlowInEasing),
+            label = "playerBottomPillSlide",
+        )
+        Box(
             modifier = Modifier.fillMaxWidth().padding(horizontal = edgeInset),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
+            contentAlignment = Alignment.CenterStart,
         ) {
-            BottomGlyph(
-                icon = BitChordIcons.LyricsQuote,
-                contentDescription = stringResource(if (lyricsOpen) Res.string.close_lyrics else Res.string.open_lyrics),
-                // Lyrics and the queue are two things to show in one place, so
-                // opening either closes the other; lit to say which is up.
-                onClick = onToggleLyrics,
-                highlighted = lyricsOpen,
-            )
+            // Gone while the queue is up: the playback modes take its place, and
+            // the queue glyph, lit, is how you get back.
+            AnimatedVisibility(
+                visible = !queueOpen,
+                enter = fadeIn(tween(180, delayMillis = 120)),
+                exit = fadeOut(tween(120)),
+                modifier = Modifier.align(Alignment.CenterStart),
+            ) {
+                BottomGlyph(
+                    icon = BitChordIcons.LyricsQuote,
+                    contentDescription = stringResource(if (lyricsOpen) Res.string.close_lyrics else Res.string.open_lyrics),
+                    // Lyrics and the queue are two things to show in one place, so
+                    // opening either closes the other; lit to say which is up.
+                    onClick = onToggleLyrics,
+                    highlighted = lyricsOpen,
+                )
+            }
             AnimatedContent(
+                // Laid out across the whole row and placed by hand: centred, as
+                // it was, at 0, flush with the lyrics glyph's left edge at 1.
+                // Centred off the capsule's *current* width, so it stays centred
+                // through the two-to-three resize on its way over rather than
+                // stepping when the size settles. Nothing in the spare width
+                // takes touches, so the glyphs either side still get theirs.
+                modifier = Modifier.layout { measurable, constraints ->
+                    val placeable = measurable.measure(constraints.copy(minWidth = 0))
+                    layout(constraints.maxWidth, placeable.height) {
+                        val centred = (constraints.maxWidth - placeable.width) / 2f
+                        placeable.place((centred * (1f - toStart.value)).roundToInt(), 0)
+                    }
+                },
                 targetState = queueOpen,
                 transitionSpec = {
                     (fadeIn(tween(180, delayMillis = 140)) togetherWith fadeOut(tween(140)))
@@ -598,9 +628,8 @@ internal fun PlayerActionRow(
                 label = "playerBottomPill",
             ) { showQueueModes ->
                 if (showQueueModes) {
-                    // Always three-up, unlike the output/party capsule — so it
-                    // always takes the narrower spacing. See
-                    // [PILL_SEGMENT_WIDTH_TRIPLE].
+                    // Spaced the same as the output/party capsule, so the two
+                    // read as one control growing a segment.
                     Pill {
                         PillSegment(
                             icon = BitChordIcons.Shuffle,
@@ -611,7 +640,6 @@ internal fun PlayerActionRow(
                             highlighted = shuffleEnabled,
                             haptic = if (shuffleEnabled) Haptic.ToggleOff else Haptic.ToggleOn,
                             tapWindowMs = SHUFFLE_TAP_WINDOW_MS,
-                            width = PILL_SEGMENT_WIDTH_TRIPLE,
                         )
                         PillDivider()
                         PillSegment(
@@ -633,7 +661,6 @@ internal fun PlayerActionRow(
                                 RepeatModes.ONE -> Haptic.ToggleOff
                                 else -> Haptic.Select
                             },
-                            width = PILL_SEGMENT_WIDTH_TRIPLE,
                         )
                         PillDivider()
                         PillSegment(
@@ -645,7 +672,6 @@ internal fun PlayerActionRow(
                             highlighted = autoplayEnabled,
                             haptic = if (autoplayEnabled) Haptic.ToggleOff else Haptic.ToggleOn,
                             tapWindowMs = AUTOPLAY_TAP_WINDOW_MS,
-                            width = PILL_SEGMENT_WIDTH_TRIPLE,
                         )
                     }
                 } else {
@@ -656,13 +682,15 @@ internal fun PlayerActionRow(
                     )
                 }
             }
-            BottomGlyph(
-                icon = BitChordIcons.Queue,
-                contentDescription = stringResource(Res.string.up_next),
-                onClick = onToggleQueue,
-                highlighted = queueOpen,
-                haptic = if (queueOpen) Haptic.Tap else Haptic.Expand,
-            )
+            Box(Modifier.align(Alignment.CenterEnd)) {
+                BottomGlyph(
+                    icon = BitChordIcons.Queue,
+                    contentDescription = stringResource(Res.string.up_next),
+                    onClick = onToggleQueue,
+                    highlighted = queueOpen,
+                    haptic = if (queueOpen) Haptic.Tap else Haptic.Expand,
+                )
+            }
         }
     }
 }
@@ -785,12 +813,11 @@ private val BOTTOM_ACTION_SIZE = 44.dp
 private val PILL_SEGMENT_WIDTH = 64.dp
 
 /**
- * Segment width for the Shuffle/Repeat/Autoplay capsule, which is always
- * three icons: the two-up spacing left each glyph with room the eye read as
- * empty even at two, and a third icon at the same width just multiplied that
- * empty space instead of tightening it.
+ * How long the capsule takes to cross from the middle of the row to the lyrics
+ * glyph's place as the queue opens, and back. Long enough to cover the content
+ * swap and the resize, so it lands after both rather than before.
  */
-private val PILL_SEGMENT_WIDTH_TRIPLE = 52.dp
+private const val PILL_SLIDE_MS = 320
 
 /**
  * Optical sizes, not equal ones.

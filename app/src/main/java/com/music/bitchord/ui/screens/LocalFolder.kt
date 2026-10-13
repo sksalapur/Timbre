@@ -63,7 +63,7 @@ import com.music.bitchord.data.model.CARD_ART_PX
 import com.music.bitchord.data.model.ROW_ART_PX
 import com.music.bitchord.data.model.Song
 import com.music.bitchord.data.model.artworkAt
-import com.music.bitchord.data.model.isSameTrackAs
+import com.music.bitchord.data.model.playingRowMatcher
 import com.music.bitchord.data.settings.LibraryViewType
 import com.music.bitchord.data.settings.LocalMusicSort
 import com.music.bitchord.download.DownloadedCollection
@@ -267,6 +267,7 @@ internal fun LazyListScope.localFolderItems(
         if (folder.selectable && group.type != BrowseType.OTHER) state.select(group) else folder.onGroupLongPress(group)
     }
 
+    val isCurrentRow = playingRowMatcher(songs, currentSong)
     when (state.tab) {
         LocalFolderTab.SONGS -> if (grid) {
             gridRows(songs.indices.toList(), columns, key = { "song-${songs[it].videoId}-$it" }) { index ->
@@ -274,8 +275,8 @@ internal fun LazyListScope.localFolderItems(
                 SongGridCard(
                     song = song,
                     selected = song.videoId in state.selectedIds,
-                    isCurrent = song.isSameTrackAs(currentSong),
-                    isPlaying = song.isSameTrackAs(currentSong) && isPlaying,
+                    isCurrent = isCurrentRow(song),
+                    isPlaying = isCurrentRow(song) && isPlaying,
                     palette = palette,
                     onClick = { songClick(index) },
                     onLongPress = { songHold(song) },
@@ -286,8 +287,8 @@ internal fun LazyListScope.localFolderItems(
                 SongRow(
                     song = song,
                     selected = song.videoId in state.selectedIds,
-                    isCurrent = song.isSameTrackAs(currentSong),
-                    isPlaying = song.isSameTrackAs(currentSong) && isPlaying,
+                    isCurrent = isCurrentRow(song),
+                    isPlaying = isCurrentRow(song) && isPlaying,
                     searchPlayingStyle = true,
                     activeTint = palette.accent,
                     subtitleColor = palette.onBackgroundVariant,

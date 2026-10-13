@@ -222,6 +222,8 @@
     <string name="stop_music_on_close_subtitle">从最近任务中划走应用时停止播放</string>
     <string name="hide_volume_bar">隐藏音量条</string>
     <string name="hide_volume_bar_subtitle">从主播放器中移除音量滑块</string>
+    <string name="hide_status_bar_in_player">在播放器中隐藏状态栏</string>
+    <string name="hide_status_bar_in_player_subtitle">主播放器打开时隐藏时钟、电量和通知图标</string>
     <string name="hide_song_status">隐藏歌曲状态</string>
     <string name="hide_song_status_subtitle">隐藏主播放器中的“播放自”或“播放者”文字</string>
     <string name="off">关闭</string>
@@ -1272,8 +1274,6 @@
     <string name="search_addons_none">未启用任何插件。请在“设置 → 音源”中添加。</string>
     <string name="app_icon">应用图标</string>
     <string name="app_icon_default">默认</string>
-    <string name="app_icon_light">Liquid Glass</string>
-    <string name="app_icon_dark">Liquid Dark</string>
     <string name="show_queue_history">显示队列历史</string>
     <string name="show_queue_history_subtitle">在队列中“正在播放”上方显示最多 25 首已播放的歌曲</string>
     <string name="not_enough_this_week">本周再多播放几首歌曲即可解锁你的 Replay。</string>

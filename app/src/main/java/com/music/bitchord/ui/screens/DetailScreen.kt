@@ -140,7 +140,7 @@ import com.music.bitchord.data.model.SubscriptionState
 import com.music.bitchord.data.model.UiState
 import com.music.bitchord.data.model.artworkAt
 import com.music.bitchord.data.model.durationMillis
-import com.music.bitchord.data.model.isSameTrackAs
+import com.music.bitchord.data.model.playingRowMatcher
 import com.music.bitchord.data.settings.AppSettings
 import com.music.bitchord.ui.components.DownloadedBadge
 import com.music.bitchord.ui.components.ExplicitSongTitle
@@ -629,6 +629,7 @@ fun DetailScreen(
                     // it pages sideways four at a time and stops at twenty.
                     item {
                         val top = state.data.take(MAX_ARTIST_SONGS)
+                        val isCurrentRow = playingRowMatcher(top, currentSong)
                         SectionHeading(
                             title = stringResource(R.string.top_songs),
                             palette = palette,
@@ -652,8 +653,8 @@ fun DetailScreen(
                                                 onClick = { onSongClick(top, top.indexOf(song)) },
                                                 onLongPress = { onSongLongPress(song) },
                                                 downloadedTint = downloadedTint,
-                                                isCurrent = song.isSameTrackAs(currentSong),
-                                                isPlaying = song.isSameTrackAs(currentSong) && isPlaying,
+                                                isCurrent = isCurrentRow(song),
+                                                isPlaying = isCurrentRow(song) && isPlaying,
                                             )
                                         }
                                     }
@@ -666,6 +667,7 @@ fun DetailScreen(
                     // already the largest thing on the page — Apple Music
                     // numbers those rows instead, and so does this.
                     val numbered = page.type == BrowseType.ALBUM
+                    val isCurrentRow = playingRowMatcher(matches.map { it.value }, currentSong)
                     if (matches.isEmpty() && state.data.isNotEmpty()) {
                         item(key = "no-matches") {
                             MessageState(stringResource(R.string.nothing_matches, query))
@@ -676,7 +678,7 @@ fun DetailScreen(
                         key = { _, entry -> "${entry.index}_${entry.value.videoId}" },
                     ) { position, entry ->
                         val song = entry.value
-                        val isCurrent = song.isSameTrackAs(currentSong)
+                        val isCurrent = isCurrentRow(song)
                         SongRow(
                             song = if (numbered) {
                                 song
@@ -718,6 +720,7 @@ fun DetailScreen(
                 item(key = "suggested-heading") {
                     SectionHeading(stringResource(R.string.suggested), palette)
                 }
+                val isSuggestedCurrent = playingRowMatcher(suggested, currentSong)
                 itemsIndexed(
                     suggested,
                     key = { _, song -> "suggested-${song.videoId}" },
@@ -729,8 +732,8 @@ fun DetailScreen(
                         onLongPress = { onSongLongPress(song) },
                         onAdd = { onAddSuggested(song) },
                         downloadedTint = downloadedTint,
-                        isCurrent = song.isSameTrackAs(currentSong),
-                        isPlaying = song.isSameTrackAs(currentSong) && isPlaying,
+                        isCurrent = isSuggestedCurrent(song),
+                        isPlaying = isSuggestedCurrent(song) && isPlaying,
                     )
                     if (index < suggested.lastIndex) {
                         HorizontalDivider(

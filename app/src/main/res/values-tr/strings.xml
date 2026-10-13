@@ -252,6 +252,8 @@
     <string name="stop_music_on_close_subtitle">Uygulama son kullanılanlardan kaydırılarak kapatıldığında çalmayı durdurur</string>
     <string name="hide_volume_bar">Ses çubuğunu gizle</string>
     <string name="hide_volume_bar_subtitle">Ses kaydırıcısını ana oynatıcıdan kaldırır</string>
+    <string name="hide_status_bar_in_player">Oynatıcıda durum çubuğunu gizle</string>
+    <string name="hide_status_bar_in_player_subtitle">Ana oynatıcı açıkken saat, pil ve bildirim simgelerini gizler</string>
     <string name="hide_song_status">Şarkı durumunu gizle</string>
     <string name="hide_song_status_subtitle">Ana oynatıcıdaki “Şuradan çalınıyor” veya “Çalan” yazısını gizler</string>
     <string name="off">Kapalı</string>
@@ -1252,8 +1254,6 @@
     <string name="search_addons_none">Etkin eklenti yok. Ayarlar → Kaynaklar bölümünden bir tane ekleyin.</string>
     <string name="app_icon">Uygulama simgesi</string>
     <string name="app_icon_default">Varsayılan</string>
-    <string name="app_icon_light">Liquid Glass</string>
-    <string name="app_icon_dark">Liquid Dark</string>
     <string name="show_queue_history">Sıra geçmişini göster</string>
     <string name="show_queue_history_subtitle">Sırada “Şimdi çalıyor” öğesinin üstünde daha önce çalınan en fazla 25 şarkıyı gösterir</string>
     <string name="not_enough_this_week">Replay’inizin kilidini açmak için bu hafta birkaç şarkı daha dinleyin.</string>

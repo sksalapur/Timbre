@@ -227,6 +227,8 @@
     <string name="stop_music_on_close_subtitle">Stoppt die Wiedergabe, wenn die App aus den letzten Apps entfernt wird</string>
     <string name="hide_volume_bar">Lautstärkeleiste ausblenden</string>
     <string name="hide_volume_bar_subtitle">Entfernt den Lautstärkeregler aus dem Hauptplayer</string>
+    <string name="hide_status_bar_in_player">Statusleiste im Player ausblenden</string>
+    <string name="hide_status_bar_in_player_subtitle">Blendet Uhr, Akku und Benachrichtigungssymbole aus, solange der Hauptplayer geöffnet ist</string>
     <string name="hide_song_status">Songstatus ausblenden</string>
     <string name="hide_song_status_subtitle">Blendet den Text „Wiedergabe aus“ bzw. „Abgespielt von“ im Player aus</string>
     <string name="off">Aus</string>
@@ -1295,8 +1297,6 @@
     <string name="search_addons_none">Es sind keine Addons aktiviert. Füge eines unter Einstellungen → Quellen hinzu.</string>
     <string name="app_icon">App-Symbol</string>
     <string name="app_icon_default">Standard</string>
-    <string name="app_icon_light">Liquid Glass</string>
-    <string name="app_icon_dark">Liquid Dark</string>
     <string name="show_queue_history">Wiedergabeverlauf anzeigen</string>
     <string name="show_queue_history_subtitle">Bis zu 25 zuletzt gespielte Songs über „Aktuelle Wiedergabe“ in der Warteschlange anzeigen</string>
     <string name="not_enough_this_week">Höre diese Woche noch ein paar Songs mehr, um dein Replay freizuschalten.</string>

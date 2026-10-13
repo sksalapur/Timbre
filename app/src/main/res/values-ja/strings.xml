@@ -222,6 +222,8 @@
     <string name="stop_music_on_close_subtitle">アプリを最近のアプリから消すと再生を停止します</string>
     <string name="hide_volume_bar">音量バーを隠す</string>
     <string name="hide_volume_bar_subtitle">メインプレイヤーから音量スライダーを削除します</string>
+    <string name="hide_status_bar_in_player">プレイヤーでステータスバーを隠す</string>
+    <string name="hide_status_bar_in_player_subtitle">メインプレイヤーを開いている間、時計・バッテリー・通知アイコンを非表示にします</string>
     <string name="hide_song_status">曲のステータスを隠す</string>
     <string name="hide_song_status_subtitle">メインプレーヤーの「再生元」や「再生者」の表示を隠します</string>
     <string name="off">オフ</string>
@@ -1273,8 +1275,6 @@
     <string name="search_addons_none">有効なアドオンがありません。設定 → ソースで追加してください。</string>
     <string name="app_icon">アプリアイコン</string>
     <string name="app_icon_default">デフォルト</string>
-    <string name="app_icon_light">Liquid Glass</string>
-    <string name="app_icon_dark">Liquid Dark</string>
     <string name="show_queue_history">キューの履歴を表示</string>
     <string name="show_queue_history_subtitle">キューの「再生中」の上に、再生済みの曲を最大25曲表示します</string>
     <string name="not_enough_this_week">今週もう少し曲を再生するとReplayが解放されます。</string>

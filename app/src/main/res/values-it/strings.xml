@@ -270,6 +270,8 @@
     <string name="stop_music_on_close_subtitle">Interrompe la riproduzione quando l\'app viene rimossa dalle app recenti</string>
     <string name="hide_volume_bar">Nascondi barra volume</string>
     <string name="hide_volume_bar_subtitle">Rimuove il cursore del volume dal player principale</string>
+    <string name="hide_status_bar_in_player">Nascondi barra di stato nel player</string>
+    <string name="hide_status_bar_in_player_subtitle">Nasconde orologio, batteria e icone delle notifiche mentre il player principale è aperto</string>
     <string name="hide_song_status">Nascondi stato del brano</string>
     <string name="hide_song_status_subtitle">Nasconde il testo «In riproduzione da» o «Riprodotto da» nel player principale</string>
     <string name="off">Disattivato</string>
@@ -1234,8 +1236,6 @@
     <string name="search_addons_none">Nessun addon attivo. Aggiungine uno in Impostazioni → Fonti.</string>
     <string name="app_icon">Icona dell’app</string>
     <string name="app_icon_default">Predefinita</string>
-    <string name="app_icon_light">Liquid Glass</string>
-    <string name="app_icon_dark">Liquid Dark</string>
     <string name="show_queue_history">Mostra cronologia della coda</string>
     <string name="show_queue_history_subtitle">Mostra fino a 25 brani riprodotti sopra «In riproduzione» nella coda</string>
     <string name="not_enough_this_week">Ascolta ancora qualche brano questa settimana per sbloccare il tuo Replay.</string>

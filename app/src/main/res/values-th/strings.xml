@@ -246,6 +246,8 @@
     <string name="stop_music_on_close_subtitle">หยุดการเล่นเมื่อปัดแอปออกจากหน้าแอปล่าสุด</string>
     <string name="hide_volume_bar">ซ่อนแถบระดับเสียง</string>
     <string name="hide_volume_bar_subtitle">เอาแถบเลื่อนระดับเสียงออกจากเครื่องเล่นหลัก</string>
+    <string name="hide_status_bar_in_player">ซ่อนแถบสถานะในเครื่องเล่น</string>
+    <string name="hide_status_bar_in_player_subtitle">ซ่อนนาฬิกา แบตเตอรี่ และไอคอนการแจ้งเตือนขณะเปิดเครื่องเล่นหลัก</string>
     <string name="hide_song_status">ซ่อนสถานะเพลง</string>
     <string name="hide_song_status_subtitle">ซ่อนข้อความ “กำลังเล่นจาก” หรือ “เล่นโดย” ในเพลเยอร์หลัก</string>
     <string name="off">ปิด</string>
@@ -1278,8 +1280,6 @@
     <string name="search_addons_none">ยังไม่ได้เปิดใช้แอดออน เพิ่มได้ที่ การตั้งค่า → แหล่งที่มา</string>
     <string name="app_icon">ไอคอนแอป</string>
     <string name="app_icon_default">ค่าเริ่มต้น</string>
-    <string name="app_icon_light">Liquid Glass</string>
-    <string name="app_icon_dark">Liquid Dark</string>
     <string name="show_queue_history">แสดงประวัติคิว</string>
     <string name="show_queue_history_subtitle">แสดงเพลงที่เล่นไปแล้วสูงสุด 25 เพลงเหนือ “กำลังเล่น” ในคิว</string>
     <string name="not_enough_this_week">ฟังเพลงอีกสักหน่อยในสัปดาห์นี้เพื่อปลดล็อก Replay ของคุณ</string>

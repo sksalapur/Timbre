@@ -416,7 +416,11 @@ object AudioCache {
                 val source = uri.getQueryParameter("s")
                 val track = uri.getQueryParameter("t")
                 if (source != null && track != null) {
-                    val base = "$source|$track"
+                    // A stereo row picked by hand gets an entry of its own: the
+                    // shared one may hold the Atmos mix the addon used to send
+                    // for it — see [SourceResolver.MIX_PARAM].
+                    val stereo = uri.getQueryParameter(SourceResolver.MIX_PARAM) == SourceResolver.MIX_STEREO
+                    val base = if (stereo) "$source|$track#stereo" else "$source|$track"
                     QualityUpgrade.cacheTag(uri)?.let { "$base#$it" } ?: base
                 } else {
                     null

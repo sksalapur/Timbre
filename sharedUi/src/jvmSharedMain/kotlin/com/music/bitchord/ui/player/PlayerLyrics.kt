@@ -1198,13 +1198,17 @@ private fun TextLayoutResult.xOn(offset: Int, visualLine: Int, inset: Float): Fl
     val lineLeft = getLineLeft(visualLine) + inset
     val lineRight = getLineRight(visualLine) + inset
 
-    val rtl = getParagraphDirection(lineStart.coerceIn(0, layoutInput.text.length - 1)) ==
+    val rtl = getParagraphDirection(lineStart.coerceIn(0, (layoutInput.text.length - 1).coerceAtLeast(0))) ==
               androidx.compose.ui.text.style.ResolvedTextDirection.Rtl
 
     return when {
         offset <= lineStart -> if (rtl) lineRight else lineLeft
         offset >= lineEndVisible -> if (rtl) lineLeft else lineRight
-        else -> getHorizontalPosition(offset, usePrimaryDirection = true)
+        // The inset belongs on every answer, not just the two edges: the rows
+        // are drawn [inset] in from the layout's origin, and an interior cut
+        // without it lands that far left of the glyph boundary — the lifted
+        // and swelling slices then sliced letters in half.
+        else -> (getHorizontalPosition(offset, usePrimaryDirection = true) + inset)
             .coerceIn(lineLeft, lineRight)
     }
 }
@@ -1298,8 +1302,8 @@ private fun horizontalAt(
  * time. [spans] are the line's timed pieces, [LyricLine.sweepSpans]; empty, the
  * cut goes letter by letter.
  *
- * The boundary itself is then feathered over [WIPE_FEATHER] rather than left
- * as the cut, which needs the caller to give this an offscreen layer to erase
+ * The boundary itself is then feathered over the [WIPE_FEATHER] ahead of it
+ * rather than left as the cut, which needs the caller to give this an offscreen layer to erase
  * into — see [SweptLyricLine]. Only the line actually being sung carries one;
  * everywhere else the boundary is at one end of the text or the other and
  * there is nothing to soften.
@@ -1351,13 +1355,39 @@ private fun ContentDrawScope.sweepTo(
         // occupy [x(k), lineRight], with x(k) clamped inside [lineLeft, lineRight].
         val safeCharPos = charPos.coerceIn(lineLeft, lineRight)
 
-        // For RTL lines the sweep fills right-to-left: clip from the line's
-        // right edge down to the sweep boundary.  For LTR it fills left-to-
-        // right as before.
-        val (clipLeft, clipRight) = if (rtl) {
-            safeCharPos to lineRight
+        // The feather runs *ahead* of the boundary, into what is still to be
+        // sung: lit solid up to now, fading out over the next [WIPE_FEATHER].
+        // Trailing behind it instead, the letter being sung right now was the
+        // dimmest part of the lit copy, and the line ran out of time with a
+        // faded tail still on it and then snapped to full — which read as the
+        // highlight being late. Ahead of it, the fade runs off the end of the
+        // text as the last letter is reached, and the line finishes already
+        // whole.
+        //
+        // Grown in over the first [WIPE_FEATHER] of each row rather than
+        // opened at full width, or the first letter of every row would pop in
+        // half-lit the frame the sweep reached it.
+        val featherPx = if (feather && cut) {
+            minOf(
+                WIPE_FEATHER.toPx(),
+                if (rtl) lineRight - safeCharPos else safeCharPos - lineLeft,
+            )
         } else {
-            lineLeft to safeCharPos
+            0f
+        }
+        val lead = if (rtl) {
+            (safeCharPos - featherPx).coerceAtLeast(lineLeft)
+        } else {
+            (safeCharPos + featherPx).coerceAtMost(lineRight)
+        }
+
+        // For RTL lines the sweep fills right-to-left: clip from the line's
+        // right edge down to the feather's leading edge.  For LTR it fills
+        // left-to-right as before.
+        val (clipLeft, clipRight) = if (rtl) {
+            lead to lineRight
+        } else {
+            lineLeft to lead
         }
 
         // Guard: an empty or inverted clip is a no-op; skip it cleanly.
@@ -1376,32 +1406,22 @@ private fun ContentDrawScope.sweepTo(
 
         // Only the visual line holding the boundary has an edge to soften; a
         // line revealed to its end runs into the wrap, which is not an edge.
-        if (!feather || !cut) continue
+        if (featherPx < 0.5f) continue
 
         // Scoped to this line's band so the mask cannot reach the lines above
         // and below it: DstIn erases whatever the source does not cover, and
         // outside the clip there is no source at all, so they are left alone.
-        // Within it the brush clamps — opaque behind the feather, gone past it.
-        // For RTL lines the feather sits on the right side of the sweep boundary
-        // (between revealed and unrevealed text), not the wrong side where it
-        // would erase into the already-lit area.
+        // Within it the brush clamps — opaque up to the boundary, gone past
+        // the feather. The gradient keeps its full width even where the clip
+        // is cut short by the end of the row, so the last letters keep fading
+        // up instead of being cut off.
         clipRect(top = top, bottom = bottom) {
             drawRect(
                 brush = Brush.horizontalGradient(
                     0f to Color.White,
                     1f to Color.Transparent,
-                    startX = if (rtl) {
-                        (safeCharPos + WIPE_FEATHER.toPx())
-                            .coerceAtMost(lineRight)
-                    } else {
-                        (safeCharPos - WIPE_FEATHER.toPx())
-                            .coerceAtLeast(lineLeft)
-                    },
-                    endX = if (rtl) {
-                        safeCharPos
-                    } else {
-                        safeCharPos
-                    },
+                    startX = safeCharPos,
+                    endX = if (rtl) safeCharPos - featherPx else safeCharPos + featherPx,
                 ),
                 blendMode = BlendMode.DstIn,
             )
@@ -2773,6 +2793,15 @@ private fun CurrentLyricLine(
             .clickable(onClick = onClick)
             .padding(vertical = 4.dp),
     ) {
+        if (instrumental) {
+            Icon(
+                imageVector = BitChordIcons.MusicNote,
+                contentDescription = null,
+                tint = Color.White,
+                modifier = Modifier.size(16.dp),
+            )
+            Spacer(Modifier.width(6.dp))
+        }
         AnimatedContent(
             targetState = Triple(index, current, text),
             transitionSpec = {

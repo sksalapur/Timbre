@@ -228,6 +228,8 @@
     <string name="stop_music_on_close_subtitle">Arrête la lecture lorsque l\'application est retirée des récents</string>
     <string name="hide_volume_bar">Masquer la barre de volume</string>
     <string name="hide_volume_bar_subtitle">Retire le curseur de volume du lecteur principal</string>
+    <string name="hide_status_bar_in_player">Masquer la barre d\'état dans le lecteur</string>
+    <string name="hide_status_bar_in_player_subtitle">Masque l\'heure, la batterie et les icônes de notification tant que le lecteur principal est ouvert</string>
     <string name="hide_song_status">Masquer le statut du titre</string>
     <string name="hide_song_status_subtitle">Masque le texte « Lecture depuis » ou « Lu par » dans le lecteur principal</string>
     <string name="off">Désactivé</string>
@@ -1296,8 +1298,6 @@
     <string name="search_addons_none">Aucun addon n’est activé. Ajoutez-en un dans Réglages → Sources.</string>
     <string name="app_icon">Icône de l’app</string>
     <string name="app_icon_default">Par défaut</string>
-    <string name="app_icon_light">Liquid Glass</string>
-    <string name="app_icon_dark">Liquid Dark</string>
     <string name="show_queue_history">Afficher l’historique de la file</string>
     <string name="show_queue_history_subtitle">Affiche jusqu’à 25 titres déjà écoutés au-dessus de « En cours de lecture » dans la file</string>
     <string name="not_enough_this_week">Écoutez encore quelques titres cette semaine pour débloquer votre Replay.</string>

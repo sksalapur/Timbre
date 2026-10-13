@@ -258,6 +258,8 @@
     <string name="stop_music_on_close_subtitle">Dừng phát nhạc khi vuốt đóng khỏi danh sách ứng dụng gần đây</string>
     <string name="hide_volume_bar">Ẩn thanh âm lượng</string>
     <string name="hide_volume_bar_subtitle">Bỏ thanh trượt âm lượng khỏi trình phát chính</string>
+    <string name="hide_status_bar_in_player">Ẩn thanh trạng thái trong trình phát</string>
+    <string name="hide_status_bar_in_player_subtitle">Ẩn đồng hồ, pin và biểu tượng thông báo khi trình phát chính đang mở</string>
     <string name="hide_song_status">Ẩn trạng thái bài hát</string>
     <string name="hide_song_status_subtitle">Ẩn dòng “Phát từ” hoặc “Được phát bởi” trong trình phát chính</string>
     <string name="off">Tắt</string>
@@ -1212,8 +1214,6 @@
     <string name="search_addons_none">Chưa bật addon nào. Hãy thêm một addon trong Cài đặt → Nguồn.</string>
     <string name="app_icon">Biểu tượng ứng dụng</string>
     <string name="app_icon_default">Mặc định</string>
-    <string name="app_icon_light">Liquid Glass</string>
-    <string name="app_icon_dark">Liquid Dark</string>
     <string name="show_queue_history">Hiện lịch sử hàng đợi</string>
     <string name="show_queue_history_subtitle">Hiện tối đa 25 bài đã phát phía trên “Đang phát” trong hàng đợi</string>
     <string name="not_enough_this_week">Hãy nghe thêm vài bài trong tuần này để mở khóa Replay của bạn.</string>

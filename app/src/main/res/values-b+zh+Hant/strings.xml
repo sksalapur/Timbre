@@ -222,6 +222,8 @@
     <string name="stop_music_on_close_subtitle">從最近任務中划走應用時停止播放</string>
     <string name="hide_volume_bar">隱藏音量條</string>
     <string name="hide_volume_bar_subtitle">從主播放器中移除音量滑塊</string>
+    <string name="hide_status_bar_in_player">在播放器中隱藏狀態列</string>
+    <string name="hide_status_bar_in_player_subtitle">主播放器開啟時隱藏時鐘、電量和通知圖示</string>
     <string name="hide_song_status">隱藏歌曲狀態</string>
     <string name="hide_song_status_subtitle">隱藏主播放器中的“播放自”或“播放者”文字</string>
     <string name="off">關閉</string>

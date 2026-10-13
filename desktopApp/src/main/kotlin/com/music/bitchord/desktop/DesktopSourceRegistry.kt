@@ -42,6 +42,8 @@ internal object DesktopSourceRegistry {
         val config: DesktopSourceConfig
         val descriptor: DesktopSourceDescriptor
         suspend fun resolve(song: Song, quality: String?): Result<DesktopStream?>
+        /** [resolve] for a row this source owns, played as itself rather than as a match. */
+        suspend fun resolveOwned(song: Song, quality: String?): Result<DesktopStream?> = resolve(song, quality)
         /** Every copy this source holds of [song], most confident first. */
         suspend fun matches(song: Song): List<Song> = emptyList()
 
@@ -60,6 +62,9 @@ internal object DesktopSourceRegistry {
 
         override suspend fun resolve(song: Song, quality: String?): Result<DesktopStream?> =
             DesktopAddonSource.stream(config, song, quality)
+
+        override suspend fun resolveOwned(song: Song, quality: String?): Result<DesktopStream?> =
+            DesktopAddonSource.stream(config, song, quality, picked = true)
 
         override suspend fun matches(song: Song): List<Song> = DesktopAddonSource.matches(config, song)
     }
@@ -228,7 +233,7 @@ internal object DesktopSourceRegistry {
                     ", asking at the ${(quality ?: DesktopPersistence().audioQuality().name).lowercase()} rung",
             )
             if (owned.config.id != excludedSourceId) {
-                owned.resolve(song, quality).getOrNull()
+                owned.resolveOwned(song, quality).getOrNull()
                     ?.takeIf { playableHere(owned, it) }
                     ?.let {
                         DesktopTrackLog.log(

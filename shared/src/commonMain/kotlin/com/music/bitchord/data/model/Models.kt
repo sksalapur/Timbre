@@ -114,6 +114,12 @@ data class Song(
      * the track played as a 128kbps MP3.
      */
     val sourceQuality: String? = null,
+    /**
+     * Whether a `LOSSLESS` [sourceQuality] row said it was the hi-res tier
+     * (`HI_RES_LOSSLESS`, `hires-96`, `24-bit`). Display only — the resolver
+     * ranks on [sourceQuality], where 16-bit and 24-bit are one tier.
+     */
+    val sourceHiRes: Boolean = false,
     /** Explicit-content state from the catalogue; null when that source does not say. */
     val isExplicit: Boolean? = null,
     /**
@@ -224,11 +230,39 @@ fun Song.artworkAt(px: Int): String? = thumbnailUrl.artworkAt(px)
  *
  * The one place that must not use this is the player's own queue, where the
  * entry, not the song, is what the row stands for — that list matches on
- * position.
+ * position. Any other list asks [playingRowMatcher], which tries identity
+ * before this.
  */
 fun Song.isSameTrackAs(other: Song?): Boolean {
     other ?: return false
     return title == other.title && artist == other.artist
+}
+
+/**
+ * Which rows of one list get the now-playing highlight: the row that was
+ * played, not every row that shares its name.
+ *
+ * [isSameTrackAs] alone lit up both a song and its music video in a search,
+ * and both an addon's stereo and Atmos rows, whichever was tapped. So
+ * identity is tried first, list-wide: when any row *is* the playing track —
+ * same id, and the same playlist slot when the player knows it — only that
+ * row lights. Only when none is does the name rule apply, for the
+ * cross-catalogue case it exists for (a local file playing over a YouTube
+ * album page), and then only the first row it matches.
+ */
+fun playingRowMatcher(rows: List<Song>, current: Song?): (Song) -> Boolean {
+    current ?: return { false }
+    val sameId = rows.filter { it.videoId == current.videoId }
+    if (sameId.isNotEmpty()) {
+        // A playlist holding the song twice: its slot says which one.
+        val slot = current.setVideoId
+        if (slot != null && sameId.any { it.setVideoId == slot }) {
+            return { it.videoId == current.videoId && it.setVideoId == slot }
+        }
+        return { it.videoId == current.videoId }
+    }
+    val byName = rows.firstOrNull { it.isSameTrackAs(current) } ?: return { false }
+    return { it == byName }
 }
 
 /**
