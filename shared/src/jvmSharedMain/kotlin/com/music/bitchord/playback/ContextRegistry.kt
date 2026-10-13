@@ -49,6 +49,8 @@ data class ContextSnapshot(
     val continuationToken: String?,
     val continuationState: ContinuationState,
     val diagnostic: ContinuationDiagnostic? = null,
+    /** Continuation tokens already accepted by this context, in encounter order. */
+    val seenContinuationTokens: List<String> = emptyList(),
 )
 
 /** The immutable page returned by a continuation loader. */
@@ -155,6 +157,62 @@ class ContextRegistry(
             active!!.snapshot()
         }
         return snapshot
+    }
+
+    /**
+     * Restores a previously persisted context without treating its continuation
+     * state as a new registration.  An interrupted request cannot be resumed
+     * safely after process death, so it becomes available for a retry.  Terminal
+     * states remain terminal even when a stale token is still present in the
+     * persisted record.
+     */
+    fun restore(snapshot: ContextSnapshot): ContextSnapshot {
+        require(snapshot.contextToken.isNotBlank()) { "contextToken must not be blank" }
+        require(snapshot.sourceKey.isNotBlank()) { "sourceKey must not be blank" }
+        val songs = immutableRestoredSongs(snapshot.songs)
+        val token = snapshot.continuationToken.normalizedToken()
+        when (snapshot.continuationState) {
+            ContinuationState.AVAILABLE,
+            ContinuationState.IN_FLIGHT,
+            -> require(token != null) {
+                "${snapshot.continuationState} snapshots require a continuation token"
+            }
+            ContinuationState.EXHAUSTED,
+            ContinuationState.BLOCKED,
+            -> Unit
+        }
+        val seenTokens = LinkedHashSet<String>(snapshot.seenContinuationTokens.size + 1)
+        snapshot.seenContinuationTokens.forEach { seenToken ->
+            require(seenToken.isNotBlank()) {
+                "seen continuation tokens must not be blank"
+            }
+            require(seenTokens.add(seenToken)) {
+                "seen continuation tokens must be unique"
+            }
+        }
+        token?.let(seenTokens::add)
+
+        val restored = synchronized(lock) {
+            val state = when (snapshot.continuationState) {
+                ContinuationState.IN_FLIGHT -> ContinuationState.AVAILABLE
+                else -> snapshot.continuationState
+            }
+            val version = newVersionLocked()
+            active = MutableContext(
+                contextToken = snapshot.contextToken,
+                sourceKey = snapshot.sourceKey,
+                browseId = snapshot.browseId,
+                songs = songs,
+                version = version,
+                continuationToken = token,
+                continuationState = state,
+                diagnostic = snapshot.diagnostic,
+                seenContinuationTokens = seenTokens,
+                request = null,
+            )
+            active!!.snapshot()
+        }
+        return restored
     }
 
     /** Returns the current canonical state, or null before the first register. */
@@ -382,6 +440,7 @@ class ContextRegistry(
             continuationToken = continuationToken,
             continuationState = continuationState,
             diagnostic = diagnostic,
+            seenContinuationTokens = Collections.unmodifiableList(seenContinuationTokens.toList()),
         )
 
         fun matches(candidate: ContinuationRequest): Boolean =
@@ -393,7 +452,20 @@ class ContextRegistry(
     }
 
     private companion object {
-        fun String?.normalizedToken(): String? = this?.takeIf { it.isNotEmpty() }
+        fun String?.normalizedToken(): String? = this?.takeIf { it.isNotBlank() }
+
+        fun immutableRestoredSongs(songs: List<Song>): List<Song> {
+            val ids = HashSet<String>(songs.size)
+            songs.forEach { song ->
+                require(song.videoId.isNotBlank()) {
+                    "restored songs must not contain blank video ids"
+                }
+                require(ids.add(song.videoId)) {
+                    "restored songs must not contain duplicate video ids"
+                }
+            }
+            return Collections.unmodifiableList(songs.toList())
+        }
 
         fun immutableSongs(songs: Collection<Song>): List<Song> {
             val byVideoId = LinkedHashMap<String, Song>(songs.size)

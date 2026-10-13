@@ -697,6 +697,7 @@ class PlaybackService : MediaLibraryService() {
             if (snapshot.contextToken != boundedContextToken) return@launch
             window.extendTo(snapshot.songs.size)
             boundedContextRequest?.let { BoundedContextRequests.publish(it, snapshot) }
+            player?.let(::saveBoundedContextSnapshot)
             scheduleBoundedContextTopUp()
         }
     }
@@ -1646,7 +1647,7 @@ class PlaybackService : MediaLibraryService() {
                 restoreLastQueue(exoPlayer)
             }
         } else {
-            restoreLastQueue(exoPlayer)
+            restoreBoundedQueueOrLast(exoPlayer)
         }
         if (restored) {
             publishWidgetState()
@@ -2492,6 +2493,7 @@ class PlaybackService : MediaLibraryService() {
             BoundedContextRequests.discard(requestToken)
             return
         }
+        BoundedContextPersistence.clearImmediately()
         boundedEditState = BoundedQueueEdits.invalidateContext(boundedEditState)
 
         val source = request.source
@@ -2561,6 +2563,7 @@ class PlaybackService : MediaLibraryService() {
         val items = boundedMediaItems(plan, window)
         val start = plan.history.size
         exoPlayer.setMediaItems(items, start.coerceIn(items.indices), 0L)
+        saveBoundedContextSnapshot(exoPlayer)
         exoPlayer.prepare()
         exoPlayer.play()
         startBoundedContinuationLoading(contextToken)
@@ -2581,6 +2584,7 @@ class PlaybackService : MediaLibraryService() {
             songs = emptyList(),
             continuationToken = null,
         )
+        BoundedContextPersistence.clearImmediately()
         boundedContextWindow = null
         boundedContextToken = null
         boundedContextSource = null
@@ -3244,6 +3248,9 @@ class PlaybackService : MediaLibraryService() {
     ) {
         val exoPlayer = player ?: return
         syncBoundedContextCursor(exoPlayer, mediaItem)
+        if (boundedContextWindow != null && !ListenTogether.state.value.inParty) {
+            saveBoundedContextSnapshot(exoPlayer)
+        }
         currentAudioInputFormat = null
         NerdStats.onTrackTransition()
         AudioOutputStatus.onTrackTransition()
@@ -5538,6 +5545,7 @@ class PlaybackService : MediaLibraryService() {
         if (player.mediaItemCount == 0) {
             persistedQueueStart = 0
             LastPlayed.clear()
+            BoundedContextPersistence.clear()
             return
         }
         val range = LastPlayed.window(player.mediaItemCount, player.currentMediaItemIndex)
@@ -5547,6 +5555,7 @@ class PlaybackService : MediaLibraryService() {
             songs = range.map { player.getMediaItemAt(it).toSong() },
             index = player.currentMediaItemIndex - range.first,
         )
+        saveBoundedContextSnapshot(player)
         savePlaybackState(player)
     }
 
@@ -5556,6 +5565,7 @@ class PlaybackService : MediaLibraryService() {
         if (player.mediaItemCount == 0) {
             persistedQueueStart = 0
             LastPlayed.clearImmediately()
+            BoundedContextPersistence.clearImmediately()
             return
         }
         val range = LastPlayed.window(player.mediaItemCount, player.currentMediaItemIndex)
@@ -5565,11 +5575,42 @@ class PlaybackService : MediaLibraryService() {
             index = player.currentMediaItemIndex,
             positionMs = player.currentPosition,
         )
+        saveBoundedContextSnapshot(player, immediately = true)
+    }
+
+    /** Capture logical state and only the materialized bounded projection. */
+    private fun saveBoundedContextSnapshot(player: ExoPlayer, immediately: Boolean = false) {
+        if (ListenTogether.state.value.inParty) return
+        val window = boundedContextWindow ?: return
+        val context = boundedContextRegistry.snapshot() ?: return
+        val source = boundedContextSource ?: return
+        if (context.contextToken != boundedContextToken || context.songs.isEmpty()) return
+        val currentIndex = player.currentMediaItemIndex.coerceIn(0, player.mediaItemCount - 1)
+        val range = LastPlayed.window(player.mediaItemCount, currentIndex)
+        if (range.isEmpty()) return
+        val entries = range.map { index ->
+            val item = player.getMediaItemAt(index)
+            BoundedContextPersistence.Entry(
+                song = item.toSong(),
+                canonicalIndex = if (item.queueTier == QueueTier.CONTEXT) item.canonicalIndex else null,
+                cycleId = if (item.queueTier == QueueTier.CONTEXT) item.contextCycleId else null,
+            )
+        }
+        val state = BoundedContextPersistence.State(
+            context = context,
+            source = source,
+            window = window.snapshot(),
+            entries = entries,
+            currentIndex = currentIndex - range.first,
+            positionMs = player.currentPosition,
+        )
+        if (immediately) BoundedContextPersistence.saveImmediately(state) else BoundedContextPersistence.save(state)
     }
 
     /** Drop every service-side reference that could resurrect the former queue. */
     private fun beginRadioQueue() {
         crossfade?.onSkipRequested()
+        clearBoundedContext()
         autoplayLoadJob?.cancel()
         autoplayLoadJob = null
         autoplaySeed = null
@@ -5583,6 +5624,12 @@ class PlaybackService : MediaLibraryService() {
     /** Persist index and position without touching or serializing queue contents. */
     private fun savePlaybackState(player: ExoPlayer) {
         if (player.mediaItemCount == 0) return
+        if (boundedContextWindow != null && !ListenTogether.state.value.inParty) {
+            BoundedContextPersistence.savePlaybackState(
+                currentEntryId = player.currentMediaItem?.queueEntryId,
+                positionMs = player.currentPosition,
+            )
+        }
         LastPlayed.savePlaybackState(
             index = player.currentMediaItemIndex - persistedQueueStart,
             positionMs = player.currentPosition,
@@ -5594,6 +5641,81 @@ class PlaybackService : MediaLibraryService() {
         val last = LastPlayed.load() ?: return false
         persistedQueueStart = 0
         player.setMediaItems(last.songs.map { it.toMediaItem() }, last.index, last.positionMs)
+        return true
+    }
+
+    /**
+     * Restore the logical bounded context first, falling back to the unchanged
+     * LastPlayed physical snapshot when the new record is absent or unsafe.
+     */
+    private fun restoreBoundedQueueOrLast(player: ExoPlayer): Boolean {
+        val persisted = BoundedContextPersistence.load()
+        if (persisted != null && restoreBoundedQueue(player, persisted)) return true
+        if (persisted != null) BoundedContextPersistence.clearImmediately()
+        return restoreLastQueue(player)
+    }
+
+    private fun restoreBoundedQueue(
+        exoPlayer: ExoPlayer,
+        persisted: BoundedContextPersistence.State,
+    ): Boolean {
+        val projected = BoundedContextPersistence.restoreProjection(
+            persisted,
+            repeatAll = exoPlayer.repeatMode == Player.REPEAT_MODE_ALL,
+        ) ?: return false
+        val restoredWindow = runCatching { QueueWindow.restore(projected.window) }.getOrNull()
+            ?: return false
+        if (restoredWindow.canonicalSize != projected.context.songs.size) return false
+        val restoredCurrent = restoredWindow.currentCanonicalIndex ?: return false
+        if (projected.currentIndex !in projected.entries.indices) return false
+
+        val restoredContext = runCatching {
+            boundedContextRegistry.restore(projected.context)
+        }.getOrNull() ?: return false
+        if (restoredContext.songs.isEmpty()) return false
+
+        val contextToken = restoredContext.contextToken
+        val canonicalMediaItems = restoredContext.songs.mapIndexed { index, song ->
+            val canonical = song.copy(queueEntryId = "context:$contextToken:$index")
+            QueueShuffle.withQueueMetadata(
+                canonical.toMediaItem(),
+                newEntryId = canonical.queueEntryId,
+                newCanonicalIndex = index,
+                newTier = QueueTier.CONTEXT,
+            )
+        }
+        QueueShuffle.setCanonicalContext(canonicalMediaItems)
+
+        val items = projected.entries.map { entry ->
+            val canonicalIndex = entry.canonicalIndex
+            if (canonicalIndex == null) {
+                entry.song.toMediaItem()
+            } else {
+                boundedMediaItem(
+                    entry.song.copy(queueTier = QueueTier.CONTEXT),
+                    canonicalIndex,
+                    entry.cycleId ?: restoredWindow.cycleId,
+                )
+            }
+        }
+        if (items.size != projected.entries.size) return false
+
+        boundedContextWindow = restoredWindow
+        boundedContextToken = contextToken
+        boundedContextSource = persisted.source
+        boundedContextRequest = BoundedContextRequests.restore(
+            BoundedContextRequests.Request(
+                songs = restoredContext.songs,
+                startIndex = restoredCurrent,
+                source = persisted.source,
+                continuationToken = restoredContext.continuationToken,
+                shuffle = restoredWindow.isShuffleEnabled,
+            ),
+        )
+        boundedEditState = BoundedQueueEdits.invalidateContext(boundedEditState)
+        persistedQueueStart = 0
+        exoPlayer.setMediaItems(items, projected.currentIndex, projected.positionMs)
+        startBoundedContinuationLoading(contextToken)
         return true
     }
 
@@ -6901,7 +7023,10 @@ class PlaybackService : MediaLibraryService() {
         audioManager?.unregisterAudioDeviceCallback(outputDeviceCallback)
         partySync?.stop()
         partySync = null
-        player?.let(::savePlaybackState)
+        player?.let {
+            saveQueueSnapshot(it)
+            savePlaybackState(it)
+        }
         // And to leave the widgets showing a play button. Nothing else reports a
         // swipe-away, so a widget left on the home screen would sit there with a
         // pause glyph on a service that no longer exists.

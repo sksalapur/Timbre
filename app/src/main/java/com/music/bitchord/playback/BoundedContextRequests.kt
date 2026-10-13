@@ -120,6 +120,30 @@ object BoundedContextRequests {
     fun publish(request: Request, snapshot: ContextSnapshot): Boolean =
         publish(request, snapshot.songs, snapshot.continuationToken)
 
+    /**
+     * Rehydrates the process-local UI handoff after a service restart.  There
+     * is no pending Binder command in this case, but keeping an active snapshot
+     * lets the detail page observe continuation growth just as it did before
+     * process death.
+     */
+    @Synchronized
+    fun restore(request: Request): Request {
+        val stored = request.copy(
+            songs = request.songs.toList(),
+            handoffToken = request.handoffToken ?: UUID.randomUUID().toString(),
+        )
+        version += 1
+        publishLocked(
+            Snapshot(
+                request = stored,
+                songs = stored.songs,
+                continuationToken = stored.continuationToken,
+                version = version,
+            ),
+        )
+        return stored
+    }
+
     /** Same as [publish], addressed by the opaque token retained in [Request]. */
     @Synchronized
     fun publish(
