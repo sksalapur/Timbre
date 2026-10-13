@@ -424,19 +424,22 @@ object LocalMediaRepository {
 
         runCatching {
             val retriever = MediaMetadataRetriever()
-            retriever.setDataSource(context, Uri.parse(uriStr))
-            val metaTitle = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_TITLE)
-            val metaArtist = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ARTIST)
-            val metaAlbum = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ALBUM)
-            val metaDur = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull()
-            val metaTrack = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_CD_TRACK_NUMBER)
+            try {
+                retriever.setDataSource(context, Uri.parse(uriStr))
+                val metaTitle = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_TITLE)
+                val metaArtist = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ARTIST)
+                val metaAlbum = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ALBUM)
+                val metaDur = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull()
+                val metaTrack = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_CD_TRACK_NUMBER)
 
-            if (!metaTitle.isNullOrBlank()) title = metaTitle
-            if (!metaArtist.isNullOrBlank()) artist = metaArtist
-            albumName = metaAlbum.cleanTag()
-            if (metaDur != null && metaDur > 0) durationText = formatDuration(metaDur)
-            trackNumber = trackNumberFromTag(metaTrack)
-            retriever.release()
+                if (!metaTitle.isNullOrBlank()) title = metaTitle
+                if (!metaArtist.isNullOrBlank()) artist = metaArtist
+                albumName = metaAlbum.cleanTag()
+                if (metaDur != null && metaDur > 0) durationText = formatDuration(metaDur)
+                trackNumber = trackNumberFromTag(metaTrack)
+            } finally {
+                retriever.release()
+            }
         }
 
         return Song(
