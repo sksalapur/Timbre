@@ -2,6 +2,10 @@ package com.music.bitchord.data.settings
 
 import android.content.Context
 import android.content.SharedPreferences
+import java.security.MessageDigest
+import java.security.SecureRandom
+import javax.crypto.SecretKeyFactory
+import javax.crypto.spec.PBEKeySpec
 import kotlinx.coroutines.flow.MutableStateFlow
 
 /**
@@ -31,8 +35,8 @@ object TvSettings {
     /** UI density/scale multiplier for the TV layout: 0.8 (Small) → 1.0 (Normal) → 1.2 (Large) → 1.4 (XL). */
     val tvUiScale = MutableStateFlow(1.0f)
 
-    fun init(context: Context) {
-        prefs = context.getSharedPreferences("bitchord_settings", Context.MODE_PRIVATE)
+    fun init(preferences: SharedPreferences) {
+        prefs = preferences
         tvRefreshRate.value = prefs.getString(KEY_TV_REFRESH_RATE, "AUTO") ?: "AUTO"
         tvNickname.value = prefs.getString(KEY_TV_NICKNAME, "Listener") ?: "Listener"
         tvTheme.value = prefs.getString(KEY_TV_THEME, "dynamic_artwork") ?: "dynamic_artwork"
@@ -48,6 +52,10 @@ object TvSettings {
         tvLyricsCanvasEnabled.value = prefs.getBoolean(KEY_TV_LYRICS_CANVAS, true)
         tvVideoAuto1080p.value = prefs.getBoolean(KEY_TV_VIDEO_AUTO_1080P, true)
         tvNavLayout.value = prefs.getString(KEY_TV_NAV_LAYOUT, "left_rail") ?: "left_rail"
+    }
+
+    fun init(context: Context) {
+        init(context.getSharedPreferences("bitchord_settings", Context.MODE_PRIVATE))
     }
 
     private fun save(edit: SharedPreferences.Editor.() -> Unit) {
@@ -137,23 +145,61 @@ object TvSettings {
         save { putString(KEY_TV_NAV_LAYOUT, layout) }
     }
 
-    fun getProfilePin(profileId: String): String? {
-        return if (this::prefs.isInitialized) prefs.getString("$KEY_PROFILE_PIN_PREFIX$profileId", null) else null
-    }
-
+    /**
+     * Stores a PBKDF2-HMAC-SHA256 salted hash of the given PIN per profile, or clears it if null/blank.
+     */
     fun setProfilePin(profileId: String, pin: String?) {
         save {
             if (pin.isNullOrBlank()) {
                 remove("$KEY_PROFILE_PIN_PREFIX$profileId")
             } else {
-                putString("$KEY_PROFILE_PIN_PREFIX$profileId", pin)
+                val salt = ByteArray(PIN_SALT_BYTES).apply {
+                    SecureRandom().nextBytes(this)
+                }
+                val hash = hashPin(pin, salt, PIN_PBKDF2_ITERATIONS)
+                val stored = "$PIN_HASH_PREFIX:$PIN_PBKDF2_ITERATIONS:${salt.toHex()}:${hash.toHex()}"
+                putString("$KEY_PROFILE_PIN_PREFIX$profileId", stored)
             }
         }
     }
 
+    /**
+     * Verifies the entered PIN against the profile's stored salted hash in constant time.
+     * Also migrates legacy plaintext PINs if found upon successful match.
+     */
+    fun verifyProfilePin(profileId: String, pin: String): Boolean {
+        if (!this::prefs.isInitialized) return false
+        val stored = prefs.getString("$KEY_PROFILE_PIN_PREFIX$profileId", null) ?: return false
+        if (stored.isBlank() || pin.isBlank()) return false
+
+        if (stored.startsWith("$PIN_HASH_PREFIX:")) {
+            val parts = stored.split(':')
+            if (parts.size != 4) return false
+            val iterations = parts[1].toIntOrNull() ?: return false
+            val salt = parts[2].hexToByteArray() ?: return false
+            val expectedHash = parts[3].hexToByteArray() ?: return false
+            val computedHash = try {
+                hashPin(pin, salt, iterations)
+            } catch (_: Exception) {
+                return false
+            }
+            return MessageDigest.isEqual(computedHash, expectedHash)
+        }
+
+        // Backward compatibility: compare legacy plaintext PIN in constant time and upgrade on match.
+        val storedBytes = stored.toByteArray(Charsets.UTF_8)
+        val pinBytes = pin.toByteArray(Charsets.UTF_8)
+        val matches = MessageDigest.isEqual(storedBytes, pinBytes)
+        if (matches) {
+            setProfilePin(profileId, pin)
+        }
+        return matches
+    }
+
     fun isProfileLocked(profileId: String): Boolean {
-        val pin = getProfilePin(profileId)
-        return !pin.isNullOrBlank()
+        if (!this::prefs.isInitialized) return false
+        val stored = prefs.getString("$KEY_PROFILE_PIN_PREFIX$profileId", null)
+        return !stored.isNullOrBlank()
     }
 
     fun wipeAllPins() {
@@ -165,7 +211,45 @@ object TvSettings {
         }
     }
 
+    private fun hashPin(pin: String, salt: ByteArray, iterations: Int = PIN_PBKDF2_ITERATIONS): ByteArray {
+        val spec = PBEKeySpec(pin.toCharArray(), salt, iterations, PIN_HASH_BYTES * 8)
+        return try {
+            val factory = SecretKeyFactory.getInstance(PIN_ALGORITHM)
+            factory.generateSecret(spec).encoded
+        } finally {
+            spec.clearPassword()
+        }
+    }
+
+    private fun ByteArray.toHex(): String {
+        val hexChars = "0123456789abcdef"
+        val sb = StringBuilder(size * 2)
+        for (b in this) {
+            val i = b.toInt() and 0xFF
+            sb.append(hexChars[i ushr 4])
+            sb.append(hexChars[i and 0x0F])
+        }
+        return sb.toString()
+    }
+
+    private fun String.hexToByteArray(): ByteArray? {
+        if (length % 2 != 0) return null
+        val bytes = ByteArray(length / 2)
+        for (i in bytes.indices) {
+            val hi = Character.digit(this[i * 2], 16)
+            val lo = Character.digit(this[i * 2 + 1], 16)
+            if (hi == -1 || lo == -1) return null
+            bytes[i] = ((hi shl 4) or lo).toByte()
+        }
+        return bytes
+    }
+
     private const val KEY_PROFILE_PIN_PREFIX = "tv_profile_pin_"
+    private const val PIN_HASH_PREFIX = "pbkdf2_sha256"
+    private const val PIN_SALT_BYTES = 16
+    private const val PIN_HASH_BYTES = 32
+    private const val PIN_PBKDF2_ITERATIONS = 20_000
+    private const val PIN_ALGORITHM = "PBKDF2WithHmacSHA256"
 
     private const val KEY_TV_REFRESH_RATE = "tv_refresh_rate"
     private const val KEY_TV_NICKNAME = "tv_nickname"

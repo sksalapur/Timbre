@@ -245,8 +245,7 @@ private fun TvProfileSwitcher(
             message = "Profile is locked. Enter PIN for ${unlockPair.second.name}",
             errorMessage = unlockError,
             onPinEntered = { entered ->
-                val correctPin = TvSettings.getProfilePin(unlockPair.second.profileId)
-                if (entered == correctPin) {
+                if (TvSettings.verifyProfilePin(unlockPair.second.profileId, entered)) {
                     unlockError = null
                     val (account, profile) = unlockPair
                     pendingUnlockProfile = null
@@ -541,7 +540,7 @@ private fun TvAccountSettingsDialog(
                 message = "Enter current 4-digit PIN to remove lock",
                 errorMessage = pinError,
                 onPinEntered = { entered ->
-                    if (entered == TvSettings.getProfilePin(profile.profileId)) {
+                    if (TvSettings.verifyProfilePin(profile.profileId, entered)) {
                         TvSettings.setProfilePin(profile.profileId, null)
                         isLocked = false
                         pinMode = null
