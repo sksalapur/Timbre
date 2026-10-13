@@ -28,6 +28,7 @@ import java.util.UUID
 internal class DesktopDiscordIpc private constructor(
     private val channel: SocketChannel?,
     private val pipe: RandomAccessFile?,
+    val label: String,
 ) : Closeable {
 
     companion object {
@@ -57,11 +58,11 @@ internal class DesktopDiscordIpc private constructor(
 
         private fun open(path: String): DesktopDiscordIpc =
             if (DesktopPlatform.isWindows) {
-                DesktopDiscordIpc(null, RandomAccessFile(path, "rw"))
+                DesktopDiscordIpc(null, RandomAccessFile(path, "rw"), path)
             } else {
                 val socket = SocketChannel.open(StandardProtocolFamily.UNIX)
                 socket.connect(UnixDomainSocketAddress.of(path))
-                DesktopDiscordIpc(socket, null)
+                DesktopDiscordIpc(socket, null, path)
             }
 
         private fun candidates(): List<String> {

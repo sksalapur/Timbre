@@ -1927,7 +1927,7 @@ fun BitChordDesktopApp() {
     }
     // Keyed on the same things, plus the rate: Discord counts the bar down on
     // its own clock, so only a change to what it was told is worth another push.
-    LaunchedEffect(playback.song?.videoId, playback.isPlaying, playback.durationMs, playbackSpeed) {
+    LaunchedEffect(playback.song?.videoId, playback.isPlaying, playback.durationMs, playbackSpeed, playback.streamFormat) {
         DesktopDiscordRpc.onPlaybackStateChanged(playback, playbackSpeed)
     }
     // The account's own history on YouTube Music, which is what the home feed is built out of.
@@ -2900,17 +2900,7 @@ fun BitChordDesktopApp() {
 
     // The engine's measured stream, as the player's quality badge and stats line read it.
     LaunchedEffect(playback.streamFormat, playback.streamSourceId) {
-        NerdStats.current.value = playback.streamFormat?.let { format ->
-            val codec = format.codec?.substringAfterLast('/')?.substringBefore(';')?.trim()?.lowercase()
-            NerdStats.Snapshot(
-                mimeType = codec?.let { "audio/$it" },
-                bitrateKbps = format.kbps,
-                sampleRateHz = format.sampleRateHz,
-                channels = format.channels,
-                bitDepth = format.bitDepth,
-                sourceName = playback.streamSourceId,
-            )
-        }
+        NerdStats.current.value = playback.streamFormat?.nerdSnapshot(playback.streamSourceId)
     }
     LaunchedEffect(playback.searchingBetter, selectedSong?.videoId) {
         NerdStats.racingLossless.value = selectedSong?.videoId
