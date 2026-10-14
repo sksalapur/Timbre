@@ -130,8 +130,13 @@ internal object DesktopSourceRegistry {
      * YouTube Music match for an addon, module or JioSaavn row. Android's
      * `TrackAnalyzer.analysisUriFor` does the same.
      */
-    suspend fun youTubeIdentity(song: Song): Song? =
-        if (hasYouTubeOriginal(song)) song else youTubeMatches(song).firstOrNull()
+    suspend fun youTubeIdentity(song: Song): Song? = when {
+        hasYouTubeOriginal(song) -> song
+        // A row picked from the Addons search is that addon's or nothing — no YouTube search and
+        // Opus fetch behind it just to measure it. Left unmeasured, as in a party.
+        DesktopAddonSource.parseTrack(song.videoId) != null -> null
+        else -> youTubeMatches(song).firstOrNull()
+    }
 
     /**
      * Whether resolving [song] could ask an addon for it — an addon's own row, or a YouTube row
@@ -246,7 +251,11 @@ internal object DesktopSourceRegistry {
             }
             // Android walks on to other active sources when the pinned source cannot produce a
             // stream.
-            for (fallback in available.filter { it !== owned && it.config.id != excludedSourceId }) {
+            // Never YouTube under an addon's own row: its Opus is not the copy that was picked.
+            for (fallback in available.filter {
+                it !== owned && it.config.id != excludedSourceId &&
+                    !(addonReference != null && it.config.kind == DesktopSourceKind.YOUTUBE)
+            }) {
                 val matched = fallback.match(song) ?: continue
                 fallback.resolve(matched, quality).getOrNull()
                     ?.takeIf { playableHere(fallback, it) }

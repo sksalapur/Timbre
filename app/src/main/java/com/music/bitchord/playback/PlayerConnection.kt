@@ -561,13 +561,14 @@ private fun Song.matchQuery(): String = buildString {
 }
 
 /**
- * `&mix=` for an addon row whose search answer said which mix it is, so its
- * play asks for that mix and nothing else — see [SourceResolver.MIX_PARAM].
- * Empty for every other source, and for an addon row that said nothing.
+ * `&mix=` on every addon row, naming the mix its search answer said it is, so
+ * its play asks for that row and nothing else — see [SourceResolver.MIX_PARAM].
+ * Empty for every other source.
  */
 private fun Song.pickedMixQuery(configId: String): String {
     if (SourceRegistry.config(configId)?.kind != SourceKind.ADDON) return ""
-    val mix = when (sourceQuality ?: return "") {
+    val mix = when (sourceQuality) {
+        null -> SourceResolver.MIX_ANY
         "DOLBY" -> SourceResolver.MIX_ATMOS
         else -> SourceResolver.MIX_STEREO
     }
