@@ -36,6 +36,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -198,6 +199,11 @@ internal fun PlayerScrubber(
     /** An analysed Automix handoff, drawn as a travelling sheen. */
     mixing: Boolean,
     transitionWindow: ClosedFloatingPointRange<Float>?,
+    /**
+     * Whether the Automix fill breathes on the blend's beat. The phone keeps its beat pulse; the
+     * desktop turns it off and runs a slow, gentle pulse instead, which reads calmer than a strobe.
+     */
+    slowMixPulse: Boolean = false,
     onScrub: (Float) -> Unit,
     onScrubFinished: () -> Unit,
     centerLabel: @Composable BoxScope.() -> Unit = {},
@@ -209,8 +215,13 @@ internal fun PlayerScrubber(
     // canvas needs.
     val mixBlend = PlayerSettings.smartMixBlend.collectAsStateWithLifecycle()
     val reduceAnimation by PlayerSettings.reduceAnimation.collectAsStateWithLifecycle()
-    // One clock for the bar and the "Mixing" label, so they breathe on the same beat.
-    val mixPulse = rememberMixPulse({ mixBlend.value }, enabled = !reduceAnimation)
+    // One clock for the bar and the "Mixing" label. The desktop breathes slowly and gently; the
+    // phone keeps the beat pulse.
+    val mixPulse = rememberMixPulse(
+        { mixBlend.value },
+        enabled = !reduceAnimation,
+        slow = slowMixPulse,
+    )
     Column(Modifier.fillMaxWidth()) {
         ThinSlider(
             value = shown,
@@ -567,6 +578,12 @@ internal fun PlayerActionRow(
     onListenTogether: () -> Unit,
     /** Opens [ListenTogetherMembersSheet] rather than settings directly. */
     onOpenListenTogetherMembers: () -> Unit,
+    /**
+     * Whether the lyrics and queue glyphs are drawn at either end. The desktop
+     * player's overflow hides them — those two live on the song menu instead —
+     * and keeps only the middle pill; every other caller shows all three.
+     */
+    showLyricsAndQueue: Boolean = true,
 ) {
     BoxWithConstraints(Modifier.fillMaxWidth()) {
         // Sized for the wider of the two capsules — the three-up one — in both
@@ -587,9 +604,10 @@ internal fun PlayerActionRow(
             contentAlignment = Alignment.CenterStart,
         ) {
             // Gone while the queue is up: the playback modes take its place, and
-            // the queue glyph, lit, is how you get back.
+            // the queue glyph, lit, is how you get back. Gone altogether when the
+            // caller hides both glyphs (the desktop overflow).
             AnimatedVisibility(
-                visible = !queueOpen,
+                visible = showLyricsAndQueue && !queueOpen,
                 enter = fadeIn(tween(180, delayMillis = 120)),
                 exit = fadeOut(tween(120)),
                 modifier = Modifier.align(Alignment.CenterStart),
@@ -682,7 +700,7 @@ internal fun PlayerActionRow(
                     )
                 }
             }
-            Box(Modifier.align(Alignment.CenterEnd)) {
+            if (showLyricsAndQueue) Box(Modifier.align(Alignment.CenterEnd)) {
                 BottomGlyph(
                     icon = BitChordIcons.Queue,
                     contentDescription = stringResource(Res.string.up_next),
@@ -721,6 +739,7 @@ internal fun CircleGlyph(
             .size(34.dp)
             .clip(CircleShape)
             .background(LocalPlayerTint.current.copy(alpha = discAlpha))
+            .playerHoverDisc()
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
@@ -953,13 +972,19 @@ private fun PillSegment(
 ) {
     val haptics = rememberHaptics()
     val lastTap = remember { mutableLongStateOf(-tapWindowMs) }
+    val interaction = remember { MutableInteractionSource() }
+    val hover by rememberPlayerHover(interaction)
+    // A hovered segment lightens a little under the cursor, as it does in Apple Music; a highlighted
+    // one lightens further still, so the two states stack rather than compete.
+    val segmentAlpha = (if (highlighted) 0.14f else 0f) + 0.08f * hover
     Box(
         modifier = Modifier
             .width(width)
             .height(BOTTOM_ACTION_SIZE)
-            .background(if (highlighted) LocalPlayerTint.current.copy(alpha = 0.14f) else Color.Transparent)
+            .background(LocalPlayerTint.current.copy(alpha = segmentAlpha))
+            .hoverable(interaction)
             .clickable(
-                interactionSource = remember { MutableInteractionSource() },
+                interactionSource = interaction,
                 indication = null,
                 enabled = !loading,
             ) {

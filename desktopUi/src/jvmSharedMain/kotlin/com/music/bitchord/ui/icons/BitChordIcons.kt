@@ -622,6 +622,30 @@ object BitChordIcons {
         }.build()
     }
 
+    /**
+     * A symmetric audio waveform — the glyph for the lossless and hi-res lossless
+     * quality badges, in place of the generic headphones they used to carry.
+     */
+    val Lossless: ImageVector by lazy {
+        ImageVector.Builder(
+            name = "bc_lossless",
+            defaultWidth = 24.dp, defaultHeight = 24.dp,
+            viewportWidth = 24f, viewportHeight = 24f,
+        ).apply {
+            path(
+                stroke = stroke,
+                strokeLineWidth = STROKE,
+                strokeLineCap = StrokeCap.Round,
+            ) {
+                moveTo(4f, 10f); lineTo(4f, 14f)
+                moveTo(8f, 7.4f); lineTo(8f, 16.6f)
+                moveTo(12f, 4.4f); lineTo(12f, 19.6f)
+                moveTo(16f, 7.4f); lineTo(16f, 16.6f)
+                moveTo(20f, 10f); lineTo(20f, 14f)
+            }
+        }.build()
+    }
+
     val Library: ImageVector by lazy {
         ImageVector.Builder(
             name = "bc_library",

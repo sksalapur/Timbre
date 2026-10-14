@@ -77,7 +77,8 @@ private fun desktopMain() = application {
         }
     }
     // Hoisted so the player can fill the screen and the caption buttons can maximize — see
-    // [DesktopWindowMode].
+    // [DesktopWindowMode]. Fullscreen on Windows is a native borderless window that covers the
+    // taskbar, so it needs no placement change here; only ordinary maximize does.
     val placement by DesktopWindowMode.placement.collectAsState()
     LaunchedEffect(placement) { state.placement = placement }
     // ...and back, for the times the window is moved between placements by something that is not

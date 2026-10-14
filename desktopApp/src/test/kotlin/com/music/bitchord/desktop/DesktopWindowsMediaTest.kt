@@ -23,6 +23,7 @@ class DesktopWindowsMediaTest {
                 onNext = { pressed += "next" },
                 onPrevious = { pressed += "previous" },
                 onStop = { pressed += "stop" },
+                onSeek = { pressed += "seek $it" },
             ),
         )
     }
@@ -43,5 +44,12 @@ class DesktopWindowsMediaTest {
         DesktopWindowsMedia.onButton(99)
         DesktopWindowsMedia.onButton(-1)
         assertEquals(emptyList(), pressed)
+    }
+
+    @Test
+    fun aScrubberDragReachesSeekWithItsPosition() {
+        install()
+        DesktopWindowsMedia.onSeek(42_000L)
+        assertEquals(listOf("seek 42000"), pressed)
     }
 }

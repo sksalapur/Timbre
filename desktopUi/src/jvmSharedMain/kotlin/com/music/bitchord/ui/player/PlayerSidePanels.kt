@@ -80,6 +80,10 @@ fun LyricsSidePanel(
                 },
                 status = lyricsTranslation.status,
                 onStatusClick = { showLyricsProviders = true },
+                // The provider now lives in the desktop player's song menu, so
+                // this column drops the "Lyrics by …" line but keeps its two
+                // toggles either side of the gap it leaves.
+                showStatus = false,
                 romanizationToggle = {
                     RomanizationToggleButton(
                         state = lyricsTranslation.romanizationState,

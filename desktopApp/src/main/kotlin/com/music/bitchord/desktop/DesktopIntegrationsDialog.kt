@@ -398,13 +398,13 @@ private fun ScrobblingSection(onOpenLastfm: () -> Unit, onOpenListenBrainz: () -
         DesktopCardRule()
         PanelSwitchRow(
             title = "Last.fm",
+            // No API-key gate: a build without baked-in credentials asks for the
+            // listener's own key and secret in the sign-in dialog instead.
             subtitle = when {
-                !DesktopScrobbling.canSignInToLastFm -> "This build has no Last.fm API key"
                 signedIn -> "Signed in as $lastfmUser"
                 else -> "Tap to sign in"
             },
             checked = lastfmEnabled,
-            enabled = DesktopScrobbling.canSignInToLastFm,
             onCheckedChange = { checked ->
                 if (checked && !signedIn) onOpenLastfm() else DesktopScrobbleSettings.setLastfmEnabled(checked)
             },
