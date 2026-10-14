@@ -606,8 +606,16 @@ object QualityUpgrade {
      *    a substitution nothing announced, which is the case it was written for.
      */
     fun isKnownToBePlayingYouTubesOwn(mediaId: String, rendition: String?): Boolean {
-        if (rendition != null) return false
-        return StreamChoice.of(mediaId) != null && !StreamChoice.isSubstitute(mediaId)
+        if (rendition != null && rendition != ORIGINAL) return false
+        val choice = StreamChoice.of(mediaId)
+        if (choice != null) {
+            return !StreamChoice.isSubstitute(mediaId)
+        }
+        val source = NerdStats.sourceFor(mediaId)
+        if (source == "YouTube") return true
+        val format = NerdStats.declaredFormat(mediaId)
+        if (format != null && format.isLossless != true) return true
+        return false
     }
 
     /**

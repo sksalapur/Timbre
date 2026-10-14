@@ -171,6 +171,16 @@ import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 import java.util.Locale
 
+data class SourceHealthItem(
+    val id: String,
+    val name: String,
+    val kindLabel: String,
+    val latencyMs: Long?,
+    val isOnline: Boolean?,
+    val statusText: String,
+    val statusColor: androidx.compose.ui.graphics.Color,
+)
+
 /**
  * Grouped settings, in the shape phones have taught people to expect: inset
  * cards of rows, a leading glyph per row, the current value on the right, and a
@@ -249,27 +259,136 @@ fun SettingsScreen(
     val losslessTimeoutSeconds by AppSettings.losslessTimeoutSeconds.collectAsStateWithLifecycle()
 
     var activeInfoItem by remember { mutableStateOf<TimbreInfoItem?>(null) }
-    var edgeLatencyMs by remember { mutableStateOf<Long?>(null) }
-    var edgeHealthy by remember { mutableStateOf<Boolean?>(null) }
+    var showSourceHealthDialog by remember { mutableStateOf(false) }
+    var sourceHealthList by remember { mutableStateOf<List<SourceHealthItem>>(emptyList()) }
+    var isProbingHealth by remember { mutableStateOf(false) }
+    val healthScope = rememberCoroutineScope()
+    val probeClient = remember {
+        okhttp3.OkHttpClient.Builder()
+            .connectTimeout(3, java.util.concurrent.TimeUnit.SECONDS)
+            .readTimeout(3, java.util.concurrent.TimeUnit.SECONDS)
+            .build()
+    }
 
-    LaunchedEffect(Unit) {
-        val activeAddon = com.music.bitchord.data.sources.SourceRegistry.configs.value.firstOrNull { it.kind.isUserAdded && it.enabled }
-        if (activeAddon != null && activeAddon.baseUrl.isNotBlank()) {
-            val start = android.os.SystemClock.elapsedRealtime()
-            val probe = runCatching {
-                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                    val url = if (activeAddon.baseUrl.endsWith("/manifest.json")) activeAddon.baseUrl else "${activeAddon.baseUrl.trimEnd('/')}/manifest.json"
-                    val req = okhttp3.Request.Builder().url(url).build()
-                    val client = okhttp3.OkHttpClient.Builder()
-                        .connectTimeout(3, java.util.concurrent.TimeUnit.SECONDS)
-                        .readTimeout(3, java.util.concurrent.TimeUnit.SECONDS)
-                        .build()
-                    client.newCall(req).execute().use { resp -> resp.isSuccessful }
+    suspend fun probeActiveSources() {
+        isProbingHealth = true
+        val results = mutableListOf<SourceHealthItem>()
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            val client = probeClient
+
+            // 1. YouTube Music (always on Core provider)
+            val ytProbe = runCatching {
+                val start = android.os.SystemClock.elapsedRealtime()
+                val req = okhttp3.Request.Builder().url("https://music.youtube.com/generate_204").head().build()
+                val ok = client.newCall(req).execute().use { it.isSuccessful || it.code in 200..399 }
+                val latency = android.os.SystemClock.elapsedRealtime() - start
+                latency to ok
+            }
+            val ytLatency = ytProbe.getOrNull()?.first
+            val ytOk = ytProbe.getOrNull()?.second == true
+            results.add(
+                SourceHealthItem(
+                    id = "youtube",
+                    name = "YouTube Music",
+                    kindLabel = "Core Provider • AAC/Opus",
+                    latencyMs = if (ytOk) ytLatency else null,
+                    isOnline = ytOk,
+                    statusText = when {
+                        !ytOk -> "Offline"
+                        ytLatency != null && ytLatency < 150 -> "Ultra-Low Latency"
+                        ytLatency != null && ytLatency <= 400 -> "Optimal"
+                        else -> "High Latency"
+                    },
+                    statusColor = when {
+                        !ytOk -> androidx.compose.ui.graphics.Color(0xFFE53935)
+                        ytLatency != null && ytLatency < 150 -> androidx.compose.ui.graphics.Color(0xFF4CAF50)
+                        ytLatency != null && ytLatency <= 400 -> androidx.compose.ui.graphics.Color(0xFFFFB300)
+                        else -> androidx.compose.ui.graphics.Color(0xFFE53935)
+                    }
+                )
+            )
+
+            // 2. User-configured Addons (Lossless Bridge, Timbre Cloudflare, etc.)
+            val activeAddons = com.music.bitchord.data.sources.SourceRegistry.configs.value.filter { it.kind.isUserAdded && it.enabled }
+            for (addon in activeAddons) {
+                if (addon.baseUrl.isNotBlank()) {
+                    val addonProbe = runCatching {
+                        val start = android.os.SystemClock.elapsedRealtime()
+                        val url = if (addon.baseUrl.endsWith("/manifest.json")) addon.baseUrl else "${addon.baseUrl.trimEnd('/')}/manifest.json"
+                        val req = okhttp3.Request.Builder().url(url).build()
+                        val ok = client.newCall(req).execute().use { it.isSuccessful }
+                        val latency = android.os.SystemClock.elapsedRealtime() - start
+                        latency to ok
+                    }
+                    val latency = addonProbe.getOrNull()?.first
+                    val ok = addonProbe.getOrNull()?.second == true
+                    val isCloudflare = addon.baseUrl.contains("workers.dev") || addon.displayName.contains("cloudflare", ignoreCase = true)
+                    val kindTag = if (isCloudflare) "Cloudflare Edge • FLAC 24-bit" else "Lossless Bridge • FLAC"
+                    results.add(
+                        SourceHealthItem(
+                            id = addon.id,
+                            name = addon.displayName.ifBlank { "Lossless Addon" },
+                            kindLabel = kindTag,
+                            latencyMs = if (ok) latency else null,
+                            isOnline = ok,
+                            statusText = when {
+                                !ok -> "Offline"
+                                latency != null && latency < 150 -> "Ultra-Low Latency"
+                                latency != null && latency <= 400 -> "Optimal"
+                                else -> "High Latency"
+                            },
+                            statusColor = when {
+                                !ok -> androidx.compose.ui.graphics.Color(0xFFE53935)
+                                latency != null && latency < 150 -> androidx.compose.ui.graphics.Color(0xFF4CAF50)
+                                latency != null && latency <= 400 -> androidx.compose.ui.graphics.Color(0xFFFFB300)
+                                else -> androidx.compose.ui.graphics.Color(0xFFE53935)
+                            }
+                        )
+                    )
                 }
             }
-            edgeLatencyMs = android.os.SystemClock.elapsedRealtime() - start
-            edgeHealthy = probe.getOrDefault(false)
+
+            // 3. JioSaavn (if enabled)
+            val jioConfig = com.music.bitchord.data.sources.SourceRegistry.configs.value.firstOrNull { it.kind == com.music.bitchord.data.sources.SourceKind.JIOSAAVN && it.enabled }
+            if (jioConfig != null) {
+                val jioProbe = runCatching {
+                    val start = android.os.SystemClock.elapsedRealtime()
+                    val req = okhttp3.Request.Builder().url("https://www.jiosaavn.com").head().build()
+                    val ok = client.newCall(req).execute().use { it.isSuccessful || it.code in 200..399 }
+                    val latency = android.os.SystemClock.elapsedRealtime() - start
+                    latency to ok
+                }
+                val jioLatency = jioProbe.getOrNull()?.first
+                val jioOk = jioProbe.getOrNull()?.second == true
+                results.add(
+                    SourceHealthItem(
+                        id = "jiosaavn",
+                        name = "JioSaavn",
+                        kindLabel = "Regional Catalog • 320 kbps AAC",
+                        latencyMs = if (jioOk) jioLatency else null,
+                        isOnline = jioOk,
+                        statusText = when {
+                            !jioOk -> "Offline"
+                            jioLatency != null && jioLatency < 150 -> "Ultra-Low Latency"
+                            jioLatency != null && jioLatency <= 400 -> "Optimal"
+                            else -> "High Latency"
+                        },
+                        statusColor = when {
+                            !jioOk -> androidx.compose.ui.graphics.Color(0xFFE53935)
+                            jioLatency != null && jioLatency < 150 -> androidx.compose.ui.graphics.Color(0xFF4CAF50)
+                            jioLatency != null && jioLatency <= 400 -> androidx.compose.ui.graphics.Color(0xFFFFB300)
+                            else -> androidx.compose.ui.graphics.Color(0xFFE53935)
+                        }
+                    )
+                )
+            }
         }
+        sourceHealthList = results
+        isProbingHealth = false
+    }
+
+    LaunchedEffect(Unit) {
+        probeActiveSources()
     }
     val cacheLimitBytes by AppSettings.audioCacheLimitBytes.collectAsStateWithLifecycle()
     val showCacheFolder by AppSettings.showCacheFolder.collectAsStateWithLifecycle()
@@ -589,20 +708,26 @@ fun SettingsScreen(
         }
 
         SearchableSettingsGroup(search, header = "Timbre Studio") {
-            row("Cloudflare Edge Health", "latency", "health", "worker", "ping") {
+            row("Source Edge Health", "latency", "health", "worker", "ping", "source", "edge", "cloudflare") {
                 SettingsRow(
                     icon = Icons.Rounded.CloudDone,
-                    title = "Cloudflare Edge Health",
+                    title = "Source Edge Health",
                     subtitle = when {
-                        edgeHealthy == true -> "Connected • Latency: ${edgeLatencyMs}ms (Ultra-Low Latency)"
-                        edgeHealthy == false -> "Unreachable • Check network or worker status"
-                        else -> "Probing edge worker latency…"
+                        isProbingHealth -> "Probing streaming & edge providers…"
+                        sourceHealthList.isNotEmpty() && sourceHealthList.all { it.isOnline == true } ->
+                            "All ${sourceHealthList.size} sources online • Tap to inspect latencies"
+                        sourceHealthList.isNotEmpty() ->
+                            "${sourceHealthList.count { it.isOnline == true }} of ${sourceHealthList.size} sources online • Tap to inspect"
+                        else -> "Tap to inspect live source health & latencies"
                     },
                     badge = when {
-                        edgeHealthy == true -> "${edgeLatencyMs}ms"
-                        edgeHealthy == false -> "Offline"
-                        else -> "Probing"
+                        isProbingHealth -> "Probing"
+                        sourceHealthList.any { it.isOnline == false } -> "Degraded"
+                        sourceHealthList.isNotEmpty() -> "${sourceHealthList.mapNotNull { it.latencyMs }.minOrNull() ?: 0}ms"
+                        else -> "Inspect"
                     },
+                    onClick = { showSourceHealthDialog = true },
+                    onInfoClick = { showSourceHealthDialog = true },
                 )
             }
             row("Player Hi-Res Pill Badge", "pill", "badge", "player", "pipeline") {
@@ -690,7 +815,7 @@ fun SettingsScreen(
                 SliderRow(
                     icon = Icons.Rounded.Timer,
                     title = "Priority Resolution Window",
-                    subtitle = "Max duration to wait for Cloudflare FLAC stream before proceeding",
+                    subtitle = "Max duration to wait for lossless FLAC stream across active sources before proceeding",
                     value = "${(losslessTimeoutSeconds * 10).roundToInt() / 10.0}s",
                     sliderValue = losslessTimeoutSeconds,
                     onSliderValue = AppSettings::setLosslessTimeoutSeconds,
@@ -699,7 +824,7 @@ fun SettingsScreen(
                     onInfoClick = {
                         activeInfoItem = TimbreInfoItem(
                             title = "Priority Resolution Window",
-                            description = "Controls how long Timbre waits for your Cloudflare edge worker to match and return a 24-bit FLAC stream.\n\nShorter windows reduce track start latency, while longer windows allow deeper catalog searches across edge databases.",
+                            description = "Controls how long Timbre waits for your Lossless Bridge or Cloudflare edge sources to match and return a 24-bit FLAC stream.\n\nShorter windows reduce track start latency, while longer windows allow deeper catalog searches across edge databases.",
                             recommendation = "3.0s to 4.0s is optimal for fast mobile or home Wi-Fi connections."
                         )
                     },
@@ -1727,6 +1852,116 @@ fun SettingsScreen(
                 confirmButton = {
                     TextButton(onClick = { activeInfoItem = null }) {
                         Text(stringResource(R.string.done))
+                    }
+                },
+            )
+        }
+
+        if (showSourceHealthDialog) {
+            AlertDialog(
+                onDismissRequest = { showSourceHealthDialog = false },
+                title = {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Icon(
+                            Icons.Rounded.CloudDone,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                        )
+                        Text(
+                            text = "Source Edge Health",
+                            style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                        )
+                    }
+                },
+                text = {
+                    Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                        Text(
+                            text = "Live edge connectivity, handshake ping, and responsiveness across all active providers.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Spacer(Modifier.height(16.dp))
+
+                        if (sourceHealthList.isEmpty()) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 16.dp),
+                                horizontalArrangement = Arrangement.Center,
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text(
+                                    text = if (isProbingHealth) "Probing active sources…" else "No active sources found",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        } else {
+                            sourceHealthList.forEach { item ->
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 4.dp)
+                                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f), RoundedCornerShape(12.dp)),
+                                ) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(12.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(10.dp)
+                                                .background(item.statusColor, CircleShape),
+                                        )
+                                        Spacer(Modifier.width(12.dp))
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                text = item.name,
+                                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
+                                                color = MaterialTheme.colorScheme.onSurface,
+                                            )
+                                            Text(
+                                                text = item.kindLabel,
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            )
+                                        }
+                                        Column(horizontalAlignment = Alignment.End) {
+                                            if (item.latencyMs != null) {
+                                                Text(
+                                                    text = "${item.latencyMs}ms",
+                                                    style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
+                                                    color = item.statusColor,
+                                                )
+                                            }
+                                            Text(
+                                                text = item.statusText,
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = item.statusColor,
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = { showSourceHealthDialog = false }) {
+                        Text(stringResource(R.string.done))
+                    }
+                },
+                dismissButton = {
+                    TextButton(
+                        onClick = { healthScope.launch { probeActiveSources() } },
+                        enabled = !isProbingHealth,
+                    ) {
+                        Text(if (isProbingHealth) "Probing…" else "Re-test")
                     }
                 },
             )

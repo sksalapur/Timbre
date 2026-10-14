@@ -363,35 +363,49 @@ object AudioCache {
      * The videoId behind a request. Playback asks through the custom scheme;
      * read-ahead builds the same URI, so both land on one cache entry.
      */
+    private fun hasLosslessBytes(key: String): Boolean {
+        if (!::cache.isInitialized) return false
+        val len = runCatching { cache.getCachedLength(key, 0, 1024L) }.getOrDefault(0L)
+        if (len <= 0L) return false
+        val meta = runCatching { cache.getContentMetadata(key) }.getOrNull() ?: return true
+        val origin = meta.get(META_ORIGIN, null as String?)
+        return origin == Origin.LOSSLESS.name || (origin != Origin.YOUTUBE.name && origin != null)
+    }
+
+    private fun isContaminatedWithYouTube(key: String): Boolean {
+        if (!::cache.isInitialized) return false
+        val len = runCatching { cache.getCachedLength(key, 0, 1024L) }.getOrDefault(0L)
+        if (len <= 0L) return false
+        val meta = runCatching { cache.getContentMetadata(key) }.getOrNull() ?: return false
+        val origin = meta.get(META_ORIGIN, null as String?)
+        return origin == Origin.YOUTUBE.name
+    }
+
     private val keyFactory = CacheKeyFactory { spec ->
         spec.uri.getQueryParameter("v")
-            // A YouTube id can name several different recordings on disk: the
-            // Opus rendition YouTube serves, whatever a source ranked above it
-            // hands over instead — see [SourceResolver.substituteForYouTube] —
-            // and the better copy that replaces *that* mid-track when one
-            // turns up, see [QualityUpgrade]. Sharing one entry between them
-            // survives neither a reorder nor a half-cached track: the next
-            // play would serve a FLAC prefix and then stream Opus into the
-            // middle of it. Each gets its own entry, and the duplication costs
-            // a re-download rather than a corrupt file.
-            //
-            // Written as a `when` rather than a chain of `?.let`: the previous
-            // form ended `cacheTag(...)?.let { return@let "$videoId#$it" }`,
-            // where `return@let` binds to the *inner* lambda, not the outer
-            // one it was meant for. The upgraded key was built, discarded as
-            // an unused expression, and every upgraded track fell through to
-            // the `#alt` entry belonging to the stream it had just replaced —
-            // so a 320kbps AAC was written into the middle of a half-cached
-            // WebM, which is the exact corruption the paragraph above exists
-            // to prevent. It cost `IllegalStateException: No valid varint
-            // length mask found` at the seam, and eight-second stalls before
-            // that, when the swap blocked on a cache lock the outgoing reader
-            // still held.
             ?.let { videoId ->
                 val rendition = QualityUpgrade.cacheTag(spec.uri)
+                val directYouTube = spec.uri.getQueryParameter("direct_youtube") == "1"
                 when {
                     rendition != null -> "$videoId#$rendition"
-                    SourceResolver.canSubstituteForYouTube() -> "$videoId#alt${atmosKeySuffix()}"
+                    directYouTube -> videoId
+                    SourceResolver.canSubstituteForYouTube() -> {
+                        // 1. If an upgraded lossless FLAC rendition is already on disk, use it immediately!
+                        val hifiKey = "$videoId#hifi"
+                        if (hasLosslessBytes(hifiKey)) {
+                            hifiKey
+                        } else {
+                            val altKey = "$videoId#alt${atmosKeySuffix()}"
+                            val wantsLossless = SourceResolver.requestForNow() is com.music.bitchord.data.sources.StreamRequest.Lossless
+                            // 2. If alt slot is contaminated with lossy YouTube Opus bytes, purge them so
+                            // the priority resolution window has a clean cache miss to query FLAC streams.
+                            if (wantsLossless && isContaminatedWithYouTube(altKey)) {
+                                TrackLog.d(TAG, "purging stale YouTube bytes from $altKey to allow lossless priority resolution", about = videoId)
+                                runCatching { cache.removeResource(altKey) }
+                            }
+                            altKey
+                        }
+                    }
                     else -> videoId
                 }
             }
@@ -569,8 +583,11 @@ object AudioCache {
         if (!::cache.isInitialized) return
         if (spec.uri.scheme != "bitchord") return
         val mediaId = mediaIdIn(spec.uri) ?: return
-        val key = spec.key ?: keyFactory.buildCacheKey(spec)
         val origin = originOf(spec.uri, mediaId, servedUrl)
+        val rawKey = spec.key ?: keyFactory.buildCacheKey(spec)
+        // If a YouTube stream was served as fallback, keep it under YouTube's own key
+        // instead of contaminating the #alt slot reserved for Lossless streams.
+        val key = if (origin == Origin.YOUTUBE && !spec.uri.toString().contains("&hifi")) mediaId else rawKey
         val song = notedSongs[mediaId]
         // Automix's analysis-only read: its own YouTube Opus download, made
         // whatever the track is actually playing from. Never playback.
