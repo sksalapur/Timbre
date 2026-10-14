@@ -161,7 +161,13 @@ object BoundedContextPersistence {
             .filter { it.canonicalIndex != null && it.cycleId != null }
             .associateBy { it.canonicalIndex!! to it.cycleId!! }
         val upcoming = runCatching {
-            restoredWindow.upcoming(MAX_CONTEXT_UPCOMING, repeatAll)
+            BoundedQueuePlanner.physicalUpcoming(
+                window = restoredWindow,
+                repeatAll = repeatAll && BoundedQueuePlanner.canRepeat(
+                    state.context.continuationState,
+                ),
+                count = MAX_CONTEXT_UPCOMING,
+            )
         }.getOrNull() ?: return null
         val usedIds = (history + current + userTail + autoplayTail)
             .mapTo(HashSet()) { it.song.queueEntryId!! }

@@ -2463,8 +2463,8 @@ class PlaybackService : MediaLibraryService() {
         val autoplay = existing.filter { it.queueTier == QueueTier.AUTOPLAY }
         val existingContext = existing.filter { it.queueTier == QueueTier.CONTEXT }
             .associateBy { QueueWindowEntry(it.canonicalIndex ?: -1, it.contextCycleId ?: window.cycleId) }
-        val context = window.upcoming(
-            WINDOW_AHEAD,
+        val context = BoundedQueuePlanner.physicalUpcoming(
+            window = window,
             repeatAll = exoPlayer.repeatMode == Player.REPEAT_MODE_ALL &&
                 BoundedQueuePlanner.canRepeat(snapshot.continuationState),
         ).map { entry ->

@@ -72,17 +72,32 @@ class BoundedQueuePlannerTest {
     fun `same song can be materialized again in a later repeat cycle`() {
         val context = listOf(song("same"))
         val window = QueueWindow(1).startAt(0)
-        val desired = window.upcoming(WINDOW_AHEAD, repeatAll = true)
-        val existing = desired.take(LOW_WATER - 1)
+        val desired = BoundedQueuePlanner.physicalUpcoming(window, repeatAll = true)
+        val existing = desired.take(desired.size.coerceAtLeast(1) - 1)
 
         val additions = BoundedQueuePlanner.topUpEntries(window, existing, repeatAll = true)
 
-        assertEquals((1L..WINDOW_AHEAD.toLong()).toList(), desired.map { it.cycleId })
-        assertEquals((LOW_WATER.toLong()..WINDOW_AHEAD.toLong()).toList(), additions.map { it.cycleId })
+        assertEquals(listOf(1L), desired.map { it.cycleId })
+        assertEquals(desired.drop(existing.size), additions)
         assertEquals(
-            List(WINDOW_AHEAD) { "same" },
+            List(desired.size) { "same" },
             (existing + additions).map { context[it.canonicalIndex].videoId },
         )
+    }
+
+    @Test
+    fun `physical repeat lookahead includes at most one future cycle`() {
+        val window = QueueWindow(3).startAt(2)
+
+        val desired = BoundedQueuePlanner.physicalUpcoming(window, repeatAll = true)
+
+        assertEquals(listOf(1L, 1L, 1L), desired.map { it.cycleId })
+        assertEquals(listOf(0, 1, 2), desired.map { it.canonicalIndex })
+
+        requireNotNull(window.advanceAutomatically(repeatAll = true))
+        val afterRollover = BoundedQueuePlanner.physicalUpcoming(window, repeatAll = true)
+        assertEquals(listOf(1L, 1L), afterRollover.map { it.cycleId })
+        assertEquals(listOf(1, 2), afterRollover.map { it.canonicalIndex })
     }
 
     @Test
@@ -108,8 +123,38 @@ class BoundedQueuePlannerTest {
             queueWindow = QueueWindow(1).startAt(0),
             repeatAll = true,
         )
-        assertEquals((1L..WINDOW_AHEAD.toLong()).toList(), terminal.contextUpcoming.map { it.cycleId })
+        assertTrue(terminal.contextUpcoming.isEmpty())
         assertFalse(terminal.contextTrulyExhausted)
+    }
+
+    @Test
+    fun `initial repeat-all plan does not expose the next cycle before active cycle ends`() {
+        val context = songs(4, "track-")
+        val plan = BoundedQueuePlanner.buildInitialPlan(
+            snapshot(context, ContinuationState.EXHAUSTED),
+            selectedIndex = 1,
+            queueWindow = QueueWindow(4).startAt(1),
+            repeatAll = true,
+        )
+
+        assertEquals(listOf(2, 3), plan.contextUpcoming.map { it.canonicalIndex })
+        assertTrue(plan.contextUpcoming.all { it.cycleId == 0L })
+    }
+
+    @Test
+    fun `repeat-all top-up crosses only after the active cycle is exhausted`() {
+        val window = QueueWindow(4).startAt(0)
+        val activeCycle = window.upcoming(WINDOW_AHEAD, repeatAll = false)
+
+        val additions = BoundedQueuePlanner.topUpEntries(window, activeCycle.take(1), true)
+
+        assertEquals(activeCycle.drop(1), additions)
+        assertTrue(additions.all { it.cycleId == 0L })
+
+        window.jumpTo(3)
+        val nextCycle = BoundedQueuePlanner.topUpEntries(window, emptyList(), true)
+        assertTrue(nextCycle.isNotEmpty())
+        assertEquals(1L, nextCycle.first().cycleId)
     }
 
     @Test

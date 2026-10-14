@@ -55,7 +55,10 @@ object BoundedQueuePlanner {
         val state = contextSnapshot.continuationState
         val upcoming = queueWindow.upcoming(
             WINDOW_AHEAD,
-            repeatAll = repeatAll && canRepeat(state),
+            // A fresh manual start must not expose the next repeat cycle before
+            // the currently selected cycle has actually finished. The top-up
+            // path may materialise that cycle later at the physical boundary.
+            repeatAll = false,
         )
         val history = historyBefore(canonical, queueWindow)
         return BoundedContextPlan(
@@ -66,7 +69,7 @@ object BoundedQueuePlanner {
             userQueue = preservedUserQueue.map { it.asUserQueue() },
             contextUpcoming = upcoming,
             autoplay = existingAutoplay.map { it.asAutoplay() },
-            contextTrulyExhausted = upcoming.isEmpty() && state.isTerminal(),
+            contextTrulyExhausted = upcoming.isEmpty() && state.isTerminal() && !repeatAll,
             continuationPending = state.isPending(),
             continuationState = state,
             repeatAll = repeatAll,
@@ -84,7 +87,7 @@ object BoundedQueuePlanner {
         repeatAll: Boolean,
     ): List<QueueWindowEntry> {
         if (materialized.size >= LOW_WATER) return emptyList()
-        val desired = window.upcoming(WINDOW_AHEAD, repeatAll)
+        val desired = physicalUpcoming(window, repeatAll)
         if (materialized.size > desired.size) return emptyList()
         if (materialized.indices.any { !sameEntry(materialized[it], desired[it]) }) {
             return emptyList()
@@ -102,6 +105,38 @@ object BoundedQueuePlanner {
 
     /** Repeat-all may cross a cycle boundary only after continuation is terminal. */
     fun canRepeat(continuationState: ContinuationState): Boolean = continuationState.isTerminal()
+
+    /**
+     * Keep the physical queue on the active logical cycle until its last entry
+     * is current. Logical look-ahead may inspect a later cycle, but exposing it
+     * in Media3 before this point makes the queue UI show duplicate songs.
+     */
+    fun shouldMaterializeNextCycle(window: QueueWindow, repeatAll: Boolean): Boolean =
+        repeatAll && window.upcoming(1, repeatAll = false).isEmpty()
+
+    /**
+     * Return a physical look-ahead containing the active cycle and, at the
+     * boundary, at most one following cycle. QueueWindow can logically look
+     * through several repeat cycles to fill [WINDOW_AHEAD]; doing that in the
+     * player would make a small album appear duplicated as soon as Repeat All
+     * rolls over.
+     */
+    fun physicalUpcoming(
+        window: QueueWindow,
+        repeatAll: Boolean,
+        count: Int = WINDOW_AHEAD,
+    ): List<QueueWindowEntry> {
+        if (count <= 0) return emptyList()
+        val active = window.upcoming(count, repeatAll = false)
+        if (active.size >= count || !shouldMaterializeNextCycle(window, repeatAll)) {
+            return active
+        }
+        val nextCycle = window.cycleId.takeIf { it < Long.MAX_VALUE }?.plus(1L)
+            ?: return active
+        val next = window.upcoming(count - active.size, repeatAll = true)
+            .filter { it.cycleId == nextCycle }
+        return active + next
+    }
 
     private fun historyBefore(canonical: List<Song>, window: QueueWindow): List<Song> {
         val cursor = window.cursor

@@ -143,6 +143,34 @@ class BoundedContextPersistenceTest {
     }
 
     @Test
+    fun `repeat-all restore does not expose next cycle before active cycle ends`() {
+        val source = QueueSource("Release", PlaybackSourceType.BROWSE, "release-1")
+        val canonical = List(4) { song("track-$it") }
+        val window = QueueWindow(4).startAt(1)
+        val state = state(
+            canonical = canonical,
+            source = source,
+            window = window.snapshot(),
+            entries = listOf(
+                entry("current", QueueTier.CONTEXT, 1, 0L),
+                entry("context-2", QueueTier.CONTEXT, 2, 0L),
+            ),
+            currentIndex = 0,
+            sourceSnapshot = context(canonical, source),
+        )
+
+        val projected = requireNotNull(
+            BoundedContextPersistence.restoreProjection(state, repeatAll = true),
+        )
+
+        assertTrue(
+            projected.entries.drop(1).all {
+                it.canonicalIndex == null || it.cycleId == 0L
+            },
+        )
+    }
+
+    @Test
     fun `unrelated context history without anchors is retained but never mapped`() {
         val source = QueueSource("Release", PlaybackSourceType.BROWSE, "release-1")
         val canonical = List(3) { song("track-$it") }
