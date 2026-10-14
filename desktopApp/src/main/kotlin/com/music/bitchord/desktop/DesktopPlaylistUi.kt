@@ -46,6 +46,7 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -494,7 +495,7 @@ private fun ReorderableSongList(
                             val layout = startOrder.map { heights[it] ?: 0f }
                             if (layout.all { it > 0f }) {
                                 val target = reorderTargetSlot(layout, startIndex, totalDrag)
-                                val at = keys.indexOf(key)
+                                val at = live.indices.firstOrNull { keyOf(live[it], it) == key } ?: return@ReorderSongRow
                                 if (target != at) {
                                     live = live.toMutableList().apply { add(target, removeAt(at)) }
                                 }
@@ -517,6 +518,14 @@ private fun ReorderSongRow(
     onDrag: (Float) -> Unit,
 ) {
     val openContextMenu = LocalDesktopContextMenu.current
+    // The gesture below outlives the composition it started in (it is keyed to the
+    // song, not to the order), so it must call the newest callbacks: the ones it
+    // captured at the first frame of a drag still describe the order from before
+    // the first swap, and moved the wrong row once the list had changed under it.
+    val currentDragStart by rememberUpdatedState(onDragStart)
+    val currentDragEnd by rememberUpdatedState(onDragEnd)
+    val currentDragCancel by rememberUpdatedState(onDragCancel)
+    val currentDrag by rememberUpdatedState(onDrag)
     Row(
         Modifier.fillMaxWidth().contextClick { openContextMenu(song) }.padding(horizontal = 14.dp, vertical = 7.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -529,12 +538,12 @@ private fun ReorderSongRow(
                 .size(20.dp)
                 .pointerInput(song.setVideoId, song.videoId) {
                     detectDragGestures(
-                        onDragStart = { onDragStart() },
-                        onDragEnd = { onDragEnd() },
-                        onDragCancel = { onDragCancel() },
+                        onDragStart = { currentDragStart() },
+                        onDragEnd = { currentDragEnd() },
+                        onDragCancel = { currentDragCancel() },
                     ) { change, amount ->
                         change.consume()
-                        onDrag(amount.y)
+                        currentDrag(amount.y)
                     }
                 },
         )

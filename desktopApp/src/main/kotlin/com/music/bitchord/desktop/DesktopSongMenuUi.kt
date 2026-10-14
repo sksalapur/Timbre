@@ -151,13 +151,13 @@ internal fun DesktopSongMenuFor(
      */
     onMore: (() -> Unit)? = null,
     /**
-     * Show the lyric sheet, or the queue, in the player's content column. The
-     * desktop player keeps these two as rows on this menu rather than glyphs in
-     * its overflow. Null on a menu raised from a list, which has no player to
-     * switch.
+     * Switches the player's content column between the lyric sheet and the queue.
+     * One row, labelled with whichever of the two is not showing — see
+     * [queueShowing]. Null on a menu raised from a list, which has no player.
      */
-    onShowLyrics: (() -> Unit)? = null,
-    onShowQueue: (() -> Unit)? = null,
+    onSwitchLyricsQueue: (() -> Unit)? = null,
+    /** Whether the player shows the queue now, so the row offers the lyrics. */
+    queueShowing: Boolean = false,
     /**
      * Asks the shared player to switch the lyric sheet between the originals and
      * their translation — the toggle the desktop overflow used to hold, now a row
@@ -223,8 +223,8 @@ internal fun DesktopSongMenuFor(
         onSleepAfterTrack = { actions.onSleepAfterTrack(); close() },
         onShare = { actions.onShare(song); close() },
         onMore = onMore,
-        onShowLyrics = onShowLyrics?.let { { it(); close() } },
-        onShowQueue = onShowQueue?.let { { it(); close() } },
+        onSwitchLyricsQueue = onSwitchLyricsQueue?.let { { it(); close() } },
+        queueShowing = queueShowing,
         onTranslate = onTranslate?.let { { it(); close() } },
         showingTranslation = showingTranslation,
         translateEnabled = translateEnabled,
@@ -268,9 +268,9 @@ internal fun DesktopSongMenu(
     onShare: () -> Unit,
     /** Opens the player's own overflow; null on a menu raised from a list. */
     onMore: (() -> Unit)? = null,
-    /** Show the lyric sheet / the queue; null when there is no player to switch. */
-    onShowLyrics: (() -> Unit)? = null,
-    onShowQueue: (() -> Unit)? = null,
+    /** Switch the player between lyrics and queue; null when there is no player. */
+    onSwitchLyricsQueue: (() -> Unit)? = null,
+    queueShowing: Boolean = false,
     /** Show the translation of the lyric sheet; null when there is no player to switch. */
     onTranslate: (() -> Unit)? = null,
     showingTranslation: Boolean = false,
@@ -416,22 +416,19 @@ internal fun DesktopSongMenu(
         DesktopMenuRow(Icons.Rounded.Radio, DesktopStrings["start_radio", "Start radio"], onClick = onStartRadio)
         DesktopMenuRow(Icons.AutoMirrored.Rounded.PlaylistPlay, DesktopStrings["play_next", "Play next"], onClick = onPlayNext)
         DesktopMenuRow(Icons.AutoMirrored.Rounded.QueueMusic, DesktopStrings["add_to_queue", "Add to queue"], onClick = onAddToQueue)
-        // The queue the player's content column shows, brought up into this
-        // transport block rather than left down in the lyrics group. Only the
-        // player's menu passes it.
-        onShowQueue?.let {
-            DesktopMenuRow(BitChordIcons.Queue, DesktopStrings["d_view_queue", "View queue"], onClick = it)
-        }
-
-        // The lyric sheet the player's content column can show, and the ways of
-        // reading it: the translation the overflow used to hold now lives here,
-        // and "Lyrics provider" opens the search box and the list of providers
-        // with what each turned up, the sheet's old footer folded into this menu.
-        // Only the player's menu passes any of them.
-        if (onShowLyrics != null || onTranslate != null || onSelectLyricsProvider != null || onSetLyricsOffset != null) {
+        // What the player's content column shows, and the ways of reading the
+        // lyrics: one row switches the column between the sheet and the queue,
+        // named for whichever is not on screen; the translation the overflow used
+        // to hold lives here, and "Lyrics provider" opens the search box and the
+        // providers with what each turned up. Only the player's menu passes them.
+        if (onSwitchLyricsQueue != null || onTranslate != null || onSelectLyricsProvider != null || onSetLyricsOffset != null) {
             DesktopMenuDivider()
-            onShowLyrics?.let {
-                DesktopMenuRow(BitChordIcons.LyricsQuote, DesktopStrings["d_view_lyrics", "View lyrics"], onClick = it)
+            onSwitchLyricsQueue?.let {
+                if (queueShowing) {
+                    DesktopMenuRow(BitChordIcons.LyricsQuote, DesktopStrings["d_view_lyrics", "View lyrics"], onClick = it)
+                } else {
+                    DesktopMenuRow(BitChordIcons.Queue, DesktopStrings["d_view_queue", "View queue"], onClick = it)
+                }
             }
             onTranslate?.let {
                 DesktopMenuRow(

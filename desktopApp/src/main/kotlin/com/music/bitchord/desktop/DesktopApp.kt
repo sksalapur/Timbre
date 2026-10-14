@@ -234,7 +234,9 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.LocalWindowInfo
@@ -517,6 +519,31 @@ fun BitChordDesktopApp() {
     var personalPositionStash by remember { mutableStateOf(0L) }
     var personalPlayingStash by remember { mutableStateOf(false) }
     val persistence = remember { DesktopPersistence() }
+    var availableUpdate by remember { mutableStateOf<DesktopUpdateChecker.UpdateInfo?>(null) }
+    LaunchedEffect(Unit) { availableUpdate = DesktopUpdateChecker.check() }
+    availableUpdate?.let { update ->
+        AlertDialog(
+            onDismissRequest = { availableUpdate = null },
+            title = { Text(DesktopStrings["d_update_available", "Update available"]) },
+            text = {
+                Text(
+                    "BitChord ${update.version} is out — you have ${DesktopUpdateChecker.currentVersion}." +
+                        (update.notes?.takeIf { it.isNotBlank() }?.let { "\n\n${it.take(600)}" } ?: ""),
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    DesktopExternalLinks.open(update.downloadUrl ?: update.releaseUrl)
+                    availableUpdate = null
+                }) { Text(DesktopStrings["d_download", "Download"]) }
+            },
+            dismissButton = {
+                TextButton(onClick = { availableUpdate = null }) {
+                    Text(DesktopStrings["d_later", "Later"])
+                }
+            },
+        )
+    }
     var destination by remember { mutableStateOf(DesktopDestination.LISTEN_NOW) }
     var query by remember { mutableStateOf("") }
     var searchFilter by remember { mutableStateOf(SearchFilter.ALL) }
@@ -2941,16 +2968,17 @@ fun BitChordDesktopApp() {
     // footer), raised from the song menu's "More…" and drawn by the shared
     // player. Held here so the desktop song menu can open it.
     val playerOverflowOpen = remember(selectedSong?.videoId) { mutableStateOf(false) }
-    // The lyric sheet and the queue, toggled from rows on the song menu rather
-    // than glyphs in the overflow. Flipped here, consumed and cleared by the
-    // shared player.
-    val playerLyricsToggle = remember(selectedSong?.videoId) { mutableStateOf(false) }
-    val playerQueueToggle = remember(selectedSong?.videoId) { mutableStateOf(false) }
-    // The translate toggle, likewise flipped here and run/cleared by the shared
-    // player, whose current translation state comes back through the second so
-    // this menu's row can show its checkmark.
-    val playerTranslateToggle = remember(selectedSong?.videoId) { mutableStateOf(false) }
-    val playerShowingTranslation = remember(selectedSong?.videoId) { mutableStateOf(false) }
+    // Requests the song menu sends the player (switch lyrics/queue, translate),
+    // flipped here and consumed by it, and the player's state mirrored back so the
+    // menu's rows say what is on screen. Not keyed to the track: the player's own
+    // panel and translation state outlive a skip, so copies recreated per track
+    // would contradict it until it next changed.
+    val playerQueueToggle = remember { mutableStateOf(false) }
+    val playerQueueShowing = remember { mutableStateOf(false) }
+    val playerTranslateToggle = remember { mutableStateOf(false) }
+    val playerShowingTranslation = remember { mutableStateOf(false) }
+    // Where the player's "…" is, in window coordinates, so its menu hangs off it.
+    val playerMenuAnchor = remember { mutableStateOf<androidx.compose.ui.geometry.Rect?>(null) }
 
     /** The song menu's verbs for [song], as the player sheet offers them. */
     fun playerSongActions(song: Song) = DesktopSongActions(
@@ -3432,20 +3460,41 @@ fun BitChordDesktopApp() {
                             windowWidth = windowWidth,
                             windowHeight = windowHeight,
                             playerOverflowOpen = playerOverflowOpen,
-                            playerLyricsToggle = playerLyricsToggle,
                             playerQueueToggle = playerQueueToggle,
+                            playerQueueShowing = playerQueueShowing,
+                            playerMenuAnchor = playerMenuAnchor,
                             playerTranslateToggle = playerTranslateToggle,
                             playerShowingTranslation = playerShowingTranslation,
                         )
+                        // The sheet's own origin in the window, so the menu below can be
+                        // placed on the "…" button the player reports in window terms.
+                        val sheetOrigin = remember { mutableStateOf(Offset.Zero) }
+                        Spacer(
+                            Modifier
+                                .matchParentSize()
+                                .onGloballyPositioned { sheetOrigin.value = it.positionInWindow() },
+                        )
                         if (playerMenuOpen) {
-                            // Where the player's "…" sits: the right column's credits row, at
-                            // the right edge of the centred two-column layout.
-                            val columnEdge = minOf(windowWidth, 1100.dp) / 2 - 47.dp
+                            // Hung off the "…" itself, wherever the layout put it. Read in
+                            // the offset block, so the sheet moving relays this out and
+                            // recomposes nothing.
+                            val anchorSize = playerMenuAnchor.value?.let { anchor ->
+                                with(LocalDensity.current) { DpSize(anchor.width.toDp(), anchor.height.toDp()) }
+                            } ?: DpSize(34.dp, 34.dp)
                             Box(
                                 Modifier
-                                    .align(Alignment.Center)
-                                    .offset(x = columnEdge)
-                                    .size(34.dp),
+                                    .offset {
+                                        val anchor = playerMenuAnchor.value
+                                            ?: return@offset IntOffset(
+                                                (windowWidth.roundToPx() - 34.dp.roundToPx()) / 2,
+                                                (windowHeight.roundToPx() - 34.dp.roundToPx()) / 2,
+                                            )
+                                        IntOffset(
+                                            (anchor.left - sheetOrigin.value.x).roundToInt(),
+                                            (anchor.top - sheetOrigin.value.y).roundToInt(),
+                                        )
+                                    }
+                                    .size(anchorSize),
                             ) {
                                 DesktopSongMenuFor(
                                     song = playerSong,
@@ -3469,14 +3518,11 @@ fun BitChordDesktopApp() {
                                         playerMenuOpen = false
                                         playerOverflowOpen.value = true
                                     },
-                                    onShowLyrics = {
-                                        playerMenuOpen = false
-                                        playerLyricsToggle.value = true
-                                    },
-                                    onShowQueue = {
+                                    onSwitchLyricsQueue = {
                                         playerMenuOpen = false
                                         playerQueueToggle.value = true
                                     },
+                                    queueShowing = playerQueueShowing.value,
                                     onTranslate = {
                                         playerMenuOpen = false
                                         playerTranslateToggle.value = true
@@ -4356,7 +4402,8 @@ private fun DesktopTopBar(
     // The same claim the player's scrubber runs through an Automix blend, but breathing slowly and
     // gently rather than strobing on the beat — the desktop's calm reading of a mix.
     val mixBlend = DesktopPlayerSettings.smartMixBlend.collectAsState()
-    val mixPulse = rememberMixPulse({ mixBlend.value }, enabled = true, slow = true)
+    val reduceAnimation by DesktopPlayerSettings.reduceAnimation.collectAsState()
+    val mixPulse = rememberMixPulse({ mixBlend.value }, enabled = !reduceAnimation, slow = true)
     val currentProgress by rememberUpdatedState(progress)
 
     // Apple Music uses one calm strip for both player controls and window furniture. The left

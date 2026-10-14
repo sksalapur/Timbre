@@ -79,11 +79,10 @@ fun LyricsSidePanel(
                     lyricsLoadingText
                 },
                 status = lyricsTranslation.status,
+                // Keeps its "Lyrics by …" line: this column is shown with the
+                // player closed, so the player's song menu is not there to switch
+                // provider from, and the line is the only way to.
                 onStatusClick = { showLyricsProviders = true },
-                // The provider now lives in the desktop player's song menu, so
-                // this column drops the "Lyrics by …" line but keeps its two
-                // toggles either side of the gap it leaves.
-                showStatus = false,
                 romanizationToggle = {
                     RomanizationToggleButton(
                         state = lyricsTranslation.romanizationState,

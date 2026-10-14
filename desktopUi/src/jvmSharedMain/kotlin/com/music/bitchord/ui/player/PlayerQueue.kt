@@ -255,10 +255,34 @@ internal fun InlineQueue(
         ?: nowPlaying?.song?.playbackSource?.takeIf { it.isNotBlank() }
         ?: nowPlaying?.song?.albumName?.takeIf { it.isNotBlank() }
 
+    // With history above it, "Now playing" can only reach the top of the list if
+    // there is a viewport's worth of list below it. A short queue has less, and the
+    // scroll to it clamped at the end of the list — leaving the playing track
+    // halfway down the panel under the history. The tail fills that gap, sized
+    // from what is actually laid out: the viewport less the rows from the
+    // "Now playing" heading to the last real row. Only measured when both are on
+    // screen (or the heading is at the top with the end out of sight, where no
+    // tail is needed); otherwise the last measurement stands.
+    var tailPx by remember { mutableIntStateOf(0) }
+    LaunchedEffect(listState) {
+        snapshotFlow {
+            val info = listState.layoutInfo
+            val rows = info.visibleItemsInfo
+            val head = rows.firstOrNull { it.key == NOW_PLAYING_HEADER_KEY } ?: return@snapshotFlow null
+            val tail = rows.firstOrNull { it.key == QUEUE_TAIL_KEY }
+            when {
+                tail != null -> (info.viewportSize.height - (tail.offset - head.offset)).coerceAtLeast(0)
+                head.offset <= 0 -> 0
+                else -> null
+            }
+        }.collect { measured -> if (measured != null) tailPx = measured }
+    }
+
     // Keep Now playing in view; history is available by scrolling upwards.
-    // Include the entry key because trimming history can leave the index unchanged.
+    // Include the entry key because trimming history can leave the index unchanged,
+    // and the tail because the first scroll can land before it has been measured.
     var hasScrolledOnce by remember { mutableStateOf(false) }
-    LaunchedEffect(currentIndex, nowPlaying?.key, showHistory) {
+    LaunchedEffect(currentIndex, nowPlaying?.key, showHistory, tailPx) {
         val nowPlayingRow = if (tracks.history.isEmpty()) 0 else tracks.history.size + 1
         val scrolledAway = listState.firstVisibleItemIndex != nowPlayingRow || listState.firstVisibleItemScrollOffset != 0
         if (drag.held == null && nowPlaying != null && scrolledAway) {
@@ -322,7 +346,7 @@ internal fun InlineQueue(
                     }
                 }
                 if (nowPlaying != null) {
-                    item(key = "header-now-playing") {
+                    item(key = NOW_PLAYING_HEADER_KEY) {
                         QueueHeading(
                             title = stringResource(Res.string.now_playing),
                             modifier = Modifier.padding(top = 12.dp, bottom = 6.dp),
@@ -369,6 +393,11 @@ internal fun InlineQueue(
                     }
                     queueSection(tracks.autoplay, QueueSection.AUTOPLAY, drag, controlsLocked, onJumpTo, onRemove)
                 }
+                if (tracks.history.isNotEmpty() && nowPlaying != null) {
+                    item(key = QUEUE_TAIL_KEY) {
+                        Spacer(Modifier.height(with(LocalDensity.current) { tailPx.toDp() }))
+                    }
+                }
             }
             // The held row, drawn over the list where the finger is. Positioned
             // from the finger alone, so nothing the list does underneath — a
@@ -389,6 +418,11 @@ internal fun InlineQueue(
         }
     }
 }
+
+private const val NOW_PLAYING_HEADER_KEY = "header-now-playing"
+
+/** The filler after the last row that lets "Now playing" reach the top; see [InlineQueue]. */
+private const val QUEUE_TAIL_KEY = "queue-tail"
 
 /**
  * One section's rows. The row being dragged stays in the list as an invisible

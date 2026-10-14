@@ -59,7 +59,10 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Color
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -132,18 +135,6 @@ private val LANDSCAPE_HANDLE_STRIP = 24.dp
  * phone-height window keeps the sleeve filling the column above its row.
  */
 private val LANDSCAPE_DESKTOP_CONTROLS_RESERVE = 300.dp
-
-/**
- * How far the desktop lyric sheet is lifted off the foot of its column.
- *
- * The sleeve now rests a little above the middle of the window, so the words are
- * raised by roughly the same amount to sit level with the middle of the cover
- * rather than the middle of the screen. It is applied to the scroll viewport
- * alone — see [LandscapeLyricsPane]'s [bottomInset][LandscapeLyricsPane] — so
- * the attribution bar under the sheet stays pinned to the foot, level with the
- * bottom of the transport in the other column.
- */
-internal val LANDSCAPE_LYRICS_BOTTOM_LIFT = 240.dp
 
 /**
  * The player in a landscape window — a tablet, or a phone on its side. See
@@ -388,13 +379,14 @@ internal fun LandscapeArtwork(
     overlay: @Composable BoxScope.() -> Unit = {},
 ) {
     val casts = artLoaded || canvasRendered
-    // The same beat clock the scrubber and the "Mixing" label breathe on, so the aura pulses in
-    // step with them. Held as a State and read only inside the draw below: the blend republishes
-    // every fade tick, and collecting it by value here would recompose the sleeve for a change
-    // only the canvas needs.
+    // The same clock the scrubber and the "Mixing" label breathe on, so the aura pulses in step
+    // with them: the beat on a phone, the desktop's slow breath where the sleeve is rounded (the
+    // desktop window — see [PlayerScrubber]'s slowMixPulse). Held as a State and read only inside
+    // the draw below: the blend republishes every fade tick, and collecting it by value here
+    // would recompose the sleeve for a change only the canvas needs.
     val mixBlend = PlayerSettings.smartMixBlend.collectAsStateWithLifecycle()
     val reduceAnimation by PlayerSettings.reduceAnimation.collectAsStateWithLifecycle()
-    val glowPulse = rememberMixPulse({ mixBlend.value }, enabled = !reduceAnimation)
+    val glowPulse = rememberMixPulse({ mixBlend.value }, enabled = !reduceAnimation, slow = glowRounded)
     Box(
         modifier = modifier
             // Behind the sleeve, bleeding past its edges: a soft bloom that fades in with the
@@ -551,6 +543,8 @@ internal fun LandscapeCredits(
     /** Null browse id for anyone but the lead credit — see [NowPlayingScreen]. */
     onOpenArtist: (browseId: String?, name: String) -> Unit,
     modifier: Modifier = Modifier,
+    /** Reports where the "…" button is, in window coordinates; see [NowPlayingScreen]. */
+    onMenuAnchor: ((Rect) -> Unit)? = null,
 ) {
     Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically) {
         Crossfade(
@@ -605,11 +599,19 @@ internal fun LandscapeCredits(
             )
             Spacer(Modifier.width(8.dp))
         }
-        CircleGlyph(
-            icon = if (showRevertCue) Icons.AutoMirrored.Rounded.Undo else Icons.Rounded.MoreHoriz,
-            contentDescription = stringResource(Res.string.more),
-            onClick = onOpenMenu,
-        )
+        Box(
+            if (onMenuAnchor != null) {
+                Modifier.onGloballyPositioned { onMenuAnchor(it.boundsInWindow()) }
+            } else {
+                Modifier
+            },
+        ) {
+            CircleGlyph(
+                icon = if (showRevertCue) Icons.AutoMirrored.Rounded.Undo else Icons.Rounded.MoreHoriz,
+                contentDescription = stringResource(Res.string.more),
+                onClick = onOpenMenu,
+            )
+        }
     }
 }
 
@@ -636,25 +638,11 @@ internal fun LandscapeLyricsPane(
     romanizationToggle: @Composable () -> Unit,
     translationToggle: @Composable () -> Unit,
     /**
-     * How far the scroll viewport is lifted off the foot of the column, short of
-     * the bar below it. Raises the line being sung toward the middle of the
-     * sleeve on a desktop window without moving the bar — see
-     * [LANDSCAPE_LYRICS_BOTTOM_LIFT].
-     */
-    bottomInset: Dp = 0.dp,
-    /**
      * Whether the romanize / source / translate bar sits under the sheet. A
      * desktop window folds it into the player's overflow and shows the sheet
      * alone; every other caller keeps it.
      */
     showBar: Boolean = true,
-    /**
-     * Whether the bar's centred status line is drawn — the "Lyrics by …"
-     * caption, its loading and translation siblings. The desktop player moved
-     * the provider into its song menu, so its docked lyric column drops this
-     * line while keeping the two toggles either side of it.
-     */
-    showStatus: Boolean = true,
     modifier: Modifier = Modifier,
     panel: @Composable (Modifier) -> Unit,
 ) {
@@ -662,8 +650,7 @@ internal fun LandscapeLyricsPane(
         Box(
             modifier = Modifier
                 .weight(1f)
-                .fillMaxWidth()
-                .padding(bottom = bottomInset),
+                .fillMaxWidth(),
         ) {
             if (hasLyrics) {
                 panel(Modifier.fillMaxSize())
@@ -703,12 +690,10 @@ internal fun LandscapeLyricsPane(
                     .padding(horizontal = 12.dp),
                 contentAlignment = Alignment.Center,
             ) {
-                if (showStatus) {
-                    LyricsStatusWithChange(
-                        status = status,
-                        onStatusClick = onStatusClick,
-                    )
-                }
+                LyricsStatusWithChange(
+                    status = status,
+                    onStatusClick = onStatusClick,
+                )
             }
             Box(Modifier.size(34.dp)) { if (hasLyrics) translationToggle() }
         }

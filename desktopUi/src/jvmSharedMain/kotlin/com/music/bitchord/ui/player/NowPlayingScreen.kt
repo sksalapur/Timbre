@@ -753,13 +753,19 @@ fun NowPlayingScreen(
      */
     playerOverflowOpen: MutableState<Boolean>? = null,
     /**
-     * Set true by a host whose song menu shows the lyrics and queue toggles as
-     * their own rows — the desktop player moved them out of the overflow. Each is
-     * read, acted on and cleared here, so the menu can raise the panel this screen
-     * owns. Left null the player never receives an outside toggle.
+     * Set true by a host whose song menu switches the content column between the
+     * lyric sheet and the queue. Read, acted on and cleared here. Whether the queue
+     * is up is mirrored back out through [playerQueueShowing], so that one menu row
+     * can offer whichever of the two is not on screen. Left null the player never
+     * receives an outside toggle.
      */
-    playerLyricsToggle: MutableState<Boolean>? = null,
     playerQueueToggle: MutableState<Boolean>? = null,
+    playerQueueShowing: MutableState<Boolean>? = null,
+    /**
+     * Where the song menu's "…" button is, in window coordinates, for a host that
+     * draws the menu itself and has to hang it off that button.
+     */
+    playerMenuAnchor: MutableState<Rect?>? = null,
     /**
      * Set true by a host whose song menu shows the translate toggle as its own
      * row — the desktop player moved it out of the overflow. Read, acted on and
@@ -982,16 +988,9 @@ fun NowPlayingScreen(
         queueOpen = opening
         if (opening) closeLyrics()
     }
-    // A host that shows these two as rows on its own song menu raises them by
-    // flipping a flag in; run the same toggle the glyph did and take the flag
-    // back down so a second tap is a second toggle rather than a stuck request.
-    LaunchedEffect(playerLyricsToggle?.value) {
-        val requested = playerLyricsToggle ?: return@LaunchedEffect
-        if (requested.value) {
-            requested.value = false
-            toggleLyrics()
-        }
-    }
+    // A host whose song menu switches lyrics and queue raises this by flipping a
+    // flag in; run the same toggle the glyph did and take the flag back down so a
+    // second click is a second toggle rather than a stuck request.
     LaunchedEffect(playerQueueToggle?.value) {
         val requested = playerQueueToggle ?: return@LaunchedEffect
         if (requested.value) {
@@ -1021,8 +1020,13 @@ fun NowPlayingScreen(
             lyricsTranslation.toggleTranslation()
         }
     }
-    LaunchedEffect(lyricsTranslation.showingTranslation) {
+    // Mirrored after every composition rather than on change: the host's copies
+    // can be recreated (a new track, a reopened sheet) while these stay put, and
+    // a change-keyed effect would then leave the menu showing a stale state.
+    // Writing an unchanged value invalidates nothing.
+    SideEffect {
         playerShowingTranslation?.value = lyricsTranslation.showingTranslation
+        playerQueueShowing?.value = queueOpen
     }
     // The drawer holding the finished card, set the moment Share is confirmed.
     // Nothing is drawn here: the picture is a bitmap and a canvas, which is the
@@ -1658,11 +1662,17 @@ fun NowPlayingScreen(
                     onToggleShuffle = onToggleShuffle,
                     onCycleRepeat = onCycleRepeat,
                     onToggleAutoplay = onToggleAutoplay,
+                    // Each of these leaves the drawer: the party page closes the
+                    // player, and the host holds this flag, so a drawer left up
+                    // would greet the next opening of the player.
                     onOpenOutput = { playerOverflow.value = false; openAudioOutput() },
-                    onListenTogether = onListenTogether,
-                    onOpenListenTogetherMembers = openListenTogetherMembers,
-                    // Lyrics and queue are rows on the song menu now, not glyphs
-                    // here; this drawer keeps the middle pill and the rest.
+                    onListenTogether = { playerOverflow.value = false; onListenTogether() },
+                    onOpenListenTogetherMembers = {
+                        playerOverflow.value = false
+                        openListenTogetherMembers()
+                    },
+                    // Lyrics and queue are one row on the song menu now, not
+                    // glyphs here; this drawer keeps the two capsules.
                     showLyricsAndQueue = false,
                 )
                 if (!hideVolumeBar) {
@@ -2042,6 +2052,7 @@ fun NowPlayingScreen(
                                     onOpenMenu = onOpenMenu,
                                     onOpenAlbum = onOpenAlbum,
                                     onOpenArtist = onOpenArtist,
+                                    onMenuAnchor = playerMenuAnchor?.let { anchor -> { anchor.value = it } },
                                 )
                             },
                             // On a phone-height window the transport is the right
@@ -2127,12 +2138,11 @@ fun NowPlayingScreen(
                             status = lyricsTranslation.status,
                             onStatusClick = { showLyricsProviders = true },
                             // On a desktop window the sheet's footer is folded into
-                            // the overflow, and the words are lifted off the foot of
-                            // the column so the line being sung sits level with the
-                            // middle of the sleeve. A phone-height window keeps its
-                            // footer and centres the sheet in the column above it.
+                            // the song menu and the overflow; a phone-height window
+                            // keeps it. Where the sung line rests is the panel's own
+                            // anchor (see [LyricsPanel]), so the sheet runs the full
+                            // height of the column.
                             showBar = compact,
-                            bottomInset = if (compact) 0.dp else LANDSCAPE_LYRICS_BOTTOM_LIFT,
                             picking = lyricPicker.picking,
                             pickBar = {
                                 LyricsPickBar(

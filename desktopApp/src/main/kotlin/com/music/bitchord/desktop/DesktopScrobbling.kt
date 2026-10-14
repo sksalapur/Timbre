@@ -58,6 +58,15 @@ object DesktopScrobbling {
     val canSignInToLastFm: Boolean
         get() = apiKey != null && apiSecret != null
 
+    /**
+     * Whether this build carries BitChord's own Last.fm app credentials (a release
+     * build does). Then signing in needs only the account; a build without them
+     * asks the listener for their own key and secret as well.
+     */
+    val hasBuiltInLastFmKey: Boolean
+        get() = (property("bitchord.lastfm.key") ?: env("BITCHORD_LASTFM_API_KEY")) != null &&
+            (property("bitchord.lastfm.secret") ?: env("BITCHORD_LASTFM_API_SECRET")) != null
+
     val lastFmConfigured: Boolean
         get() = apiKey != null && apiSecret != null && sessionKey() != null &&
             DesktopScrobbleSettings.lastfmEnabled.value
