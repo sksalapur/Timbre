@@ -1,5 +1,6 @@
 package com.music.bitchord.desktop
 
+import com.music.bitchord.data.discord.DiscordApplication
 import com.music.bitchord.data.model.Song
 import com.music.bitchord.data.model.artworkAt
 import com.my.kizzy.rpc.KizzyRPC
@@ -7,6 +8,7 @@ import com.my.kizzy.rpc.RpcImage
 import com.my.kizzy.rpc.UserInfo
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -45,10 +47,20 @@ import java.util.UUID
  */
 internal object DesktopDiscordRpc {
 
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    /**
+     * Every pipe write, probe and gateway push, one at a time and in the order
+     * they were asked for. Concurrent pushes could leave an older track up
+     * after a newer one, or open two sockets at once and leak one; and none of
+     * it may run on the UI thread, where a Discord that has stopped reading its
+     * pipe would stall a frame. [ipc], [rpc], [lastKey] and [lastProbeAt] are
+     * only touched from here.
+     */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO.limitedParallelism(1))
     private var rpc: KizzyRPC? = null
     private var ipc: DesktopDiscordIpc? = null
     private var lastKey: String? = null
+    private var lastProbeAt = 0L
 
     private val _localClient = MutableStateFlow(false)
 
@@ -58,15 +70,48 @@ internal object DesktopDiscordRpc {
     /** Looks for a local Discord. Cheap, and the answer changes when one starts. */
     fun refreshLocalClient() {
         scope.launch {
-            val found = DesktopDiscordIpc.connect(APPLICATION_ID)
+            lastProbeAt = System.currentTimeMillis()
+            val found = DesktopDiscordIpc.connect(DiscordApplication.ID)
             if (found != null) {
                 ipc?.close()
                 ipc = found
                 _localClient.value = true
+                DesktopTrackLog.log("discord: local client on ${found.label}")
             } else {
                 _localClient.value = ipc != null
+                DesktopTrackLog.log("discord: no local client answering")
             }
         }
+    }
+
+    /**
+     * Looks for a local Discord from the push path, so a client started or
+     * restarted mid-session is picked up without reopening settings.
+     *
+     * A miss holds off the next look for [PROBE_BACKOFF_MS] unless [force]d:
+     * with presence on and no Discord running, every play, pause and track
+     * change would otherwise scan every pipe again.
+     */
+    private fun reconnect(reason: String, force: Boolean = false): DesktopDiscordIpc? {
+        val now = System.currentTimeMillis()
+        if (!force && now - lastProbeAt < PROBE_BACKOFF_MS) return null
+        lastProbeAt = now
+        val found = DesktopDiscordIpc.connect(DiscordApplication.ID) ?: return null
+        ipc = found
+        _localClient.value = true
+        DesktopTrackLog.log("discord: reconnect ($reason) on ${found.label}")
+        return found
+    }
+
+    /** Sends over [local]; on failure closes and forgets it, so the next push looks again. */
+    private fun pushLocal(local: DesktopDiscordIpc, activity: JsonObject): Boolean {
+        val failure = runCatching { local.setActivity(activity) }.exceptionOrNull() ?: return true
+        DesktopTrackLog.log("discord: local push failed: ${failure.message}")
+        // A client that has quit takes its socket with it.
+        runCatching { local.close() }
+        if (ipc === local) ipc = null
+        _localClient.value = false
+        return false
     }
 
     private val _username = MutableStateFlow(DesktopPersistence().string(KEY_USERNAME, ""))
@@ -117,18 +162,22 @@ internal object DesktopDiscordRpc {
      */
     fun onPlaybackStateChanged(state: DesktopPlaybackState, speed: Float) {
         if (!_enabled.value) return
-        if (_token.value.isBlank() && ipc == null) return
         val song = state.song
         if (song == null || !state.isPlaying) {
             clear()
             return
         }
-        val key = "${song.videoId}|${state.durationMs}|$speed"
-        if (key == lastKey) return
-        lastKey = key
+        // Read off the state handed in rather than NerdStats.current: the effect
+        // that fills that in runs after this one in the same frame, so it would
+        // still hold the previous track's format.
+        val quality = qualityLine(state)
+        val key = "${song.videoId}|${state.durationMs}|$speed|$quality"
         val position = state.positionMs
         val duration = state.durationMs.takeIf { it > 0 } ?: 0L
         scope.launch {
+            // Only marked sent once a push lands, so a failed one is tried again
+            // on the next change instead of being skipped as a duplicate.
+            if (key == lastKey) return@launch
             val now = System.currentTimeMillis()
             val elapsed = (position / speed).toLong()
             val remaining = ((duration - position).coerceAtLeast(0L) / speed).toLong()
@@ -139,18 +188,26 @@ internal object DesktopDiscordRpc {
             }
             // The socket first, and the gateway only if there is no socket:
             // publishing through both would put the same presence up twice.
-            val local = ipc
+            val activity = ipcActivity(song, title, now - elapsed, now + remaining, quality)
+            val held = ipc
+            val local = held ?: reconnect("track")
             if (local != null) {
-                val sent = runCatching {
-                    local.setActivity(ipcActivity(song, title, now - elapsed, now + remaining))
-                }.isSuccess
-                if (sent) return@launch
-                // A client that has quit takes its socket with it.
-                ipc = null
-                _localClient.value = false
+                if (pushLocal(local, activity)) {
+                    lastKey = key
+                    return@launch
+                }
+                // A socket that had been working died under us: Discord may
+                // have restarted, so look once more straight away.
+                if (held != null) {
+                    val retry = reconnect("retry", force = true)
+                    if (retry != null && pushLocal(retry, activity)) {
+                        lastKey = key
+                        return@launch
+                    }
+                }
             }
             if (_token.value.isBlank()) return@launch
-            runCatching {
+            val gatewayFailure = runCatching {
                 val client = rpc ?: KizzyRPC(
                     token = _token.value,
                     os = if (DesktopPlatform.isWindows) "Windows" else "Linux",
@@ -166,14 +223,13 @@ internal object DesktopDiscordRpc {
                     details = title,
                     state = song.artist,
                     detailsUrl = watchUrl(song),
-                    // Never null: an activity with no large image falls back to
-                    // whatever icon the application id points at, which is not
-                    // ours to set.
-                    largeImage = RpcImage.ExternalImage(
-                        song.artworkAt(ART_PX)?.takeIf { it.startsWith("http") } ?: FALLBACK_ART_URL,
-                    ),
+                    // No usable artwork sends none, and Discord draws the
+                    // BitChord application's icon instead.
+                    largeImage = song.artworkAt(ART_PX)
+                        ?.takeIf { it.startsWith("http") }
+                        ?.let(RpcImage::ExternalImage),
                     smallImage = null,
-                    largeText = song.albumName,
+                    largeText = quality,
                     buttons = buttonLabels(song).takeIf { it.isNotEmpty() },
                     type = when (DesktopDiscordSettings.activityType.value) {
                         "playing" -> KizzyRPC.Type.PLAYING
@@ -189,18 +245,21 @@ internal object DesktopDiscordRpc {
                     since = now,
                     startTime = now - elapsed,
                     endTime = now + remaining,
-                    applicationId = APPLICATION_ID,
+                    applicationId = DiscordApplication.ID,
                     status = DesktopDiscordSettings.status.value,
                 )
-            }
+            }.exceptionOrNull()
+            if (gatewayFailure == null) lastKey = key
         }
     }
 
     fun clear() {
-        lastKey = null
-        runCatching { ipc?.setActivity(null) }
-        rpc?.closeRPC()
-        rpc = null
+        scope.launch {
+            lastKey = null
+            runCatching { ipc?.setActivity(null) }
+            rpc?.closeRPC()
+            rpc = null
+        }
     }
 
     /**
@@ -211,7 +270,13 @@ internal object DesktopDiscordRpc {
      * is what needs an account token, and the client resolves an http asset by
      * itself.
      */
-    private fun ipcActivity(song: Song, title: String, startMs: Long, endMs: Long): JsonObject = buildJsonObject {
+    private fun ipcActivity(
+        song: Song,
+        title: String,
+        startMs: Long,
+        endMs: Long,
+        quality: String?,
+    ): JsonObject = buildJsonObject {
         put("type", DesktopDiscordSettings.activityNumber(DesktopDiscordSettings.activityType.value))
         DesktopDiscordSettings.activityName.value.takeIf(String::isNotBlank)?.let { put("name", it) }
         put("details", title)
@@ -224,8 +289,8 @@ internal object DesktopDiscordRpc {
             put("end", endMs)
         }
         putJsonObject("assets") {
-            put("large_image", song.artworkAt(ART_PX)?.takeIf { it.startsWith("http") } ?: FALLBACK_ART_URL)
-            song.albumName?.let { put("large_text", it) }
+            song.artworkAt(ART_PX)?.takeIf { it.startsWith("http") }?.let { put("large_image", it) }
+            quality?.let { put("large_text", it) }
         }
         val labels = buttonLabels(song)
         if (labels.isNotEmpty()) {
@@ -235,6 +300,12 @@ internal object DesktopDiscordRpc {
                 }
             }
         }
+    }
+
+    /** Measured premium line, or null when the toggle is off or the stream is lossy. */
+    private fun qualityLine(state: DesktopPlaybackState): String? {
+        if (!DesktopDiscordSettings.showAudioQuality.value) return null
+        return desktopAudioQualityLine(state.streamFormat?.nerdSnapshot(state.streamSourceId))
     }
 
     /** The buttons as configured: text with its variables filled in, and hidden ones dropped. */
@@ -288,11 +359,10 @@ internal object DesktopDiscordRpc {
     private const val KEY_USERNAME = "discord_username"
     private const val KEY_ENABLED = "discord_rpc_enabled"
 
-    private const val APPLICATION_ID = "1411019391843172514"
+    /** How long a scan that found no local Discord holds off the next one. */
+    private const val PROBE_BACKOFF_MS = 10_000L
     private const val PROJECT_URL = "https://github.com/kushagrasinghx/BitChord"
     private const val ART_PX = 480
-    private const val FALLBACK_ART_URL =
-        "https://raw.githubusercontent.com/kushagrasinghx/BitChord/main/app/src/main/ic_launcher-playstore.png"
     private const val CLIENT_VERSION = "0.0.83"
     private const val CLIENT_BUILD = "352675"
     private const val USER_AGENT =

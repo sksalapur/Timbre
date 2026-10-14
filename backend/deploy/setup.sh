@@ -111,6 +111,50 @@ fi
 echo 'vm.swappiness = 1' > /etc/sysctl.d/91-bitchord-swap.conf
 sysctl -q -p /etc/sysctl.d/91-bitchord-swap.conf || true
 
+echo "== tcp buffers + health watchdog"
+# Smaller default TCP buffers so thousands of idle sockets cost less kernel memory.
+cat > /etc/sysctl.d/92-bitchord-tcp.conf <<'SYSCTL'
+net.ipv4.tcp_rmem = 4096 16384 262144
+net.ipv4.tcp_wmem = 4096 16384 262144
+SYSCTL
+sysctl -q -p /etc/sysctl.d/92-bitchord-tcp.conf || true
+cat > /usr/local/sbin/bitchord-watchdog <<'WATCHDOG'
+#!/usr/bin/env bash
+# Restarts Caddy when the public health check has failed twice in a row. The 1 GB
+# VM can get wedged under a connection surge; this heals it within ~2 minutes
+# instead of waiting for a human. At most one restart per 5 minutes.
+DOMAIN="$(cat /etc/bitchord-domain)"
+F=/run/bitchord-watchdog.fails; L=/run/bitchord-watchdog.last
+if curl -sk -m6 -o /dev/null -f --resolve "$DOMAIN:443:127.0.0.1" "https://$DOMAIN/healthz"; then echo 0 > $F; exit 0; fi
+n=$(( $(cat $F 2>/dev/null || echo 0) + 1 )); echo $n > $F
+[ "$n" -lt 2 ] && exit 0
+now=$(date +%s); last=$(cat $L 2>/dev/null || echo 0)
+[ $((now - last)) -lt 300 ] && exit 0
+echo $now > $L; echo 0 > $F
+logger -t bitchord-watchdog "health check failed twice; restarting caddy"
+systemctl restart caddy
+WATCHDOG
+chmod 755 /usr/local/sbin/bitchord-watchdog
+cat > /etc/systemd/system/bitchord-watchdog.service <<'UNIT'
+[Unit]
+Description=Restart Caddy if the health check keeps failing
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/bitchord-watchdog
+UNIT
+cat > /etc/systemd/system/bitchord-watchdog.timer <<'UNIT'
+[Unit]
+Description=Run the BitChord health watchdog every minute
+[Timer]
+OnBootSec=3min
+OnUnitActiveSec=60s
+AccuracySec=5s
+[Install]
+WantedBy=timers.target
+UNIT
+systemctl daemon-reload
+systemctl enable --now bitchord-watchdog.timer >/dev/null 2>&1 || true
+
 echo "== firewall"
 # Oracle's Ubuntu images ship an iptables REJECT rule that blocks everything
 # but SSH, independent of the VCN security list. Open 80/443 above it.

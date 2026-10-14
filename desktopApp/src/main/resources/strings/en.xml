@@ -200,6 +200,8 @@
     <string name="hindi">Hindi</string>
     <string name="japanese">Japanese</string>
     <string name="russian">Russian</string>
+    <string name="chinese_simplified">Chinese (Simplified)</string>
+    <string name="chinese_traditional">Chinese (Traditional)</string>
     <string name="chinese">Chinese (Simplified)</string>
     <string name="hebrew">Hebrew</string>
     <string name="italian">Italian</string>
@@ -233,6 +235,14 @@
     <string name="automix_mode_balanced_subtitle">2 threads · recommended balance of speed, heat and battery</string>
     <string name="automix_mode_performance">Performance</string>
     <string name="automix_mode_performance_subtitle">4 threads · fastest analysis · higher heat and battery use</string>
+    <string name="automix_phrase_length">Automix phrase length</string>
+    <string name="automix_phrase_length_subtitle">Blend over a fixed number of bars, beat-aligned</string>
+    <string name="automix_phrase_auto">Auto</string>
+    <string name="automix_phrase_auto_detail">Chooses each transition's length from the two tracks</string>
+    <string name="automix_phrase_8">8 bars</string>
+    <string name="automix_phrase_8_detail">Mixes over exactly 8 bars, both edges on the beat grid</string>
+    <string name="automix_phrase_16">16 bars</string>
+    <string name="automix_phrase_16_detail">Mixes over exactly 16 bars, both edges on the beat grid</string>
     <string name="skip_silence">Skip silence</string>
     <string name="skip_silence_subtitle">Trim gaps longer than a second</string>
     <string name="equalizer">Equalizer</string>
@@ -532,6 +542,10 @@
     <string name="scrobble_primary_artist_only_subtitle">Use the first artist when a track credits multiple artists</string>
     <string name="lead_with_song">Lead with the song</string>
     <string name="lead_with_song_subtitle">Puts the title on the bold line instead of the artist</string>
+    <string name="discord_show_audio_quality">Show audio quality</string>
+    <string name="discord_show_audio_quality_subtitle">Hi-Res, lossless and Dolby specs on the presence card</string>
+    <string name="hide_from_sidebar">Hide from sidebar</string>
+    <string name="n_hidden">%1$d hidden</string>
     <string name="like">Like</string>
     <string name="listenbrainz_token">ListenBrainz token</string>
     <string name="listenbrainz_token_description">Paste your ListenBrainz user token to enable scrobbling.</string>
@@ -719,6 +733,8 @@
     <string name="pin">Pin</string>
     <string name="unpin">Unpin</string>
     <string name="rename">Rename</string>
+    <string name="reorder_playlist">Edit order</string>
+    <string name="d_reorder_subtitle">Drag the rows into the order you want, then save.</string>
     <string name="downloading">Downloading</string>
     <string name="delete_playlist">Delete playlist</string>
     <string name="delete_download">Delete download</string>
