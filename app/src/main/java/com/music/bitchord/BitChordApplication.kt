@@ -139,6 +139,7 @@ class BitChordApplication : Application(), SingletonImageLoader.Factory {
         // One cache directory can only be opened once per process, and
         // PlaybackService shares this one — so it's opened here, not there.
         AudioCache.init(this)
+        com.music.bitchord.playback.StreamChoice.init(this)
         // The offscreen WebView that mints a Spotify access token from the
         // listener's own session cookie needs a Context, and nothing in the
         // suspend call chain that reaches it (a track's canvas lookup) has
