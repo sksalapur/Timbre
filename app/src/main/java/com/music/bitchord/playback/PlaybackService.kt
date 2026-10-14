@@ -1094,7 +1094,15 @@ class PlaybackService : MediaLibraryService() {
             // back off is left with a queue that simply stops after the playing
             // track.
             when {
-                repeatMode == Player.REPEAT_MODE_ALL -> stashAutoplayTracks()
+                repeatMode == Player.REPEAT_MODE_ALL -> {
+                    stashAutoplayTracks()
+                    // A bounded context may retain physical history before its
+                    // final current item. Materialise the logical next cycle
+                    // before native repeat-all can wrap into that history.
+                    // The scheduler defers this append while crossfade owns
+                    // the players and applies it at settlement.
+                    if (boundedContextWindow != null) scheduleBoundedContextTopUp()
+                }
                 previous == Player.REPEAT_MODE_ALL -> restoreAutoplayTracks()
             }
             // Turning repeat-all back off can leave the current item at the end

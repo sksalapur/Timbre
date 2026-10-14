@@ -142,7 +142,7 @@ class BoundedQueuePlannerTest {
     }
 
     @Test
-    fun `repeat-all top-up crosses only after the active cycle is exhausted`() {
+    fun `repeat-all top-up materializes next cycle when terminal context tail is empty`() {
         val window = QueueWindow(4).startAt(0)
         val activeCycle = window.upcoming(WINDOW_AHEAD, repeatAll = false)
 
@@ -152,9 +152,15 @@ class BoundedQueuePlannerTest {
         assertTrue(additions.all { it.cycleId == 0L })
 
         window.jumpTo(3)
-        val nextCycle = BoundedQueuePlanner.topUpEntries(window, emptyList(), true)
-        assertTrue(nextCycle.isNotEmpty())
-        assertEquals(1L, nextCycle.first().cycleId)
+        // The player still has bounded history, but no CONTEXT entries after
+        // the current terminal track after AutoPlay is stashed.
+        val physicalContextTail = emptyList<QueueWindowEntry>()
+        val nextCycle = BoundedQueuePlanner.topUpEntries(window, physicalContextTail, true)
+        assertEquals(listOf(0, 1, 2, 3), nextCycle.map { it.canonicalIndex })
+        assertTrue(nextCycle.all { it.cycleId == 1L })
+
+        // Once that tail is present, the same repeat-all top-up is idempotent.
+        assertTrue(BoundedQueuePlanner.topUpEntries(window, nextCycle, true).isEmpty())
     }
 
     @Test
