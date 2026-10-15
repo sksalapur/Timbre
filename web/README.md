@@ -1,0 +1,57 @@
+# BitChord Web
+
+The web player and its companion browser extension. The plan, and the decisions behind it, are in [`docs/web-app-build-prompt.md`](../docs/web-app-build-prompt.md).
+
+| Package | What it is |
+|---|---|
+| `app/` | The site: Vite, React 19, TypeScript, React Router, TanStack Query, Zustand, CSS Modules |
+| `extension/` | Manifest V3 extension for Chromium and Firefox, built with WXT |
+| `shared/` | The page ↔ extension bridge contract and client, used by both |
+| `docs/` | `apple-music-dom.md` (the design measurements), `kira-notes.md` (how the reference YouTube web client plays) |
+| `fixtures/` | Real captured responses for parser tests (see its README) |
+| `scripts/` | `capture-fixtures.mjs` |
+
+## Setup
+
+Node 22 or newer. pnpm comes through corepack, so nothing needs a global install:
+
+```bash
+corepack pnpm --dir web install
+```
+
+## Run the site
+
+```bash
+corepack pnpm --dir web/app dev
+```
+
+It serves on `http://localhost:5173`, and only there (`strictPort`): the extension trusts that exact origin.
+
+## Run the extension
+
+Build both targets:
+
+```bash
+corepack pnpm --dir web/extension build
+```
+
+- **Chrome, Edge, Brave:** `chrome://extensions` → Developer mode → *Load unpacked* → `web/extension/.output/chrome-mv3`. The id is always `pkddffeebcmhhanjcigilehaeonkkfih`, pinned by the manifest `key` (`extension/dev-key/`), so the site finds it without configuration.
+- **Firefox:** `about:debugging#/runtime/this-firefox` → *Load Temporary Add-on* → `web/extension/.output/firefox-mv3/manifest.json`.
+
+Then open `http://localhost:5173/extension`. It shows "Installed", with the version and the transport: **Direct** on Chromium (`externally_connectable`), **Page relay** on Firefox (content script).
+
+## Configuration
+
+| Variable | Where | Default |
+|---|---|---|
+| `BITCHORD_SITE_ORIGINS` | extension build | `http://localhost:5173`. Comma-separated origins the extension serves. The production domain isn't chosen yet |
+| `BITCHORD_STORE_BUILD=1` | extension build | Leaves out the dev `key` for a Chrome Web Store upload |
+| `VITE_EXTENSION_ID_CHROMIUM` | app (`app/.env.local`) | The pinned dev id. Set it for a store-built extension |
+| `VITE_ANDROID_APP_URL` | app | The GitHub releases page |
+
+## Checks
+
+```bash
+corepack pnpm --dir web -r typecheck
+corepack pnpm --dir web/app build
+```

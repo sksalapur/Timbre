@@ -1,0 +1,35 @@
+.app {
+  height: 100%;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+}
+
+.stage {
+  position: relative;
+  min-height: 0;
+  /* The side panel slides in from beyond the right edge; never let it scroll the page. */
+  overflow: hidden;
+}
+
+/* The page scrolls under the fixed sidebar and the floating player. */
+.scroll {
+  position: absolute;
+  inset: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-left: var(--web-navigation-width);
+  scrollbar-gutter: stable;
+}
+
+.content {
+  min-height: 100%;
+  /* Clear the floating pill: its height, its offset, and some air. */
+  padding-bottom: calc(var(--player-pill-height) + var(--player-bottom-offset) + 40px);
+}
+
+@media (max-width: 483.98px) {
+  .scroll {
+    padding-left: 0;
+    padding-top: var(--mobile-top-bar-height);
+  }
+}

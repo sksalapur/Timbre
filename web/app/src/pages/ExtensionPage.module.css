@@ -1,0 +1,77 @@
+/* Grouped inset rows, the settings idiom the app uses elsewhere. */
+
+.body {
+  max-width: 640px;
+  margin: 20px var(--body-gutter) 120px;
+}
+
+.group {
+  border-radius: 10px;
+  background-color: var(--systemQuinary);
+  overflow: hidden;
+}
+
+.row,
+.feature {
+  position: relative;
+  padding: 11px 16px;
+}
+
+.row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font: var(--title-3);
+}
+
+.row + .row::before,
+.feature + .feature::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 16px;
+  right: 0;
+  border-top: 0.5px solid var(--labelDivider);
+}
+
+.value {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--systemSecondary);
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: var(--systemGreen);
+}
+
+.footer {
+  margin: 8px 16px 0;
+  font: var(--callout);
+  color: var(--systemSecondary);
+}
+
+.sectionHeader {
+  margin: 28px 16px 8px;
+  font: var(--subhead-emphasized);
+  text-transform: uppercase;
+  color: var(--systemSecondary);
+}
+
+.feature {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.featureTitle {
+  font: var(--title-3-emphasized);
+}
+
+.featureDetail {
+  font: var(--body);
+  color: var(--systemSecondary);
+}

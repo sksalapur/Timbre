@@ -1,0 +1,23 @@
+{
+  "name": "@bitchord/extension",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wxt",
+    "dev:firefox": "wxt -b firefox",
+    "build": "wxt build && wxt build -b firefox",
+    "zip": "wxt zip && wxt zip -b firefox",
+    "typecheck": "tsc -p . && tsc -p tsconfig.node.json",
+    "dev-key": "node scripts/gen-dev-key.mjs",
+    "postinstall": "wxt prepare"
+  },
+  "dependencies": {
+    "@bitchord/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^7.0.2",
+    "wxt": "^0.21.4",
+    "@types/node": "^22.0.0"
+  },
+  "version": "0.1.0"
+}
