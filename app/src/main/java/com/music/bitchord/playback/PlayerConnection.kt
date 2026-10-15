@@ -29,7 +29,9 @@ import com.music.bitchord.data.model.PlaybackSourceType
 import com.music.bitchord.data.model.QueueTier
 import com.music.bitchord.data.model.Song
 import com.music.bitchord.data.model.artworkAt
+import com.music.bitchord.data.sources.SourceKind
 import com.music.bitchord.data.sources.SourceRegistry
+import com.music.bitchord.data.sources.SourceResolver
 import com.music.bitchord.data.sources.TrackMatcher
 import com.music.bitchord.download.Downloads
 import com.music.bitchord.ui.rememberIsForeground
@@ -396,6 +398,8 @@ fun MediaItem.toSong() = Song(
     isVideoOrigin = mediaMetadata.extras?.getBoolean(EXTRA_VIDEO_ORIGIN) == true ||
         mediaMetadata.extras?.getBoolean(EXTRA_IS_VIDEO) == true,
     setVideoId = mediaMetadata.extras?.getString(EXTRA_SET_VIDEO_ID),
+    sourceQuality = mediaMetadata.extras?.getString(EXTRA_SOURCE_QUALITY),
+    sourceHiRes = mediaMetadata.extras?.getBoolean(EXTRA_SOURCE_HI_RES) == true,
     queueTier = this.queueTier,
     queueEntryId = this.queueEntryId,
     radioName = mediaMetadata.extras?.getString(EXTRA_RADIO_NAME),
@@ -481,6 +485,14 @@ internal const val EXTRA_LOCAL_PATH = "bitchord.localPath"
  */
 private const val EXTRA_DURATION = "bitchord.durationText"
 private const val EXTRA_EXPLICIT = "bitchord.explicit"
+
+/**
+ * @see Song.sourceQuality — carried so an addon row rebuilt from the queue
+ * (a restore, a reorder) keeps the `&mix=` its first item had; see
+ * [SourceResolver.MIX_PARAM].
+ */
+private const val EXTRA_SOURCE_QUALITY = "bitchord.sourceQuality"
+private const val EXTRA_SOURCE_HI_RES = "bitchord.sourceHiRes"
 private const val EXTRA_IS_VIDEO = "bitchord.isVideo"
 private const val EXTRA_VIDEO_ORIGIN = "bitchord.isVideoOrigin"
 
@@ -548,6 +560,21 @@ private fun Song.matchQuery(): String = buildString {
     if (isVideo) append("&m=1")
 }
 
+/**
+ * `&mix=` on every addon row, naming the mix its search answer said it is, so
+ * its play asks for that row and nothing else — see [SourceResolver.MIX_PARAM].
+ * Empty for every other source.
+ */
+private fun Song.pickedMixQuery(configId: String): String {
+    if (SourceRegistry.config(configId)?.kind != SourceKind.ADDON) return ""
+    val mix = when (sourceQuality) {
+        null -> SourceResolver.MIX_ANY
+        "DOLBY" -> SourceResolver.MIX_ATMOS
+        else -> SourceResolver.MIX_STEREO
+    }
+    return "&${SourceResolver.MIX_PARAM}=$mix"
+}
+
 fun Song.toMediaItem(): MediaItem {
     val sourceTrack = SourceRegistry.parseTrackKey(videoId)
     // A row from search or a playlist carries no file of its own, but the track
@@ -585,7 +612,7 @@ fun Song.toMediaItem(): MediaItem {
         // current item, so reaching back for the session's metadata isn't an
         // option either.
         sourceTrack != null -> SourceRegistry.trackUri(sourceTrack.first, sourceTrack.second)
-            .let { "$it${matchQuery()}" }
+            .let { "$it${matchQuery()}${pickedMixQuery(sourceTrack.first)}" }
         // A track the listener reverted by hand stays reverted — see
         // [OriginalVersion]. Applied here rather than at the one menu that
         // reverts, because "stays" has to mean the next queue entry built for
@@ -647,6 +674,7 @@ fun Song.toMediaItem(): MediaItem {
                     offlineUri != null || durationText != null ||
                     artistId != null || albumId != null || setVideoId != null ||
                     isExplicit != null || isVideo || isVideoOrigin || radioName != null ||
+                    sourceQuality != null ||
                     playbackSource != null || playbackSourceType != null || playbackSourceId != null
                 ) {
                     setExtras(
@@ -667,6 +695,8 @@ fun Song.toMediaItem(): MediaItem {
                             EXTRA_EXPLICIT to isExplicit,
                             EXTRA_IS_VIDEO to isVideo,
                             EXTRA_VIDEO_ORIGIN to isVideoOrigin,
+                            EXTRA_SOURCE_QUALITY to sourceQuality,
+                            EXTRA_SOURCE_HI_RES to sourceHiRes,
                         ),
                     )
                 }
