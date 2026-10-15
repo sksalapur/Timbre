@@ -88,6 +88,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
@@ -111,7 +112,10 @@ import kotlinx.coroutines.delay
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.unit.Constraints
 import com.music.bitchord.data.canvas.AppleArtistArt
+import com.music.bitchord.data.DebugLog as ArtistHeaderLog
 import com.music.bitchord.data.canvas.AppleArtistArtRepository
+import com.music.bitchord.data.canvas.ArtistSignature
+import com.music.bitchord.data.canvas.ArtistSignatureRepository
 import com.music.bitchord.data.canvas.keyColors
 import dev.chrisbanes.haze.materials.ExperimentalHazeMaterialsApi
 import dev.chrisbanes.haze.materials.HazeMaterials
@@ -312,6 +316,12 @@ fun DetailScreen(
     var appleArt by remember(page.browseId) {
         mutableStateOf(if (isArtist) AppleArtistArtRepository.cached(page.title) else null)
     }
+    // Secondary provider: handwritten signature from the user's own
+    // artist-signature API. Drawn only when Apple has no title logo.
+    val signatureEnabled by AppSettings.signatureApiEnabled.collectAsStateWithLifecycle()
+    val signatureBaseUrl by AppSettings.signatureApiUrl.collectAsStateWithLifecycle()
+    val signatureUpdates by ArtistSignatureRepository.updates.collectAsStateWithLifecycle()
+    var signature by remember(page.browseId) { mutableStateOf<ArtistSignature?>(null) }
     // Opened from a track, the title is the whole credit ("A, B & C") until the
     // page loads and swaps in the one artist's name. Searching a credit finds
     // nobody, so a title that reads as several artists waits for that swap; any
@@ -319,6 +329,26 @@ fun DetailScreen(
     val nameSettled = !page.title.looksLikeCredit() || page.songs !is UiState.Loading
     LaunchedEffect(page.browseId, page.title, nameSettled) {
         if (isArtist && nameSettled) appleArt = AppleArtistArtRepository.artFor(page.title) ?: appleArt
+    }
+    LaunchedEffect(page.browseId, page.title, nameSettled, signatureEnabled, signatureBaseUrl, signatureUpdates) {
+        if (!isArtist || !nameSettled) return@LaunchedEffect
+        val base = ArtistSignatureRepository.effectiveBaseUrl(signatureEnabled, signatureBaseUrl)
+        if (base == null) {
+            signature = null
+            return@LaunchedEffect
+        }
+        // Bounded retries with backoff: a sleeping self-hosted API needs
+        // ~30-60s to wake (Render free tier), and a single miss here would
+        // otherwise stand until the page is reopened. Genuine misses aren't
+        // cached, so retrying is cheap. Covers roughly a full wake cycle.
+        val backoff = listOf(0L, 5_000L, 15_000L, 30_000L)
+        for (wait in backoff) {
+            if (wait > 0) delay(wait)
+            signature = ArtistSignatureRepository.cached(page.title, base)
+                ?: ArtistSignatureRepository.signatureFor(page.title, base)
+                ?: signature
+            if (signature != null) return@LaunchedEffect
+        }
     }
     val palette = rememberArtworkPalette(
         imageUrl = appleArt?.heroUrl ?: page.thumbnailUrl,
@@ -446,7 +476,7 @@ fun DetailScreen(
                 ) {
             item(key = "header") {
                 if (isArtist) {
-                    ArtistHeader(page = page, palette = palette, artHeight = artHeight, appleArt = appleArt)
+                    ArtistHeader(page = page, palette = palette, artHeight = artHeight, appleArt = appleArt, signature = signature)
                 } else {
                     ReleaseHeader(
                         page = page,
@@ -1037,23 +1067,36 @@ private fun ArtistHeader(
     palette: ArtworkPalette,
     artHeight: Dp,
     appleArt: AppleArtistArt?,
+    signature: ArtistSignature?,
 ) {
     Box(Modifier.fillMaxWidth()) {
         Spacer(Modifier.fillMaxWidth().height(artHeight + HEADER_DROP - ARTIST_HEADER_LIFT))
         val logoUrl = appleArt?.logoUrl
+        // Secondary provider: drawn only when Apple has no title logo.
+        val signatureUrl = signature?.imageUrl.takeIf { logoUrl == null }
+        val imageUrl = logoUrl ?: signatureUrl
+        // Signature vectors are dark ink on transparency — over a dark artist
+        // photo they vanish, so they are tinted white like the web UI's
+        // inverted plate. Scanned photos (jpeg/png) keep their own pixels:
+        // tinting an opaque light scan would flatten it into a white blob.
+        val tint = if (logoUrl == null && signature?.format == "svg") {
+            ColorFilter.tint(Color.White)
+        } else {
+            null
+        }
         // Whether the logo has actually been drawn. Until it has — a first fetch
         // of an Apple logo is a few hundred KB the CDN may still be resizing — the
         // name stands in for it, so the header is never left with nothing in it.
-        var logoShown by remember(logoUrl) { mutableStateOf(false) }
-        if (appleArt != null && logoUrl != null) {
+        var logoShown by remember(imageUrl) { mutableStateOf(false) }
+        if (imageUrl != null) {
             val context = LocalPlatformContext.current
-            var attempt by remember(logoUrl) { mutableIntStateOf(0) }
-            var failed by remember(logoUrl) { mutableStateOf(false) }
+            var attempt by remember(imageUrl) { mutableIntStateOf(0) }
+            var failed by remember(imageUrl) { mutableStateOf(false) }
             // Remembered, and at the size the URL already names: nothing about the
             // load waits on layout to decide how big to decode, and a recomposition
             // can't hand Coil a new request that cancels the one in flight.
-            val request = remember(logoUrl, attempt) {
-                ImageRequest.Builder(context).data(logoUrl).size(coil3.size.Size.ORIGINAL).build()
+            val request = remember(imageUrl, attempt) {
+                ImageRequest.Builder(context).data(imageUrl).size(coil3.size.Size.ORIGINAL).build()
             }
             // A dropped fetch gets two more tries before the name is left in place.
             LaunchedEffect(failed) {
@@ -1066,17 +1109,25 @@ private fun ArtistHeader(
             // Apple's own title logo stands in for the name, laid over its photo.
             // Capped in height as well as width: a logo set on two or three
             // lines is nearly square, and by width alone it would swallow the
-            // photograph it is meant to sit on.
-            val aspect = appleArt.logoAspect.coerceIn(0.4f, 6f)
+            // photograph it is meant to sit on. A signature is a panoramic ink
+            // strip and reads best smaller than a title logo.
+            val aspect = (if (logoUrl != null) appleArt?.logoAspect else signature?.aspect)
+                ?.coerceIn(0.4f, 6f) ?: 1f
             val maxLogoHeight = artHeight * ARTIST_LOGO_MAX_HEIGHT
             AsyncImage(
                 model = request,
                 contentDescription = page.title,
                 contentScale = ContentScale.Fit,
+                colorFilter = tint,
                 onState = { state ->
                     when (state) {
                         is AsyncImagePainter.State.Success -> logoShown = true
-                        is AsyncImagePainter.State.Error -> failed = true
+                        is AsyncImagePainter.State.Error -> {
+                            val cause = (state as? AsyncImagePainter.State.Error)
+                                ?.result?.throwable?.let { "${it.javaClass.simpleName}: ${it.message}" }
+                            ArtistHeaderLog.d("ArtistHeader", "image load failed: $imageUrl attempt $attempt cause=$cause")
+                            failed = true
+                        }
                         else -> Unit
                     }
                 },
