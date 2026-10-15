@@ -189,6 +189,7 @@ import com.music.bitchord.playback.QueueCoordinator
 import com.music.bitchord.playback.QueueCoordinator.asQueueEntry
 import com.music.bitchord.playback.QueueShuffle
 import com.music.bitchord.playback.QueueSource
+import com.music.bitchord.playback.cast.CastController
 import com.music.bitchord.data.model.QueueTier
 import com.music.bitchord.playback.autoplayEnabledFor
 import com.music.bitchord.playback.autoplaySectionStart
@@ -198,6 +199,8 @@ import com.music.bitchord.playback.fromAutoplay
 import com.music.bitchord.playback.hasYouTubeOriginal
 import com.music.bitchord.playback.loadAutoplayTracks
 import com.music.bitchord.playback.playSongs
+import com.music.bitchord.playback.playBoundedContext
+import com.music.bitchord.playback.contextEntryKey
 import com.music.bitchord.playback.toMediaItem
 import com.music.bitchord.playback.toSong
 import com.music.bitchord.playback.toDirectYouTubeMediaItem
@@ -1321,10 +1324,16 @@ private fun BitChordApp(
         }
     }
 
-    val playFrom: (List<Song>, Int, QueueSource) -> Unit = playFrom@{ allSongs, allIndex, source ->
+    fun playFrom(
+        allSongs: List<Song>,
+        allIndex: Int,
+        source: QueueSource,
+        boundedContext: Boolean = false,
+        continuationToken: String? = null,
+    ) {
         // A Spotify page lists songs it has not found on YouTube Music yet (or
         // never will); those can't be queued, so play the rest in their order.
-        if (allSongs.getOrNull(allIndex)?.isUnresolvedSpotify == true) return@playFrom
+        if (allSongs.getOrNull(allIndex)?.isUnresolvedSpotify == true) return
         val songs = allSongs.filterNot { it.isUnresolvedSpotify }
         val index = songs.indexOf(allSongs.getOrNull(allIndex)).coerceAtLeast(0)
         playRequestGeneration++
@@ -1353,14 +1362,22 @@ private fun BitChordApp(
                 )
                 c.playSongs(timeline, 0)
             } else {
-                val result = QueueCoordinator.buildContextQueue(
-                    currentTimeline = currentTimeline,
-                    currentIndex = currentIndex,
-                    newContextSongs = songs,
-                    selectedIndex = index,
-                    contextSource = source,
-                )
-                c.playSongs(result.timeline, result.startIndex)
+                // A Cast session still owns the full queue on the phone so the
+                // receiver can follow its existing queue semantics. The bounded
+                // service path is local-player-only; the service repeats this
+                // guard for commands that race a newly connected receiver.
+                if (boundedContext && !CastController.state.value.casting) {
+                    c.playBoundedContext(songs, index, source, continuationToken)
+                } else {
+                    val result = QueueCoordinator.buildContextQueue(
+                        currentTimeline = currentTimeline,
+                        currentIndex = currentIndex,
+                        newContextSongs = songs,
+                        selectedIndex = index,
+                        contextSource = source,
+                    )
+                    c.playSongs(result.timeline, result.startIndex)
+                }
             }
             // Start playback in the mini-player; the user opens the full view by tapping it.
         }
@@ -2345,7 +2362,12 @@ private fun BitChordApp(
             },
             onJumpTo = { index ->
                 controller?.let { c ->
-                    QueueCoordinator.jumpToQueueItem(c, index, player.queue)
+                    // The session applies the jump plan to its own player (see
+                    // its seekTo override); editing the queue from here would
+                    // round-trip every item through the controller and lose
+                    // their bounded-window metadata.
+                    c.seekTo(index, 0L)
+                    c.play()
                 }
             },
             onRemoveFromQueue = { controller?.removeMediaItem(it) },
@@ -2943,6 +2965,52 @@ private fun BitChordApp(
                                 song
                             }
                         }
+                        // The visible list can be one render behind the page
+                        // while fill-in is completing. For a local release
+                        // handoff, cancel that fill and use the newest complete
+                        // page snapshot; Cast deliberately keeps the old full
+                        // queue path.
+                        fun playDetailSongs(songs: List<Song>, index: Int) {
+                            // Do not cancel a page's fill-in merely because a
+                            // listener tapped while the host owns playback.
+                            if (ListenTogether.state.value.controlsLocked) {
+                                refusedByHost()
+                                return
+                            }
+                            val source = QueueSource(
+                                page.title,
+                                PlaybackSourceType.BROWSE,
+                                page.browseId,
+                            )
+                            val selected = songs.getOrNull(index)
+                            val pageSongKeys =
+                                (page.songs as? UiState.Success)?.data.orEmpty().mapTo(HashSet()) { it.contextEntryKey() }
+                            val useBounded =
+                                (page.type == BrowseType.ALBUM || page.type == BrowseType.PLAYLIST) &&
+                                    selected?.contextEntryKey()?.let(pageSongKeys::contains) == true &&
+                                    !CastController.state.value.casting
+                            val latestPage = if (useBounded) {
+                                viewModel.takePlaybackContext(page.browseId)
+                            } else {
+                                null
+                            }
+                            val latestSongs = latestPage
+                                ?.let { (it.songs as? UiState.Success)?.data.orEmpty() }
+                                ?.map(withAlbum)
+                                ?.takeIf { it.isNotEmpty() }
+                            val queue = latestSongs ?: songs.map(withAlbum)
+                            if (queue.isEmpty()) return
+                            val queueIndex = selected?.let { tapped ->
+                                queue.indexOfFirst { it.contextEntryKey() == tapped.contextEntryKey() }
+                            }?.takeIf { it >= 0 } ?: index
+                            playFrom(
+                                queue,
+                                queueIndex.coerceIn(queue.indices),
+                                source,
+                                boundedContext = useBounded,
+                                continuationToken = latestPage?.continuation ?: page.continuation,
+                            )
+                        }
                         DetailScreen(
                             page = page,
                             currentSong = player.song,
@@ -2950,25 +3018,19 @@ private fun BitChordApp(
                             listState = pageDetailListState,
                             activeShelf = detailActiveShelf,
                             onActiveShelfChange = { detailActiveShelf = it },
-                            onSongClick = { songs, index ->
-                                playFrom(
-                                    songs,
-                                    index,
-                                    QueueSource(page.title, PlaybackSourceType.BROWSE, page.browseId),
-                                )
-                            },
+                            // Album/playlist playback hands the page snapshot to
+                            // the service, which then owns continuation loading.
+                            onSongClick = ::playDetailSongs,
                             onSongLongPress = { openSongMenu(withAlbum(it)) },
-                            onSongSwipe = onSongSwipe,
+                            onSongSwipe = { onSongSwipe(withAlbum(it)) },
                             onShuffle = { songs ->
-                                // Shuffle goes on first so the queue is built shuffled
-                                // as it is set — the random pick here only decides
-                                // which track leads it.
-                                QueueShuffle.enableForNextQueue()
-                                playFrom(
-                                    songs,
-                                    songs.indices.random(),
-                                    QueueSource(page.title, PlaybackSourceType.BROWSE, page.browseId),
-                                )
+                                if (songs.isNotEmpty()) {
+                                    // Shuffle goes on first so the queue is built shuffled
+                                    // as it is set — the random pick here only decides
+                                    // which track leads it.
+                                    QueueShuffle.enableForNextQueue()
+                                    playDetailSongs(songs, songs.indices.random())
+                                }
                             },
                             onSectionItemClick = { item ->
                                 item.browseId?.let { id ->

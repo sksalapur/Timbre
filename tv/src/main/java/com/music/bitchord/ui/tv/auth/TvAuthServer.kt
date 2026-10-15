@@ -488,7 +488,7 @@ textarea { width: 100%; height: 90px; background: rgba(0,0,0,0.5); border: 1px s
   <div style="width: 52px; height: 52px; border-radius: 50%; background: #FA2D48; margin: 0 auto 12px; display: flex; align-items: center; justify-content: center; font-size: 24px;">♪</div>
   <h1 style="font-size: 22px; font-weight: 800; margin-bottom: 6px;">Sign In to BitChord TV</h1>
   <p style="font-size: 14px; color: #A0A0AB;">Fast & easy login from your mobile phone</p>
-  
+
   <div class="step-box" style="text-align: left; margin-top: 18px;">
     <strong>Option 1 (Fastest):</strong>
     <ol style="margin-left: 18px; margin-top: 6px;">

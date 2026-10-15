@@ -61,7 +61,9 @@ import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.channels.BufferOverflow
@@ -86,6 +88,8 @@ import com.music.bitchord.data.sources.SourceRegistry
 import com.music.bitchord.data.sources.SourceResolver
 import com.music.bitchord.data.sources.TrackMatcher
 import com.music.bitchord.playback.AudioCache
+import com.music.bitchord.playback.BoundedContextRequests
+import com.music.bitchord.playback.contextEntryKey
 import com.music.bitchord.playback.StreamChoice
 import com.music.bitchord.ui.screens.CACHE_FOLDER_BROWSE_ID
 import com.music.bitchord.data.LocalGroup
@@ -578,6 +582,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
      */
     private val _detailStack = MutableStateFlow<List<DetailPage>>(emptyList())
     val detailStack: StateFlow<List<DetailPage>> = _detailStack.asStateFlow()
+
+    /** UI-side continuation fetches that can be handed to the playback service. */
+    private val fillInJobs = mutableMapOf<String, Job>()
 
     private val _releaseLibrary = MutableStateFlow<Map<String, LibraryState>>(emptyMap())
 
@@ -1421,6 +1428,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             // drop(1): the current value is just the count so far, not a play.
             PlaybackTracker.registeredPlays.drop(1).collect { homeStale = true }
+        }
+        viewModelScope.launch {
+            BoundedContextRequests.snapshot.collect { snapshot ->
+                snapshot?.let(::applyBoundedContextSnapshot)
+            }
         }
         viewModelScope.launch {
             AppSettings.filterNonMusicAudio.drop(1).collect {
@@ -2647,6 +2659,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                         title = name ?: it.title,
                         subtitle = credit ?: it.subtitle,
                         suggestedSongs = suggested,
+                        continuation = more,
                         library = library,
                         description = description,
                         subscriberCountText = subscriberCountText,
@@ -2869,7 +2882,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
      * that loops back on itself instead of running dry.
      */
     private fun fillIn(browseId: String, token: String, artworkFallback: String?) {
-        viewModelScope.launch {
+        fillInJobs[browseId]?.cancel()
+        fillInJobs[browseId] = viewModelScope.launch {
             // Publish and draw the first response before spending the shared
             // connection on page two. On a long playlist the continuation can
             // otherwise start in the same main-loop turn as the state update,
@@ -2878,35 +2892,114 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             var next: String? = token
             while (next != null) {
                 val fetched = YtMusicRepository.moreSongs(next).getOrNull() ?: return@launch
+                // Repository calls may finish after cancellation. Do not let
+                // an in-flight UI page append after the playback service has
+                // taken the continuation over.
+                currentCoroutineContext().ensureActive()
+                // The same page can be on the stack twice (opened again from
+                // inside itself). One walk per browseId grows every copy; a
+                // second walk replaces the first, so each copy merges by key
+                // and only takes a token from a page that taught it something.
                 val stack = _detailStack.value
-                val index = stack.indexOfFirst { it.browseId == browseId }
-                if (index < 0) return@launch
-                val current = stack[index]
-                val existing = (current.songs as? UiState.Success)?.data ?: return@launch
-                val known = existing.mapTo(HashSet()) { it.videoId }
-                val added = fetched.songs
-                    .filter { known.add(it.videoId) }
-                    .withArtwork(artworkFallback)
-                // Suggestions can arrive on a later page than the real
-                // tracks, once the playlist's own continuation runs dry —
-                // see parsePlaylistShelf — so they're tracked separately
-                // rather than folded into [known].
-                val knownSuggested = current.suggestedSongs.mapTo(HashSet()) { it.videoId }
-                val addedSuggested = fetched.suggested
-                    .filter { it.videoId !in known && knownSuggested.add(it.videoId) }
-                    .withArtwork(artworkFallback)
-                // A page with nothing new on it means the feed has looped back
-                // rather than run dry with a token still attached.
-                if (added.isEmpty() && addedSuggested.isEmpty()) return@launch
-                _detailStack.value = stack.toMutableList().also {
-                    it[index] = current.copy(
+                if (stack.none { it.browseId == browseId }) return@launch
+                var progressed = false
+                val updated = stack.map { current ->
+                    if (current.browseId != browseId) return@map current
+                    val existing = (current.songs as? UiState.Success)?.data ?: return@map current
+                    val known = existing.mapTo(HashSet()) { it.contextEntryKey() }
+                    val added = fetched.songs
+                        .filter { known.add(it.contextEntryKey()) }
+                        .withArtwork(artworkFallback)
+                    val knownVideoIds = (existing + added).mapTo(HashSet()) { it.videoId }
+                    // Suggestions can arrive on a later page than the real
+                    // tracks, once the playlist's own continuation runs dry —
+                    // see parsePlaylistShelf — so they're tracked separately
+                    // rather than folded into [known].
+                    val knownSuggested = current.suggestedSongs.mapTo(HashSet()) { it.videoId }
+                    val addedSuggested = fetched.suggested
+                        .filter { it.videoId !in knownVideoIds && knownSuggested.add(it.videoId) }
+                        .withArtwork(artworkFallback)
+                    if (added.isEmpty() && addedSuggested.isEmpty()) return@map current
+                    progressed = true
+                    current.copy(
                         songs = UiState.Success(existing + added),
                         suggestedSongs = current.suggestedSongs + addedSuggested,
+                        continuation = fetched.continuation,
                     )
                 }
+                // A page with nothing new for any copy means the feed has looped
+                // back rather than run dry with a token still attached.
+                if (!progressed) return@launch
+                _detailStack.value = updated
                 next = fetched.continuation
             }
+        }.also { job ->
+            job.invokeOnCompletion {
+                if (fillInJobs[browseId] === job) fillInJobs.remove(browseId)
+            }
         }
+    }
+
+    /**
+     * Applies the service-owned canonical context to its matching open page.
+     *
+     * The service only materialises a small queue window, while its registry
+     * keeps the complete canonical list. Mirroring that registry here avoids a
+     * page that appears to stop growing as soon as playback starts.
+     */
+    private fun applyBoundedContextSnapshot(snapshot: BoundedContextRequests.Snapshot) {
+        val browseId = snapshot.request.source.id ?: return
+        val stack = _detailStack.value
+        val index = stack.indexOfLast { it.browseId == browseId }
+        if (index < 0) return
+        val page = stack[index]
+        if (page.type != BrowseType.ALBUM && page.type != BrowseType.PLAYLIST) return
+        // Exactly one loader walks the continuation. While the service owns
+        // it the page's own fill-in stops; when the service gives up (or never
+        // took it — a party, a Cast race) the page resumes from the newest token.
+        if (snapshot.serviceOwned) {
+            if (snapshot.continuationToken != null) fillInJobs.remove(browseId)?.cancel()
+        } else if (snapshot.released && snapshot.continuationToken != null &&
+            fillInJobs[browseId]?.isActive != true
+        ) {
+            fillIn(browseId, snapshot.continuationToken, page.thumbnailUrl)
+        }
+        val existing = (page.songs as? UiState.Success)?.data ?: return
+        val known = existing.mapTo(HashSet()) { it.contextEntryKey() }
+        val added = snapshot.songs
+            .filter { known.add(it.contextEntryKey()) }
+            .withArtwork(page.thumbnailUrl)
+        // Never move the page's token backwards: a page whose own fill-in is
+        // ahead of the service would otherwise hand a later tap a token for
+        // songs it already has, which the registry rejects as a duplicate page.
+        val continuation = if (snapshot.songs.size >= existing.size) snapshot.continuationToken else page.continuation
+        if (added.isEmpty() && page.continuation == continuation) return
+        _detailStack.value = stack.toMutableList().also {
+            it[index] = page.copy(
+                songs = UiState.Success(existing + added),
+                continuation = continuation,
+            )
+        }
+    }
+
+    /**
+     * Returns the newest page snapshot for a bounded playback handoff. The
+     * page's own fill-in keeps running until the service reports that it has
+     * taken the continuation over (see [applyBoundedContextSnapshot]); the
+     * tap may yet go down another path, and cancelling here left the page
+     * permanently cut short whenever it did.
+     */
+    fun takePlaybackContext(browseId: String): DetailPage? {
+        val stack = _detailStack.value
+        val index = stack.indexOfLast { it.browseId == browseId }
+        if (index < 0) return null
+        val mirrored = BoundedContextRequests.snapshot.value
+            ?.takeIf { it.request.source.id == browseId }
+        if (mirrored != null) {
+            applyBoundedContextSnapshot(mirrored)
+            return _detailStack.value.getOrNull(index)
+        }
+        return stack[index]
     }
 
     /**
