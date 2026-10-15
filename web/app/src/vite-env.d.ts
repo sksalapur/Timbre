@@ -5,6 +5,7 @@ interface ImportMetaEnv {
   readonly VITE_ANDROID_APP_URL?: string;
   readonly VITE_EXTENSION_CHROME_URL?: string;
   readonly VITE_EXTENSION_FIREFOX_URL?: string;
+  readonly VITE_EXTENSION_MANIFEST_URL?: string;
 }
 
 interface ImportMeta {

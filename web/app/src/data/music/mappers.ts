@@ -214,6 +214,18 @@ export function mapHome(feed: Pick<YTMusic.HomeFeed, 'sections'>): Shelf[] {
   return mapShelves(feed.sections);
 }
 
+/** The "Add to Library" toggle among a header's buttons: a ToggleButton whose endpoint likes a playlist. */
+function libraryToggle(header: YTNodes.MusicResponsiveHeader | null | undefined): HeaderInfo['library'] {
+  for (const button of (header?.buttons ?? []) as unknown as AnyNode[]) {
+    if (button.type !== 'ToggleButton') continue;
+    const target = (endpoint: unknown) =>
+      (endpoint as { payload?: { target?: { playlistId?: string } } } | undefined)?.payload?.target?.playlistId;
+    const playlistId = target(button.endpoint) ?? target(button.toggled_endpoint);
+    if (playlistId) return { playlistId, saved: button.is_toggled === true };
+  }
+  return null;
+}
+
 function headerInfo(header: YTNodes.MusicResponsiveHeader | null | undefined): HeaderInfo {
   const strapline = header?.strapline_text_one as unknown as { text?: string; runs?: { text: string; endpoint?: unknown }[] } | undefined;
   const artists: ArtistRef[] = (strapline?.runs ?? [])
@@ -228,6 +240,7 @@ function headerInfo(header: YTNodes.MusicResponsiveHeader | null | undefined): H
     thumbnail: thumbnailOf(header ?? {}),
     artists,
     explicit: explicitOf(header?.subtitle_badge),
+    library: libraryToggle(header),
   };
 }
 
@@ -420,7 +433,13 @@ export function mapBrowse(page: { header?: unknown; sections?: readonly unknown[
     } else if (section.type === 'MusicPlaylistShelf' || section.type === 'MusicShelf') {
       for (const item of (section.contents as unknown[] | undefined) ?? []) {
         const t = mapTrack(item);
-        if (t) tracks.push(t);
+        if (t) {
+          tracks.push(t);
+          continue;
+        }
+        // Library artists and albums arrive as list rows, not tiles.
+        const other = mapItem(item);
+        if (other && other.kind !== 'song' && other.kind !== 'video') grid.push(other);
       }
     }
   }

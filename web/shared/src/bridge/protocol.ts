@@ -12,6 +12,9 @@ export const BRIDGE_PROTOCOL = 1;
 /** Tags every window message so the relay ignores everything else on the page. */
 export const BRIDGE_CHANNEL = 'bitchord-bridge';
 
+/** The long-lived port the extension pushes `BridgeEvent`s on. */
+export const EVENTS_PORT = 'bitchord-events';
+
 /** What the installed extension can do; `ping` reports it. */
 export type Capability = 'yt' | 'yt.auth' | 'addon' | 'lyrics' | 'spotify' | 'discord';
 
@@ -37,15 +40,56 @@ export interface HttpResponse {
   url: string;
 }
 
-export interface YtAuthState {
-  signedIn: boolean;
-  /** Account picked for `X-Goog-AuthUser`; null when signed out. */
-  account: { name: string; handle: string | null; avatarUrl: string | null; authUser: string } | null;
+/** One identity requests can act as: a Google login's own channel, or one of its brand channels. */
+export interface YtChannel {
+  /** Opaque and stable: what `yt.selectChannel` takes. */
+  id: string;
+  name: string;
+  /** The @handle or byline YouTube shows under the name. */
+  handle: string | null;
+  avatarUrl: string | null;
+  /** A brand channel (sent as `X-Goog-PageId`) rather than the login's own. */
+  brand: boolean;
+}
+
+/** A Google login in the browser's cookie jar, as `X-Goog-AuthUser` addresses it. */
+export interface YtAccount {
+  authUser: string;
+  name: string;
+  email: string | null;
+  avatarUrl: string | null;
+  channels: YtChannel[];
 }
 
 /**
- * Method name → params and result. Only `ping` is served in phase 2; the rest
- * are declared so both sides type-check against one contract as they land.
+ * Who signed-in YouTube requests act as. Names and pictures only: the
+ * cookies and the signature never leave the extension.
+ */
+export interface YtAuthState {
+  /** The browser holds a YouTube session (a SAPISID cookie). */
+  browserSignedIn: boolean;
+  /** The user lets BitChord use it; "Disconnect" turns this off without signing out of Google. */
+  connected: boolean;
+  /** True when signed-in requests will be made: signed in, connected, and a channel chosen. */
+  signedIn: boolean;
+  accounts: YtAccount[];
+  /** The channel in use, from `accounts`; null when not signed in. */
+  active: (YtChannel & { authUser: string }) | null;
+}
+
+/** Pushed by the extension over the event channel (`Bridge.subscribe`). */
+export type BridgeEvent = { event: 'yt.authState'; data: YtAuthState };
+
+/** A signed-in request is the same exchange with `auth` set; the extension adds the session. */
+export interface YtFetchParams extends HttpRequest {
+  /** Send it as the chosen channel (cookies, SAPISIDHASH, X-Goog-AuthUser/PageId). */
+  auth?: boolean;
+}
+
+/**
+ * Method name → params and result. `ping` and the `yt.*` methods are served
+ * (phase 5); the rest are declared so both sides type-check against one
+ * contract as they land.
  */
 export interface BridgeMethods {
   ping: {
@@ -58,8 +102,11 @@ export interface BridgeMethods {
       capabilities: Capability[];
     };
   };
-  'yt.fetch': { params: HttpRequest; result: HttpResponse };
-  'yt.authState': { params: Record<string, never>; result: YtAuthState };
+  'yt.fetch': { params: YtFetchParams; result: HttpResponse };
+  /** `refresh` re-reads the accounts from YouTube instead of the extension's short cache. */
+  'yt.authState': { params: { refresh?: boolean }; result: YtAuthState };
+  'yt.selectChannel': { params: { channelId: string }; result: YtAuthState };
+  'yt.setConnected': { params: { connected: boolean }; result: YtAuthState };
   'addon.fetch': { params: HttpRequest; result: HttpResponse };
   'lyrics.fetch': { params: HttpRequest; result: HttpResponse };
 }
@@ -82,6 +129,7 @@ export type BridgeErrorCode =
   | 'forbidden' // the caller's origin isn't allowed, or a host permission is missing
   | 'protocol' // envelope version mismatch
   | 'network'
+  | 'unauthenticated' // a signed-in call while not signed in (or disconnected)
   | 'internal';
 
 export interface BridgeError {
@@ -106,6 +154,18 @@ export function isBridgeRequest(value: unknown): value is BridgeRequest {
     typeof v.id === 'string' &&
     typeof v.method === 'string'
   );
+}
+
+/** An event as the Firefox relay forwards it to the page. */
+export interface BridgeEventMessage {
+  channel: typeof BRIDGE_CHANNEL;
+  direction: 'event';
+  payload: BridgeEvent;
+}
+
+export function isBridgeEventMessage(value: unknown): value is BridgeEventMessage {
+  const v = value as Partial<BridgeEventMessage> | null;
+  return typeof v === 'object' && v !== null && v.channel === BRIDGE_CHANNEL && v.direction === 'event' && !!v.payload;
 }
 
 export function isBridgeResponse(value: unknown): value is BridgeResponse {

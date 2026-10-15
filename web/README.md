@@ -7,7 +7,7 @@ The web player and its companion browser extension. The plan, and the decisions 
 | `app/` | The site: Vite, React 19, TypeScript, React Router, TanStack Query, Zustand, CSS Modules |
 | `extension/` | Manifest V3 extension for Chromium and Firefox, built with WXT |
 | `shared/` | The page ↔ extension bridge contract and client, used by both |
-| `docs/` | `apple-music-dom.md` (the design measurements), `kira-notes.md` (how the reference YouTube web client plays) |
+| `docs/` | `apple-music-dom.md` (the design measurements), `kira-notes.md` (how the reference YouTube web client plays), `youtube-playback.md`, `youtube-signin.md` |
 | `fixtures/` | Real captured responses for parser tests (see its README) |
 | `scripts/` | `capture-fixtures.mjs` |
 
@@ -44,7 +44,14 @@ To offer the extension as a download from the site's Extension page, package it:
 corepack pnpm --dir web/extension package
 ```
 
-This zips both builds and copies them to `app/public/downloads/` (git-ignored), which is where the page's "Download for Chrome" and "Download for Firefox" buttons point. `VITE_EXTENSION_CHROME_URL` and `VITE_EXTENSION_FIREFOX_URL` override those links, for example to point at store listings.
+This builds both targets and writes three files to `app/public/downloads/` (git-ignored):
+
+- `bitchord-extension-chrome.zip` and `bitchord-extension-firefox.zip`. Each holds a single folder (`bitchord-extension-<browser>/`), so extracting it in place leaves one folder to load unpacked.
+- `extension.json`, with the version. The site compares it with the installed extension's version and shows **Update** in the sidebar and an update row on the Extension page when the zip is newer. Bump `version` in `extension/package.json` to publish an update.
+
+`VITE_EXTENSION_CHROME_URL`, `VITE_EXTENSION_FIREFOX_URL` and `VITE_EXTENSION_MANIFEST_URL` override those links, for example to point at store listings.
+
+The toolbar icons (`extension/public/icon/`) are rendered from `app/public/favicon.svg` by `corepack pnpm --dir web/extension icons`.
 
 Then open `http://localhost:5173/extension`. It shows "Installed", with the version and the transport: **Direct** on Chromium (`externally_connectable`), **Page relay** on Firefox (content script).
 

@@ -1,4 +1,6 @@
 import type { Innertube, Types } from 'youtubei.js/web';
+import { getBridge } from '@/extension/bridge';
+import { ensureYtAuth } from '@/extension/useYtAuth';
 import { trackLog } from '../trackLog';
 
 /**
@@ -15,6 +17,37 @@ export function getInnertube(): Promise<Innertube> {
     throw error;
   });
   return instance;
+}
+
+/**
+ * A second instance for signed-in requests (prompt §5.3). Its InnerTube calls
+ * go through the extension (`yt.fetch` with `auth`), which adds the user's
+ * session; everything else (the session bootstrap, the player script) loads
+ * like the anonymous instance's. The page never holds a cookie, so YouTube.js
+ * is told it is signed in rather than given one.
+ */
+let signedInstance: Promise<Innertube> | null = null;
+
+export function getSignedInnertube(): Promise<Innertube> {
+  signedInstance ??= create(signedFetch).then(
+    (yt) => {
+      // Lifts YouTube.js's "must be signed in" checks (library pages). With
+      // no cookie and no OAuth token it adds no credentials of its own.
+      yt.session.logged_in = true;
+      return yt;
+    },
+    (error: unknown) => {
+      signedInstance = null;
+      throw error;
+    },
+  );
+  return signedInstance;
+}
+
+/** The instance browse requests should use: signed in when the user is, anonymous otherwise. */
+export async function getMusicClient(): Promise<Innertube> {
+  const auth = await ensureYtAuth().catch(() => null);
+  return auth?.signedIn ? getSignedInnertube() : getInnertube();
 }
 
 const YOUTUBE_HOSTS = new Set(['music.youtube.com', 'www.youtube.com', 'youtube.com']);
@@ -61,6 +94,41 @@ async function simpleRequestFetch(input: RequestInfo | URL, init?: RequestInit):
   });
 }
 
+function isInnertubeCall(url: URL): boolean {
+  return (url.hostname === 'music.youtube.com' || url.hostname === 'www.youtube.com') && url.pathname.startsWith('/youtubei/');
+}
+
+function decodeBase64(base64: string): Uint8Array<ArrayBuffer> {
+  return Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
+}
+
+/** InnerTube calls through the extension, signed as the chosen channel; the rest as simpleRequestFetch. */
+async function signedFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+  const request = input instanceof Request ? input : null;
+  const url = new URL(request ? request.url : input.toString());
+  if (!isInnertubeCall(url)) return simpleRequestFetch(input, init);
+
+  const bridge = getBridge();
+  if (!bridge) throw new Error('Signed-in requests need the BitChord extension');
+  const method = (init?.method ?? request?.method ?? 'GET').toUpperCase() as 'GET' | 'POST';
+  const headers: Record<string, string> = {};
+  new Headers(init?.headers ?? request?.headers).forEach((value, key) => (headers[key] = value));
+  let body = init?.body ?? undefined;
+  if (body === undefined && request && method !== 'GET') body = await request.text();
+  if (body != null && typeof body !== 'string') body = await new Response(body).text();
+
+  const response = await bridge.call(
+    'yt.fetch',
+    { url: url.toString(), method, headers, ...(typeof body === 'string' && { body }), auth: true },
+    { ...(init?.signal && { signal: init.signal }) },
+  );
+  const payload = response.bodyEncoding === 'base64' ? decodeBase64(response.body) : response.body;
+  return new Response(response.status === 204 || response.status === 304 ? null : payload, {
+    status: response.status,
+    headers: response.headers,
+  });
+}
+
 async function isFirstRun(): Promise<boolean> {
   try {
     const databases = await indexedDB.databases();
@@ -70,7 +138,7 @@ async function isFirstRun(): Promise<boolean> {
   }
 }
 
-async function create(): Promise<Innertube> {
+async function create(fetch: typeof globalThis.fetch = simpleRequestFetch): Promise<Innertube> {
   const started = performance.now();
   const { Innertube, Platform, UniversalCache } = await import('youtubei.js/web');
 
@@ -87,7 +155,7 @@ async function create(): Promise<Innertube> {
   try {
     const yt = await Innertube.create({
       cache: new UniversalCache(true),
-      fetch: simpleRequestFetch,
+      fetch,
       retrieve_player: true,
     });
     const client = yt.session.context.client;

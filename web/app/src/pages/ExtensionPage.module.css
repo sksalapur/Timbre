@@ -74,6 +74,19 @@
   color: var(--systemSecondary);
 }
 
+/* The update notice: a download row of its own under the status group. */
+.update {
+  margin-top: 12px;
+}
+
+.updateDot {
+  justify-self: center;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background-color: var(--keyColor);
+}
+
 /* Download rows: browser logo, title and detail, chevron. */
 .download {
   display: grid;

@@ -1,5 +1,6 @@
 import { ListMusic, MessageSquareQuote, Repeat, Shuffle, Volume2 } from 'lucide-react';
 import { BackwardIcon, ForwardIcon, PauseIcon, PlayIcon } from '@/components/icons/Transport';
+import { FavoriteButton } from '@/components/music/FavoriteButton';
 import { usePlayer } from '@/state/player';
 import { useUi } from '@/state/ui';
 import { Lcd } from './Lcd';
@@ -14,6 +15,7 @@ export function PlayerBar() {
   const toggleSidePanel = useUi((s) => s.toggleSidePanel);
   const hasLyrics = false;
   const hasTrack = usePlayer((s) => s.nowPlaying !== null);
+  const videoId = usePlayer((s) => s.nowPlaying?.videoId ?? null);
   const playing = usePlayer((s) => s.status === 'playing' || s.status === 'buffering');
   const togglePlay = usePlayer((s) => s.togglePlay);
 
@@ -50,6 +52,7 @@ export function PlayerBar() {
         </div>
 
         <div className={styles.actions}>
+          <FavoriteButton videoId={videoId} className={styles.action} />
           {hasLyrics && (
             <button
               className={styles.action}

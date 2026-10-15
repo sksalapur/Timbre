@@ -26,7 +26,9 @@
 }
 
 .mark {
-  color: var(--keyColor);
+  /* White on dark, as Apple's own wordmark (rgba(255,255,255,.92)); it
+     follows the label colour so it stays visible in the light appearance. */
+  color: var(--systemPrimary);
 }
 
 .wordmark {
@@ -50,8 +52,8 @@
 .item {
   display: flex;
   align-items: center;
-  gap: 8px;
-  height: 36px;
+  gap: 6px;
+  height: 44px;
   margin-bottom: 4px;
   padding: 4px;
   border-radius: var(--radius-nav-item);
@@ -59,12 +61,44 @@
   color: var(--systemPrimary);
 }
 
+/* Measured on Apple's sidebar: 16px/22px labels from 484px up, 14px below. */
+@media (min-width: 484px) {
+  .item {
+    font: 400 16px / 22px var(--font-family);
+  }
+}
+
 .item:hover {
   background-color: var(--systemQuinary);
 }
 
 .icon {
+  /* Apple's icons: a 24px glyph drawn in a 28px box, 2px clear either side,
+     and the label pulled 4px back in (so it starts 4px past the box). */
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  margin: 0 2px;
   color: var(--systemPrimary);
+}
+
+.label {
+  min-width: 0;
+  margin-left: -4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.badge {
+  margin-left: auto;
+  padding: 2px 7px;
+  border-radius: 10px;
+  background-color: var(--keyColor);
+  color: #fff;
+  font: 600 11px / 14px var(--font-family);
 }
 
 .item[aria-current='page'] {
@@ -73,7 +107,6 @@
 
 .item[aria-current='page'] .icon {
   color: var(--keyColor);
-  stroke-width: 2.3;
 }
 
 .footer {
@@ -120,4 +153,12 @@
     z-index: calc(var(--z-web-chrome) - 1);
     background-color: var(--modalScrimColor);
   }
+}
+
+/* "Library", "Playlists" (report §1: 12px/15px 600, secondary, padding 4px 8px). */
+.sectionHeader {
+  margin-top: 16px;
+  padding: 4px 8px;
+  font: 600 12px / 15px var(--font-family);
+  color: var(--systemSecondary);
 }

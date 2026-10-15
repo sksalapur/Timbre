@@ -6,6 +6,8 @@ import type { Capability } from '@bitchord/shared/bridge';
 import { PageHeader } from '@/components/PageHeader';
 import { config } from '@/config';
 import { useExtension, type ExtensionStatus } from '@/extension/useExtension';
+import { useExtensionUpdate } from '@/extension/useExtensionUpdate';
+import { useYtAuth, type YtAuthStatus } from '@/extension/useYtAuth';
 import styles from './ExtensionPage.module.css';
 
 type Browser = 'chrome' | 'firefox';
@@ -17,6 +19,7 @@ interface Download {
   href: string;
   Icon: ComponentType<{ size?: number; className?: string }>;
   steps: string[];
+  updateSteps: string[];
 }
 
 const DOWNLOADS: Download[] = [
@@ -27,10 +30,15 @@ const DOWNLOADS: Download[] = [
     href: config.extensionChromeUrl,
     Icon: FaChrome,
     steps: [
-      'Unzip the download into a folder you’ll keep.',
+      'Extract the zip somewhere you’ll keep it. It holds one folder, bitchord-extension-chrome.',
       'Open chrome://extensions and turn on Developer mode.',
       'Choose Load unpacked and select that folder.',
       'Come back to this page: the status above turns to Installed.',
+    ],
+    updateSteps: [
+      'Extract the new zip over the old one, replacing the bitchord-extension-chrome folder.',
+      'In chrome://extensions, press the reload arrow on BitChord’s card.',
+      'Come back to this page: the version above updates on its own.',
     ],
   },
   {
@@ -40,9 +48,15 @@ const DOWNLOADS: Download[] = [
     href: config.extensionFirefoxUrl,
     Icon: FaFirefoxBrowser,
     steps: [
-      'Open about:debugging#/runtime/this-firefox.',
-      'Choose Load Temporary Add-on and select the downloaded zip.',
+      'Extract the zip. It holds one folder, bitchord-extension-firefox.',
+      'Open about:debugging#/runtime/this-firefox and choose Load Temporary Add-on.',
+      'Select manifest.json inside that folder.',
       'Firefox removes temporary add-ons when it quits; a signed version is coming.',
+    ],
+    updateSteps: [
+      'Extract the new zip over the old one, replacing the bitchord-extension-firefox folder.',
+      'In about:debugging, press Reload on BitChord’s entry.',
+      'Come back to this page: the version above updates on its own.',
     ],
   },
 ];
@@ -65,19 +79,33 @@ const INTEGRATIONS: Integration[] = [
   { name: 'Discord', Icon: SiDiscord, color: '#5865f2', capability: 'discord', ready: 'Off' },
 ];
 
+/** YouTube Music's row: who requests act as, once the extension reports it. */
+function youtubeStatus(auth: YtAuthStatus): string | null {
+  if (auth.state !== 'ready') return null;
+  const { browserSignedIn, connected, active } = auth.auth;
+  if (!browserSignedIn) return 'Playback ready · not signed in';
+  if (!connected) return 'Disconnected';
+  return active ? `Signed in as ${active.name}` : 'Signed in · no channel found';
+}
+
 /** One integration's state, honest about what this extension version can do. */
-function integrationStatus(status: ExtensionStatus, integration: Integration): string {
+function integrationStatus(status: ExtensionStatus, integration: Integration, auth: YtAuthStatus): string {
   if (status.state === 'checking') return 'Checking…';
   if (status.state === 'missing') return 'Needs the extension';
-  return status.extension.info.capabilities.includes(integration.capability)
-    ? integration.ready
-    : 'Not available in this version yet';
+  if (!status.extension.info.capabilities.includes(integration.capability)) return 'Not available in this version yet';
+  return (integration.capability === 'yt' && youtubeStatus(auth)) || integration.ready;
 }
 
 export default function ExtensionPage() {
   const status = useExtension();
+  const update = useExtensionUpdate();
+  const auth = useYtAuth();
   const [chosen, setChosen] = useState<Browser | null>(null);
+  const [updating, setUpdating] = useState(false);
   const downloads = [...DOWNLOADS].sort((a, b) => Number(b.browser === currentBrowser) - Number(a.browser === currentBrowser));
+  const installedBrowser: Browser | null =
+    status.state === 'present' ? (status.extension.info.browser === 'firefox' ? 'firefox' : 'chrome') : null;
+  const forUpdate = DOWNLOADS.find((d) => d.browser === (installedBrowser ?? currentBrowser))!;
   const steps = DOWNLOADS.find((d) => d.browser === chosen)?.steps;
 
   return (
@@ -98,6 +126,15 @@ export default function ExtensionPage() {
               )}
             </span>
           </div>
+          {update.state !== 'unknown' && (
+            <div className={styles.row}>
+              <span>Latest</span>
+              <span className={styles.value}>
+                v{update.latest.version}
+                {update.state === 'current' && ' · Up to date'}
+              </span>
+            </div>
+          )}
           {status.state === 'present' && (
             <div className={styles.row}>
               <span>Connection</span>
@@ -108,6 +145,33 @@ export default function ExtensionPage() {
             </div>
           )}
         </section>
+        {update.state === 'available' && (
+          <>
+            <a
+              className={`${styles.group} ${styles.download} ${styles.update}`}
+              href={forUpdate.href}
+              download
+              onClick={() => setUpdating(true)}
+            >
+              <span className={styles.updateDot} aria-hidden="true" />
+              <span className={styles.downloadText}>
+                <span className={styles.downloadTitle}>Update to v{update.latest.version}</span>
+                <span className={styles.downloadDetail}>
+                  You have v{update.installed}. Download the new {forUpdate.browser === 'firefox' ? 'Firefox' : 'Chrome'}{' '}
+                  build, then reload the extension.
+                </span>
+              </span>
+              <ChevronRight size={16} strokeWidth={2.4} className={styles.chevron} />
+            </a>
+            {updating && (
+              <ol className={styles.steps}>
+                {forUpdate.updateSteps.map((step) => (
+                  <li key={step}>{step}</li>
+                ))}
+              </ol>
+            )}
+          </>
+        )}
         <p className={styles.footer}>
           The extension does the networking and sign-in work a web page isn’t allowed to do. Addons and most lyric
           providers work without it.
@@ -153,7 +217,7 @@ export default function ExtensionPage() {
                 <integration.Icon size={15} />
               </span>
               <span className={styles.integrationName}>{integration.name}</span>
-              <span className={styles.value}>{integrationStatus(status, integration)}</span>
+              <span className={styles.value}>{integrationStatus(status, integration, auth)}</span>
             </div>
           ))}
         </section>

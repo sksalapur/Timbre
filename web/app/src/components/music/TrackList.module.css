@@ -237,3 +237,35 @@
     display: none;
   }
 }
+
+/* The ⋯ button (TrackMenu): takes the time's place on hover, as Apple's rows do. */
+.time {
+  position: relative;
+}
+
+.more {
+  position: absolute;
+  inset-inline-end: 10px;
+  display: none;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  color: var(--keyColor);
+}
+
+.more:hover {
+  background-color: var(--systemQuinary);
+}
+
+.row:hover .more,
+.row:focus-within .more,
+.more[data-open] {
+  display: grid;
+}
+
+.row:hover .time > span:first-child:has(+ .more),
+.row:focus-within .time > span:first-child:has(+ .more),
+.time > span:first-child:has(+ .more[data-open]) {
+  visibility: hidden;
+}

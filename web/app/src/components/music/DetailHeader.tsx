@@ -1,7 +1,8 @@
-import { Shuffle } from 'lucide-react';
+import { Check, Plus, Shuffle } from 'lucide-react';
 import { useState } from 'react';
 import { PrefetchLink } from '@/components/PrefetchLink';
 import { PlayIcon } from '@/components/icons/Transport';
+import { useSetListSaved, useSignedIn } from '@/data/music/queries';
 import type { HeaderInfo } from '@/data/music/types';
 import { Artwork } from './Artwork';
 import styles from './DetailHeader.module.css';
@@ -21,6 +22,9 @@ interface DetailHeaderProps {
  */
 export function DetailHeader({ info, onPlay, onShuffle, canPlay }: DetailHeaderProps) {
   const [expanded, setExpanded] = useState(false);
+  const signedIn = useSignedIn();
+  const setSaved = useSetListSaved();
+  const library = signedIn ? info.library : null;
   return (
     <div className={styles.header}>
       <div className={styles.artwork}>
@@ -77,6 +81,18 @@ export function DetailHeader({ info, onPlay, onShuffle, canPlay }: DetailHeaderP
           <PlayIcon size={18} />
           <span>Play</span>
         </button>
+        {library && (
+          <button
+            className={styles.circle}
+            aria-label={library.saved ? 'Remove from Library' : 'Add to Library'}
+            aria-pressed={library.saved}
+            title={library.saved ? 'In your library' : 'Add to Library'}
+            disabled={setSaved.isPending}
+            onClick={() => setSaved.mutate({ playlistId: library.playlistId, saved: !library.saved })}
+          >
+            {library.saved ? <Check size={18} strokeWidth={2.4} /> : <Plus size={18} strokeWidth={2.4} />}
+          </button>
+        )}
       </div>
     </div>
   );

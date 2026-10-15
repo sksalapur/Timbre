@@ -84,25 +84,30 @@ export async function installRules(origins: string[]): Promise<void> {
 }
 
 /**
- * Requests the extension makes itself (`yt.fetch`), dressed as YouTube's own
- * web client. Scoped to non-tab requests (tabId -1, which only session rules
- * can match), so no page or tab is affected. Needed where a page can't send
- * the request: BotGuard's GenerateIT has to come from YouTube's origin (as on
- * Android, where BotGuard runs in a youtube.com WebView, and in Kira), and a
- * request with that Origin can't pass a CORS preflight from the page.
+ * Requests the extension makes itself (`yt.fetch`, and signed-in calls),
+ * dressed as YouTube's own web clients. Scoped to non-tab requests (tabId -1,
+ * which only session rules can match), so no page or tab is affected. Needed
+ * where a page can't send the request: BotGuard's GenerateIT has to come from
+ * YouTube's origin (as on Android, where BotGuard runs in a youtube.com
+ * WebView, and in Kira), and a request with that Origin can't pass a CORS
+ * preflight from the page. Signed-in requests need it too: the SAPISIDHASH is
+ * computed over the origin, so the request has to carry that origin.
  */
 export const EXTENSION_FETCH_RULE_ID = 100;
+const EXTENSION_MUSIC_FETCH_RULE_ID = 101;
 
 export async function installExtensionFetchRule(): Promise<void> {
+  const own = (id: number, host: string, origin: string): Rule => ({
+    id,
+    priority: 1,
+    condition: { urlFilter: `||${host}/`, tabIds: [-1], resourceTypes: ['xmlhttprequest'] },
+    action: { type: 'modifyHeaders', requestHeaders: impersonate(origin).slice(0, 2) },
+  });
   await browser.declarativeNetRequest.updateSessionRules({
-    removeRuleIds: [EXTENSION_FETCH_RULE_ID],
+    removeRuleIds: [EXTENSION_FETCH_RULE_ID, EXTENSION_MUSIC_FETCH_RULE_ID],
     addRules: [
-      {
-        id: EXTENSION_FETCH_RULE_ID,
-        priority: 1,
-        condition: { urlFilter: '||www.youtube.com/', tabIds: [-1], resourceTypes: ['xmlhttprequest'] },
-        action: { type: 'modifyHeaders', requestHeaders: impersonate('https://www.youtube.com').slice(0, 2) },
-      },
+      own(EXTENSION_FETCH_RULE_ID, 'www.youtube.com', 'https://www.youtube.com'),
+      own(EXTENSION_MUSIC_FETCH_RULE_ID, 'music.youtube.com', 'https://music.youtube.com'),
     ],
   });
 }

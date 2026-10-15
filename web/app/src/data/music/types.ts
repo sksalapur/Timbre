@@ -80,6 +80,11 @@ export interface HeaderInfo {
   /** Album artist or playlist author. */
   artists: ArtistRef[];
   explicit: boolean;
+  /**
+   * The header's "Add to Library" toggle, when YouTube offers one: the list
+   * it saves and whether it already is. Only meaningful signed in.
+   */
+  library: { playlistId: string; saved: boolean } | null;
 }
 
 export interface AlbumPage extends HeaderInfo {

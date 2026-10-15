@@ -1,8 +1,11 @@
 import {
   BRIDGE_CHANNEL,
   BRIDGE_PROTOCOL,
+  EVENTS_PORT,
+  isBridgeEventMessage,
   isBridgeResponse,
   type BridgeError,
+  type BridgeEvent,
   type BridgeMethod,
   type BridgeRequest,
   type BridgeResponse,
@@ -23,6 +26,12 @@ import {
 export interface Bridge {
   readonly transport: 'external' | 'relay';
   call<M extends BridgeMethod>(method: M, params: ParamsOf<M>, options?: CallOptions): Promise<ResultOf<M>>;
+  /**
+   * The extension's pushes (auth changes now, Discord status later). Returns
+   * the unsubscribe. Delivery is best effort: an MV3 worker that sleeps drops
+   * its ports, so callers still re-read state when the tab regains focus.
+   */
+  subscribe(listener: (event: BridgeEvent) => void): () => void;
 }
 
 export interface CallOptions {
@@ -88,9 +97,60 @@ function withDeadline<T>(
 
 // ---- Chromium: externally_connectable ---------------------------------------
 
+interface ChromePortLike {
+  onMessage: { addListener(listener: (message: unknown) => void): void };
+  onDisconnect: { addListener(listener: () => void): void };
+  disconnect(): void;
+}
+
 interface ChromeRuntimeLike {
   sendMessage(extensionId: string, message: unknown, callback: (response: unknown) => void): void;
+  connect?(extensionId: string, info: { name: string }): ChromePortLike;
   readonly lastError?: { message?: string } | undefined;
+}
+
+/** How long a dropped event port waits before reconnecting, while the page is visible. */
+const RECONNECT_MS = 2000;
+
+/**
+ * Keeps one event port open while subscribed. When the worker drops it (it
+ * sleeps after ~30 s idle), it reconnects, but only while the page is
+ * visible: a background tab shouldn't keep waking the extension.
+ */
+function keepPortOpen(open: () => ChromePortLike | null, listener: (event: BridgeEvent) => void): () => void {
+  let port: ChromePortLike | null = null;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let stopped = false;
+
+  const connect = () => {
+    if (stopped || port) return;
+    if (typeof document !== 'undefined' && document.hidden) return; // resumed by visibilitychange
+    port = open();
+    if (!port) return;
+    port.onMessage.addListener((message) => {
+      const event = message as BridgeEvent | null;
+      if (event && typeof event === 'object' && typeof event.event === 'string') listener(event);
+    });
+    port.onDisconnect.addListener(() => {
+      // Reading lastError marks the drop as handled (Chrome logs it otherwise).
+      void (globalThis as { chrome?: { runtime?: { lastError?: unknown } } }).chrome?.runtime?.lastError;
+      port = null;
+      if (!stopped) timer = setTimeout(connect, RECONNECT_MS);
+    });
+  };
+  const onVisible = () => {
+    if (!document.hidden) connect();
+  };
+
+  connect();
+  if (typeof document !== 'undefined') document.addEventListener('visibilitychange', onVisible);
+  return () => {
+    stopped = true;
+    clearTimeout(timer);
+    if (typeof document !== 'undefined') document.removeEventListener('visibilitychange', onVisible);
+    port?.disconnect();
+    port = null;
+  };
 }
 
 function chromeRuntime(): ChromeRuntimeLike | null {
@@ -122,6 +182,15 @@ export function externalBridge(extensionId: string): Bridge | null {
         return () => {};
       });
     },
+    subscribe(listener) {
+      return keepPortOpen(() => {
+        try {
+          return runtime.connect?.(extensionId, { name: EVENTS_PORT }) ?? null;
+        } catch {
+          return null;
+        }
+      }, listener);
+    },
   };
 }
 
@@ -147,6 +216,15 @@ export function relayBridge(target: Window = window): Bridge {
         target.postMessage(request, target.location.origin);
         return () => target.removeEventListener('message', onMessage);
       });
+    },
+    subscribe(listener) {
+      // The relay content script holds the port and forwards each push.
+      const onMessage = (event: MessageEvent) => {
+        if (event.source !== target || event.origin !== target.location.origin) return;
+        if (isBridgeEventMessage(event.data)) listener(event.data.payload);
+      };
+      target.addEventListener('message', onMessage);
+      return () => target.removeEventListener('message', onMessage);
     },
   };
 }

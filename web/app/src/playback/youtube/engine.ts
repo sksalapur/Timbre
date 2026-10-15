@@ -4,7 +4,8 @@ import shaka from 'shaka-player/dist/shaka-player.compiled';
 import { Constants, Utils, YT, type Innertube } from 'youtubei.js/web';
 import { timed, trackLog } from '../trackLog';
 import { botguard } from './botguard';
-import { getInnertube } from './innertube';
+import { ytAuthSnapshot } from '@/extension/useYtAuth';
+import { getInnertube, getSignedInnertube } from './innertube';
 import {
   CLIENT_ATTEMPTS,
   usesWebPo,
@@ -58,7 +59,7 @@ export class YouTubeEngine {
   private yt: Innertube | null = null;
   private generation = 0;
   private loading = false;
-  private current: { videoId: string; client: PlayerClientName } | null = null;
+  private current: { videoId: string; client: PlayerClientName; signed: boolean } | null = null;
   private preferredCodecs: string[];
 
   /** Raised when a track can't be played at all, after every fallback. */
@@ -135,8 +136,23 @@ export class YouTubeEngine {
 
       const skip = new Set<PlayerClientName>();
       let lastError: unknown = null;
+      let yt = this.yt;
+      let signed = false;
       for (let attempt = 0; attempt < CLIENT_ATTEMPTS; attempt++) {
-        const resolved = await timed('player request', videoId, () => resolvePlayer(this.yt!, videoId, skip));
+        let resolved: ResolvedPlayer;
+        try {
+          resolved = await timed('player request', videoId, () => resolvePlayer(yt, videoId, skip, signed));
+        } catch (error) {
+          // An age gate is a verdict on the visitor, not the track: ask again
+          // as the signed-in user, through the extension (prompt §5.3).
+          if (!(error instanceof UnplayableError && error.ageGated) || signed || !ytAuthSnapshot().signedIn) throw error;
+          trackLog.i('age-restricted; asking again signed in', videoId);
+          yt = await timed('signed-in InnerTube session', videoId, getSignedInnertube);
+          signed = true;
+          skip.clear();
+          attempt = -1;
+          continue;
+        }
         this.checkCurrent(generation);
         try {
           const track = await this.startStream(player, resolved, startSec, autoplay, generation);
@@ -149,7 +165,7 @@ export class YouTubeEngine {
           if (error instanceof SupersededError) throw error;
           lastError = error;
           skip.add(resolved.client);
-          excludeClient(videoId, resolved.client, `streaming failed: ${describe(error)}`);
+          excludeClient(videoId, resolved.client, `streaming failed: ${describe(error)}`, resolved.signed);
         }
       }
       throw lastError instanceof Error ? lastError : new Error('No YouTube client could stream this track');
@@ -174,11 +190,11 @@ export class YouTubeEngine {
     autoplay: boolean,
     generation: number,
   ): Promise<LoadedTrack> {
-    const { videoId, client, info } = resolved;
+    const { videoId, client, info, signed } = resolved;
     await player.unload();
     this.adapter?.dispose();
     this.adapter = null;
-    this.current = { videoId, client };
+    this.current = { videoId, client, signed };
 
     const direct = hasDirectAudio(info);
     const manifest = direct ? await this.directManifest(resolved) : await this.sabrManifest(player, resolved);
@@ -248,8 +264,7 @@ export class YouTubeEngine {
   }
 
   /** The SABR session: googlevideo's adapter in front of Shaka (Kira, googlevideo's example). */
-  private async sabrManifest(player: shaka.Player, { videoId, client, info }: ResolvedPlayer): Promise<string> {
-    const yt = this.yt!;
+  private async sabrManifest(player: shaka.Player, { videoId, client, info, yt }: ResolvedPlayer): Promise<string> {
     const streaming = info.streaming_data!;
     const sessionClient = yt.session.context.client;
     // Kira and googlevideo's example describe the session's own client here.
@@ -356,7 +371,7 @@ export class YouTubeEngine {
     if (this.loading || !current || error.severity !== shaka.util.Error.Severity.CRITICAL) return;
     // Recover once per track and client; later errors from the same stream are echoes.
     this.current = null;
-    excludeClient(current.videoId, current.client, `stream error ${error.code}`);
+    excludeClient(current.videoId, current.client, `stream error ${error.code}`, current.signed);
     const resumeAt = this.audio.currentTime;
     const wasPlaying = !this.audio.paused;
     this.load(current.videoId, { startSec: resumeAt, autoplay: wasPlaying })

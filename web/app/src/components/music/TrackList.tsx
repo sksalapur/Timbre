@@ -8,6 +8,7 @@ import { Artwork } from './Artwork';
 import { ExplicitBadge } from './ExplicitBadge';
 import { albumHref, artistHref, formatDuration } from './links';
 import { playTrack } from './play';
+import { TrackMenu } from './TrackMenu';
 import styles from './TrackList.module.css';
 
 type Variant = 'album' | 'playlist';
@@ -112,7 +113,10 @@ function Row({ track, variant, position, fallbackArtwork, fallbackArtists }: Row
           </div>
         </>
       )}
-      <div className={`${styles.cell} ${styles.time}`}>{formatDuration(track.durationSec)}</div>
+      <div className={`${styles.cell} ${styles.time}`}>
+        <span>{formatDuration(track.durationSec)}</span>
+        <TrackMenu track={track} className={styles.more} />
+      </div>
     </div>
   );
 }

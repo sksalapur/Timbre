@@ -19,7 +19,7 @@
 .pill {
   position: relative;
   display: grid;
-  grid-template-columns: 152px minmax(180px, 427px) 57px;
+  grid-template-columns: 152px minmax(180px, 427px) minmax(57px, auto);
   align-items: center;
   width: min(668px, 100%);
   height: var(--player-pill-height);

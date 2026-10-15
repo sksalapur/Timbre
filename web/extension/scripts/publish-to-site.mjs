@@ -1,24 +1,56 @@
-// Copies the zipped builds into the web app's public folder under stable
-// names, for the Extension page's download buttons:
+// Zips the built extension for the site's Extension page and writes the
+// manifest the page checks for updates:
+//
 //   web/app/public/downloads/bitchord-extension-chrome.zip
 //   web/app/public/downloads/bitchord-extension-firefox.zip
+//   web/app/public/downloads/extension.json    { version, builtAt, files }
 //
-//   corepack pnpm --dir web/extension package   (zips, then runs this)
+// Each zip holds a single folder (bitchord-extension-<browser>/) rather than
+// loose files, so "Extract here" leaves one tidy folder to load unpacked.
+//
+//   corepack pnpm --dir web/extension package   (builds both, then runs this)
 
-import { copyFileSync, mkdirSync, readdirSync, statSync } from 'node:fs';
-import { join } from 'node:path';
+import { mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { join, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { zipSync } from 'fflate';
 
 const output = fileURLToPath(new URL('../.output/', import.meta.url));
 const target = fileURLToPath(new URL('../../app/public/downloads/', import.meta.url));
 mkdirSync(target, { recursive: true });
 
-for (const browser of ['chrome', 'firefox']) {
-  const newest = readdirSync(output)
-    .filter((name) => name.endsWith(`-${browser}.zip`))
-    .map((name) => ({ name, time: statSync(join(output, name)).mtimeMs }))
-    .sort((a, b) => b.time - a.time)[0];
-  if (!newest) throw new Error(`No ${browser} zip in ${output}; run wxt zip first`);
-  copyFileSync(join(output, newest.name), join(target, `bitchord-extension-${browser}.zip`));
-  console.log(`${newest.name} -> app/public/downloads/bitchord-extension-${browser}.zip`);
+function filesUnder(dir) {
+  return readdirSync(dir).flatMap((name) => {
+    const path = join(dir, name);
+    return statSync(path).isDirectory() ? filesUnder(path) : [path];
+  });
 }
+
+const builds = { chrome: 'chrome-mv3', firefox: 'firefox-mv3' };
+const files = {};
+let version;
+
+for (const [browser, folder] of Object.entries(builds)) {
+  const root = join(output, folder);
+  const manifest = JSON.parse(readFileSync(join(root, 'manifest.json'), 'utf8'));
+  if (version && manifest.version !== version) {
+    throw new Error(`Chrome and Firefox builds disagree on the version (${version} vs ${manifest.version}); rebuild both`);
+  }
+  version = manifest.version;
+
+  const parent = `bitchord-extension-${browser}`;
+  const entries = {};
+  for (const file of filesUnder(root)) {
+    entries[`${parent}/${relative(root, file).split(sep).join('/')}`] = readFileSync(file);
+  }
+  const name = `bitchord-extension-${browser}.zip`;
+  writeFileSync(join(target, name), zipSync(entries, { level: 9 }));
+  files[browser] = name;
+  console.log(`${folder} -> app/public/downloads/${name} (${parent}/, v${version})`);
+}
+
+writeFileSync(
+  join(target, 'extension.json'),
+  `${JSON.stringify({ version, builtAt: new Date().toISOString(), files }, null, 2)}\n`,
+);
+console.log(`app/public/downloads/extension.json (v${version})`);

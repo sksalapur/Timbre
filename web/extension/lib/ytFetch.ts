@@ -1,8 +1,13 @@
-import type { HttpRequest, HttpResponse } from '@bitchord/shared/bridge';
+import type { HttpResponse, YtFetchParams } from '@bitchord/shared/bridge';
 import { installExtensionFetchRule } from './rules';
+import { activeIdentity, signedFetch, SignedOutError } from './ytAuth';
 
-/** Where `yt.fetch` may go. Phase 5 widens this for signed-in InnerTube calls. */
+/** Where an anonymous `yt.fetch` may go: BotGuard, which a page can't call with YouTube's Origin. */
 const ALLOWED = [/^https:\/\/www\.youtube\.com\/api\/jnn\//];
+/** Where a signed one may go: InnerTube only, never an account or settings page. */
+const ALLOWED_SIGNED = [/^https:\/\/(music|www)\.youtube\.com\/youtubei\/v1\//];
+/** Identity is the extension's to set; the page's copies of these are dropped. */
+const IDENTITY_HEADERS = ['authorization', 'cookie', 'x-goog-authuser', 'x-goog-pageid', 'x-origin', 'origin', 'referer'];
 
 let ruleReady: Promise<void> | null = null;
 
@@ -16,17 +21,23 @@ function toBase64(bytes: Uint8Array): string {
   return btoa(binary);
 }
 
+function forbidden(url: string): Error {
+  const { origin, pathname } = new URL(url);
+  return Object.assign(new Error(`yt.fetch doesn't serve ${origin}${pathname}`), { code: 'forbidden' });
+}
+
 /**
- * An anonymous request to YouTube from the extension, with YouTube's Origin
- * and Referer (rules.ts, EXTENSION_FETCH_RULE_ID). No cookies: the page never
- * gets anything credentialed through this.
+ * A request to YouTube from the extension, with YouTube's Origin and Referer
+ * (rules.ts, installExtensionFetchRule).
+ *
+ * - Anonymous by default: no cookies.
+ * - With `auth`, made as the chosen channel (ytAuth.ts). The page gets the
+ *   response, as it would from YouTube's own site, but never the cookies or
+ *   the signature that produced it.
  */
-export async function ytFetch(request: HttpRequest): Promise<HttpResponse> {
-  if (!ALLOWED.some((pattern) => pattern.test(request.url))) {
-    throw Object.assign(new Error(`yt.fetch doesn't serve ${new URL(request.url).origin}${new URL(request.url).pathname}`), {
-      code: 'forbidden',
-    });
-  }
+export async function ytFetch(request: YtFetchParams): Promise<HttpResponse> {
+  if (request.auth) return signedYtFetch(request);
+  if (!ALLOWED.some((pattern) => pattern.test(request.url))) throw forbidden(request.url);
   ruleReady ??= installExtensionFetchRule().catch((error: unknown) => {
     ruleReady = null;
     throw error;
@@ -41,6 +52,28 @@ export async function ytFetch(request: HttpRequest): Promise<HttpResponse> {
     body: body as BodyInit | undefined,
     credentials: 'omit',
   });
+  return serialise(response);
+}
+
+async function signedYtFetch(request: YtFetchParams): Promise<HttpResponse> {
+  if (!ALLOWED_SIGNED.some((pattern) => pattern.test(request.url))) throw forbidden(request.url);
+  const identity = await activeIdentity();
+  if (!identity) throw new SignedOutError('Not signed in to YouTube Music.');
+  const headers: Record<string, string> = {};
+  for (const [key, value] of Object.entries(request.headers ?? {})) {
+    if (!IDENTITY_HEADERS.includes(key.toLowerCase())) headers[key] = value;
+  }
+  const body =
+    request.body === undefined ? undefined : request.bodyEncoding === 'base64' ? toBytes(request.body) : request.body;
+  const response = await signedFetch(
+    request.url,
+    { method: request.method ?? 'GET', headers, body: body as BodyInit | undefined },
+    identity,
+  );
+  return serialise(response);
+}
+
+async function serialise(response: Response): Promise<HttpResponse> {
   const headers: Record<string, string> = {};
   response.headers.forEach((value, key) => (headers[key] = value));
   const type = response.headers.get('content-type') ?? '';

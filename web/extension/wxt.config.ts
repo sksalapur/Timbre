@@ -19,14 +19,17 @@ export default defineConfig({
     name: 'BitChord',
     description: 'Connects the BitChord web player to YouTube Music, Spotify and Discord.',
     homepage_url: SITE_ORIGINS[0],
-    permissions: ['storage', 'declarativeNetRequest'],
-    // YouTube now (phase 3); Spotify and Discord arrive with the phases that
-    // use them, so the install prompt only asks for what the build does. The
-    // site's own origins are listed because header rules need host access to
-    // the initiator as well as the target.
+    // `cookies` reads the YouTube session for signed-in requests (phase 5);
+    // the cookies themselves never leave the extension (lib/ytAuth.ts).
+    permissions: ['storage', 'declarativeNetRequest', 'cookies'],
+    // YouTube now (phases 3 and 5); Spotify and Discord arrive with the
+    // phases that use them, so the install prompt only asks for what the
+    // build does. The site's own origins are listed because header rules need
+    // host access to the initiator as well as the target.
     host_permissions: [
       'https://music.youtube.com/*',
       'https://www.youtube.com/*',
+      'https://*.youtube.com/*',
       'https://*.googlevideo.com/*',
       ...matchPatternsFor(SITE_ORIGINS),
     ],
