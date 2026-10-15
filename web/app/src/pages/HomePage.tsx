@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { PageHeader } from '@/components/PageHeader';
 import { Shelves } from '@/components/music/ShelfView';
-import { LoadError, NeedsExtension } from '@/components/music/States';
+import { LoadError, LoadMoreError, NeedsExtension } from '@/components/music/States';
 import { useHome, useYouTubeReady } from '@/data/music/queries';
 import { HomeSkeleton } from '@/skeletons/PageSkeletons';
 import { ShelfSkeleton } from '@/skeletons/ShelfSkeleton';
@@ -12,10 +12,11 @@ export default function HomePage() {
   const home = useHome();
   const sentinel = useRef<HTMLDivElement>(null);
 
-  // Loads the next shelves before the bottom comes into view.
+  // Loads the next shelves before the bottom comes into view; after a failed
+  // page it waits for Try Again rather than retrying on every scroll.
   useEffect(() => {
     const el = sentinel.current;
-    if (!el || !home.hasNextPage) return;
+    if (!el || !home.hasNextPage || home.isFetchNextPageError) return;
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (entry?.isIntersecting && !home.isFetchingNextPage) void home.fetchNextPage();
@@ -24,7 +25,7 @@ export default function HomePage() {
     );
     observer.observe(el);
     return () => observer.disconnect();
-  }, [home.hasNextPage, home.isFetchingNextPage, home.fetchNextPage]);
+  }, [home.hasNextPage, home.isFetchingNextPage, home.isFetchNextPageError, home.fetchNextPage]);
 
   if (missing) {
     return (
@@ -34,7 +35,8 @@ export default function HomePage() {
       </>
     );
   }
-  if (home.isError) {
+  // Only a failed first page replaces the feed; a later one is shown under it.
+  if (home.isError && !home.data) {
     return (
       <>
         <PageHeader title="Home" />
@@ -51,6 +53,7 @@ export default function HomePage() {
       <Shelves shelves={shelves} />
       <div ref={sentinel} />
       {home.isFetchingNextPage && <ShelfSkeleton kind="square" />}
+      {home.isFetchNextPageError && <LoadMoreError onRetry={() => void home.fetchNextPage()} />}
     </>
   );
 }

@@ -2,7 +2,7 @@ import { useCallback } from 'react';
 import { useParams } from 'react-router';
 import { DetailHeader } from '@/components/music/DetailHeader';
 import { playList, shuffleList } from '@/components/music/play';
-import { LoadError, NeedsExtension } from '@/components/music/States';
+import { LoadError, LoadMoreError, NeedsExtension } from '@/components/music/States';
 import { TrackList } from '@/components/music/TrackList';
 import { usePlaylist, useYouTubeReady } from '@/data/music/queries';
 import { useArtworkColor } from '@/lib/artworkColor';
@@ -18,13 +18,13 @@ export default function PlaylistPage() {
   const header = playlist.data?.pages[0]?.header ?? null;
   usePageTint(useArtworkColor(header?.thumbnail));
 
-  const { hasNextPage, isFetchingNextPage, fetchNextPage } = playlist;
+  const { hasNextPage, isFetchingNextPage, isFetchNextPageError, fetchNextPage } = playlist;
   const onNearEnd = useCallback(() => {
-    if (hasNextPage && !isFetchingNextPage) void fetchNextPage();
-  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
+    if (hasNextPage && !isFetchingNextPage && !isFetchNextPageError) void fetchNextPage();
+  }, [hasNextPage, isFetchingNextPage, isFetchNextPageError, fetchNextPage]);
 
   if (missing) return <NeedsExtension />;
-  if (playlist.isError) return <LoadError error={playlist.error} onRetry={() => void playlist.refetch()} />;
+  if (playlist.isError && !playlist.data) return <LoadError error={playlist.error} onRetry={() => void playlist.refetch()} />;
   if (!playlist.data || !header) return <PlaylistSkeleton />;
 
   const tracks = playlist.data.pages.flatMap((page) => page.tracks);
@@ -39,6 +39,7 @@ export default function PlaylistPage() {
       />
       <TrackList tracks={tracks} variant="playlist" onNearEnd={onNearEnd} source={context.source} />
       {isFetchingNextPage && <div className={styles.loadingMore}>Loading more songs…</div>}
+      {playlist.isFetchNextPageError && <LoadMoreError onRetry={() => void fetchNextPage()} />}
       <footer className={styles.footer}>
         <p>{header.meta}</p>
       </footer>

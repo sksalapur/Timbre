@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import { Navigate, useParams } from 'react-router';
 import { PageHeader } from '@/components/PageHeader';
 import { CircleLockup, SquareLockup, VideoLockup } from '@/components/music/Lockups';
-import { EmptyState, LoadError, NeedsExtension } from '@/components/music/States';
+import { EmptyState, LoadError, LoadMoreError, NeedsExtension } from '@/components/music/States';
 import { TrackList } from '@/components/music/TrackList';
 import { isLibrarySection, LIBRARY_SECTIONS } from '@/data/music/library';
 import { useLibrary, useSignedIn, useYouTubeReady } from '@/data/music/queries';
@@ -33,7 +33,9 @@ export default function LibraryPage() {
   const signedIn = useSignedIn();
   const library = useLibrary(isLibrarySection(section) ? section : 'playlists');
   const loadMore = useLoadMore(
-    library.hasNextPage && !library.isFetchingNextPage ? () => void library.fetchNextPage() : null,
+    library.hasNextPage && !library.isFetchingNextPage && !library.isFetchNextPageError
+      ? () => void library.fetchNextPage()
+      : null,
   );
 
   if (!isLibrarySection(section)) return <Navigate to="/home" replace />;
@@ -50,7 +52,7 @@ export default function LibraryPage() {
       </>
     );
   }
-  if (library.isError) return <LoadError error={library.error} onRetry={() => void library.refetch()} />;
+  if (library.isError && !library.data) return <LoadError error={library.error} onRetry={() => void library.refetch()} />;
   if (!library.data) return <PlainSkeleton />;
 
   const grid = library.data.pages.flatMap((page) => page.data.grid);
@@ -80,11 +82,16 @@ export default function LibraryPage() {
             tracks={tracks}
             variant="playlist"
             source={{ title, type: 'library', id: section }}
-            onNearEnd={library.hasNextPage && !library.isFetchingNextPage ? () => void library.fetchNextPage() : undefined}
+            onNearEnd={
+              library.hasNextPage && !library.isFetchingNextPage && !library.isFetchNextPageError
+                ? () => void library.fetchNextPage()
+                : undefined
+            }
           />
         </div>
       )}
       {grid.length > 0 && <div ref={loadMore} aria-hidden="true" />}
+      {library.isFetchNextPageError && <LoadMoreError onRetry={() => void library.fetchNextPage()} />}
     </>
   );
 }

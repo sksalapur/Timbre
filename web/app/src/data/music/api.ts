@@ -38,10 +38,24 @@ export interface Paged<T> {
   next: (() => Promise<Paged<T>>) | null;
 }
 
+/**
+ * YouTube often offers one more page than it has: the continuation comes back
+ * empty and YouTube.js throws ("Continuation did not have any content"). That
+ * is the end of the list, not a failure; anything else still is one.
+ */
+async function orEnd<T>(nextPage: () => Promise<Paged<T>>, empty: T): Promise<Paged<T>> {
+  try {
+    return await nextPage();
+  } catch (error) {
+    if (/did not have any content|no continuation/i.test(String(error))) return { data: empty, next: null };
+    throw error;
+  }
+}
+
 function homePage(feed: YTMusic.HomeFeed): Paged<Shelf[]> {
   return {
     data: mapHome(feed),
-    next: feed.has_continuation ? async () => homePage(await feed.getContinuation()) : null,
+    next: feed.has_continuation ? () => orEnd(async () => homePage(await feed.getContinuation()), []) : null,
   };
 }
 
@@ -86,7 +100,7 @@ export async function fetchArtist(id: string): Promise<ArtistPage> {
 function playlistTracks(page: YTMusic.Playlist): Paged<Track[]> {
   return {
     data: mapPlaylistTracks(page.items),
-    next: page.has_continuation ? async () => playlistTracks(await page.getContinuation()) : null,
+    next: page.has_continuation ? () => orEnd(async () => playlistTracks(await page.getContinuation()), []) : null,
   };
 }
 
@@ -152,8 +166,10 @@ export async function fetchLibrary(section: LibrarySection): Promise<Paged<Brows
   const page = mapBrowse({ sections: [...grids, ...lists, ...carousels] }, title);
   // History is several lists ("Today", "Yesterday"); the rest is one grid or one list.
   const token = (grids[0]?.continuation ?? (lists.length === 1 ? lists[0]?.continuation : null)) || null;
-  return { data: { ...page, title }, next: token ? () => libraryContinuation(token, title) : null };
+  return { data: { ...page, title }, next: token ? () => orEnd(() => libraryContinuation(token, title), emptyPage(title)) : null };
 }
+
+const emptyPage = (title: string): BrowsePage => ({ title, shelves: [], grid: [], tracks: [] });
 
 async function libraryContinuation(token: string, title: string): Promise<Paged<BrowsePage>> {
   const yt = await getSignedInnertube();
@@ -166,7 +182,10 @@ async function libraryContinuation(token: string, title: string): Promise<Paged<
       ? { type: 'Grid', items: contents.items ?? [] }
       : { type: 'MusicShelf', contents: contents?.contents ?? [] };
   const next = contents?.continuation || null;
-  return { data: mapBrowse({ sections: [section] }, title), next: next ? () => libraryContinuation(next, title) : null };
+  return {
+    data: mapBrowse({ sections: [section] }, title),
+    next: next ? () => orEnd(() => libraryContinuation(next, title), emptyPage(title)) : null,
+  };
 }
 
 /** The user's playlists for the sidebar, in YouTube's order (most recent activity first). */

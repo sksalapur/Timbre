@@ -1,6 +1,6 @@
 import type { Innertube, Types } from 'youtubei.js/web';
 import { getBridge } from '@/extension/bridge';
-import { ensureYtAuth } from '@/extension/useYtAuth';
+import { ensureYtAuth, identityOf, noteMusicIdentity } from '@/extension/useYtAuth';
 import { trackLog } from '../trackLog';
 
 /**
@@ -47,6 +47,9 @@ export function getSignedInnertube(): Promise<Innertube> {
 /** The instance browse requests should use: signed in when the user is, anonymous otherwise. */
 export async function getMusicClient(): Promise<Innertube> {
   const auth = await ensureYtAuth().catch(() => null);
+  // A failed auth read browses anonymously, and says so, so the answer that
+  // does come later reloads what was read meanwhile (useYtAuth.adopt).
+  noteMusicIdentity(auth ? identityOf(auth) : 'anonymous');
   return auth?.signedIn ? getSignedInnertube() : getInnertube();
 }
 

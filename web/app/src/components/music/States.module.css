@@ -29,3 +29,18 @@
   color: #fff;
   font: var(--body-emphasized);
 }
+
+.more {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+  padding: 24px var(--body-gutter) 40px;
+  font: var(--callout);
+  color: var(--systemSecondary);
+}
+
+.moreButton {
+  font: var(--callout-emphasized);
+  color: var(--keyColor);
+}

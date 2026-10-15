@@ -35,6 +35,24 @@ export function identityOf(state: YtAuthState): string {
 }
 
 let lastIdentity: string | null = null;
+/**
+ * Who the cached ['music', …] queries were fetched as (getMusicClient notes
+ * it). Not the same as the last state adopted: a browse request that ran
+ * before the auth read came back (or after it failed) went out anonymous, and
+ * that has to be noticed when the real identity arrives.
+ */
+let musicIdentity: string | null = null;
+
+export function noteMusicIdentity(identity: string): void {
+  musicIdentity ??= identity;
+  if (musicIdentity !== identity) resetMusic();
+  musicIdentity = identity;
+}
+
+function resetMusic(): void {
+  musicIdentity = null;
+  void queryClient.cancelQueries({ queryKey: ['music'] }).then(() => queryClient.resetQueries({ queryKey: ['music'] }));
+}
 
 /**
  * Takes in a new state. When the identity changes (sign-in, sign-out, a
@@ -47,8 +65,8 @@ function adopt(state: YtAuthState): void {
   if (lastIdentity !== null && identity !== lastIdentity) {
     // Loaded on demand: the resolver pulls in BotGuard, which the shell shouldn't.
     void import('@/playback/youtube/resolver').then((m) => m.onSessionChanged());
-    void queryClient.cancelQueries({ queryKey: ['music'] }).then(() => queryClient.resetQueries({ queryKey: ['music'] }));
   }
+  if (musicIdentity !== null && identity !== musicIdentity) resetMusic();
   lastIdentity = identity;
 }
 

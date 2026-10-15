@@ -36,3 +36,15 @@ export function EmptyState({ title, detail }: { title: string; detail?: string }
     </div>
   );
 }
+
+/** A later page of a long list failed: what's loaded stays, with a way to try again. */
+export function LoadMoreError({ onRetry }: { onRetry: () => void }) {
+  return (
+    <div className={styles.more}>
+      <span>Couldn’t load more.</span>
+      <button className={styles.moreButton} onClick={onRetry}>
+        Try Again
+      </button>
+    </div>
+  );
+}
