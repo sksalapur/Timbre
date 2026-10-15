@@ -107,15 +107,17 @@ import coil3.compose.AsyncImage
 import coil3.compose.LocalPlatformContext
 import coil3.compose.AsyncImagePainter
 import coil3.request.ImageRequest
+import coil3.request.transformations
 import androidx.compose.runtime.mutableIntStateOf
 import kotlinx.coroutines.delay
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.unit.Constraints
 import com.music.bitchord.data.canvas.AppleArtistArt
-import com.music.bitchord.data.DebugLog as ArtistHeaderLog
+import com.music.bitchord.data.DebugLog as Log
 import com.music.bitchord.data.canvas.AppleArtistArtRepository
 import com.music.bitchord.data.canvas.ArtistSignature
 import com.music.bitchord.data.canvas.ArtistSignatureRepository
+import com.music.bitchord.data.canvas.SignatureInkTransformation
 import com.music.bitchord.data.canvas.keyColors
 import dev.chrisbanes.haze.materials.ExperimentalHazeMaterialsApi
 import dev.chrisbanes.haze.materials.HazeMaterials
@@ -221,6 +223,9 @@ private const val ARTIST_LOGO_MAX_HEIGHT = 0.30f
 
 private const val LOGO_RETRIES = 2
 private const val LOGO_RETRY_DELAY_MS = 800L
+
+/** Vector signatures decode at this width so small files stay crisp laid out large. */
+private const val SVG_DECODE_WIDTH = 1600
 
 private val CREDIT_SEPARATOR = Regex(""",\s|\s&\s|\s(?:x|and|feat\.?|ft\.?|with)\s""", RegexOption.IGNORE_CASE)
 
@@ -1092,11 +1097,28 @@ private fun ArtistHeader(
             val context = LocalPlatformContext.current
             var attempt by remember(imageUrl) { mutableIntStateOf(0) }
             var failed by remember(imageUrl) { mutableStateOf(false) }
+            val isSignatureSvg = logoUrl == null && signature?.format == "svg"
+            // Scanned paper (jpeg/png) goes through the ink transformation
+            // (white paper to transparency, strokes to white); vectors are
+            // tinted at draw time instead.
+            val isSignatureScan = logoUrl == null && signature != null && !isSignatureSvg
+            val aspect = (if (logoUrl != null) appleArt?.logoAspect else signature?.aspect)
+                ?.coerceIn(0.4f, 6f) ?: 1f
             // Remembered, and at the size the URL already names: nothing about the
             // load waits on layout to decide how big to decode, and a recomposition
             // can't hand Coil a new request that cancels the one in flight.
+            // Vectors decode small (Charlie Puth's is 213px) and would upscale
+            // ~3x into a blur, so SVGs render large; rasters keep ORIGINAL
+            // since decoding past their pixels only spends memory.
             val request = remember(imageUrl, attempt) {
-                ImageRequest.Builder(context).data(imageUrl).size(coil3.size.Size.ORIGINAL).build()
+                ImageRequest.Builder(context).data(imageUrl).apply {
+                    if (isSignatureSvg) {
+                        size(SVG_DECODE_WIDTH, (SVG_DECODE_WIDTH / aspect).roundToInt())
+                    } else {
+                        size(coil3.size.Size.ORIGINAL)
+                    }
+                    if (isSignatureScan) transformations(SignatureInkTransformation)
+                }.build()
             }
             // A dropped fetch gets two more tries before the name is left in place.
             LaunchedEffect(failed) {
@@ -1111,8 +1133,6 @@ private fun ArtistHeader(
             // lines is nearly square, and by width alone it would swallow the
             // photograph it is meant to sit on. A signature is a panoramic ink
             // strip and reads best smaller than a title logo.
-            val aspect = (if (logoUrl != null) appleArt?.logoAspect else signature?.aspect)
-                ?.coerceIn(0.4f, 6f) ?: 1f
             val maxLogoHeight = artHeight * ARTIST_LOGO_MAX_HEIGHT
             AsyncImage(
                 model = request,
@@ -1125,7 +1145,7 @@ private fun ArtistHeader(
                         is AsyncImagePainter.State.Error -> {
                             val cause = (state as? AsyncImagePainter.State.Error)
                                 ?.result?.throwable?.let { "${it.javaClass.simpleName}: ${it.message}" }
-                            ArtistHeaderLog.d("ArtistHeader", "image load failed: $imageUrl attempt $attempt cause=$cause")
+                            Log.d("ArtistHeader", "image load failed: $imageUrl attempt $attempt cause=$cause")
                             failed = true
                         }
                         else -> Unit
