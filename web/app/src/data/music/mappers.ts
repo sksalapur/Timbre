@@ -97,7 +97,10 @@ function subtitleFor(kind: ItemKind, artists: ArtistRef[], album: AlbumRef | nul
 }
 
 export function mapResponsiveItem(node: YTNodes.MusicResponsiveListItem): MusicItem | null {
-  const id = node.id;
+  // Library artist rows have no id of their own in YouTube.js, only a link to
+  // MPLAUC…, the library's view of the UC… channel; they open as the artist.
+  const linked = linkOf(node.endpoint)?.browseId;
+  const id = node.id ?? (linked?.startsWith('MPLAUC') ? linked.slice(4) : linked);
   if (!id) return null;
   const kind = kindOf(node.item_type, id);
   const artists = artistsOf(node.artists ?? node.authors ?? (node.author ? [node.author] : undefined));

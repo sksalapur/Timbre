@@ -1,6 +1,6 @@
 import type { YTMusic } from 'youtubei.js/web';
 import { getInnertube, getMusicClient, getSignedInnertube } from '@/playback/youtube/innertube';
-import { LIBRARY_SECTIONS, type LibrarySection } from './library';
+import { LIBRARY_SECTIONS, LIKED_MUSIC_PLAYLIST, type LibrarySection } from './library';
 import {
   mapAlbum,
   mapArtist,
@@ -200,11 +200,14 @@ export async function setListSaved(playlistId: string, saved: boolean): Promise<
 export interface PlaylistOption {
   playlistId: string;
   title: string;
-  /** The track is in it already. */
-  contains: boolean;
 }
 
-/** The playlists a track can be added to, as YouTube Music's "Save to playlist" lists them. */
+/**
+ * The playlists a track can be added to, as YouTube Music's "Save to
+ * playlist" lists them. YouTube doesn't say which already hold the track
+ * (adding is deduplicated instead), and its "Liked Music" entry is really a
+ * like, which Favorite already does, so it's left out.
+ */
 export async function fetchPlaylistOptions(videoId: string): Promise<PlaylistOption[]> {
   const yt = await getSignedInnertube();
   const response = await yt.actions.execute('/playlist/get_add_to_playlist', { videoIds: [videoId], client: 'YTMUSIC' });
@@ -212,9 +215,8 @@ export async function fetchPlaylistOptions(videoId: string): Promise<PlaylistOpt
     .map((option) => ({
       playlistId: typeof option.playlistId === 'string' ? option.playlistId : '',
       title: runsText(option.title),
-      contains: option.containsSelectedVideos === 'ALL',
     }))
-    .filter((option) => option.playlistId && option.title);
+    .filter((option) => option.playlistId && option.playlistId !== LIKED_MUSIC_PLAYLIST && option.title);
 }
 
 export async function addToPlaylist(playlistId: string, videoId: string): Promise<void> {

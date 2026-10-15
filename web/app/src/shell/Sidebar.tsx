@@ -57,7 +57,7 @@ function NavList({ items, onNavigate }: { items: NavItem[]; onNavigate: () => vo
       {items.map(({ to, label, Icon }) => (
         <li key={to}>
           <PrefetchNavLink to={to} className={styles.item} onClick={onNavigate}>
-            <Icon className={styles.icon} />
+            <Icon size={24} className={styles.icon} />
             <span className={styles.label}>{label}</span>
           </PrefetchNavLink>
         </li>
@@ -77,7 +77,7 @@ function LibraryNav({ onNavigate }: { onNavigate: () => void }) {
       <ul className={styles.list}>
         <li>
           <PrefetchNavLink to="/library/playlists" className={styles.item} onClick={onNavigate}>
-            <AllPlaylistsIcon className={styles.icon} />
+            <AllPlaylistsIcon size={24} className={styles.icon} />
             <span className={styles.label}>{LIBRARY_SECTIONS.playlists.title}</span>
           </PrefetchNavLink>
         </li>
@@ -85,7 +85,7 @@ function LibraryNav({ onNavigate }: { onNavigate: () => void }) {
           <li key={playlist.id}>
             <PrefetchNavLink to={hrefFor(playlist) ?? '/library/playlists'} className={styles.item} onClick={onNavigate}>
               <span className={styles.icon}>
-                <ListMusic size={20} strokeWidth={1.7} />
+                <ListMusic size={17} strokeWidth={1.8} />
               </span>
               <span className={styles.label}>{playlist.title}</span>
             </PrefetchNavLink>
@@ -121,7 +121,7 @@ export function Sidebar() {
           <PrefetchNavLink to="/extension" className={styles.item} onClick={close}>
             {/* Chrome's own toolbar glyph for extensions (Material "extension"). */}
             <span className={styles.icon}>
-              <MdOutlineExtension size={22} />
+              <MdOutlineExtension size={18} />
             </span>
             <span className={styles.label}>BitChord Extension</span>
             {update.state === 'available' && (

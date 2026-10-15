@@ -15,7 +15,6 @@ import { installExtensionFetchRule } from './rules';
  */
 
 export const MUSIC_ORIGIN = 'https://music.youtube.com';
-const YOUTUBE_ORIGIN = 'https://www.youtube.com';
 
 /** The cookies the signature can be taken over, in the order Google's clients prefer them. */
 const SIGNING_COOKIES = ['SAPISID', '__Secure-3PAPISID', '__Secure-1PAPISID'];
@@ -24,8 +23,12 @@ const SESSION_COOKIES = new Set([...SIGNING_COOKIES, 'SID', '__Secure-1PSID', '_
 
 /** Any recent WEB_REMIX version is accepted for the account endpoints (Innertube.kt keeps a fallback the same way). */
 const WEB_REMIX_VERSION = '1.20251006.03.00';
-/** How many logins a jar is searched for. Google allows ten; more than five in one browser is rare. */
-const MAX_LOGINS = 5;
+/**
+ * How many `X-Goog-AuthUser` indices are tried. Google allows ten logins per
+ * browser, and the live ones needn't be contiguous: the user's jar had 1, 2
+ * and 4 signed in, with 0 and 3 expired (account_menu answers 403 for those).
+ */
+const MAX_LOGINS = 10;
 /** Accounts rarely change; a cookie change clears this at once anyway. */
 const ACCOUNTS_TTL_MS = 10 * 60_000;
 
@@ -58,33 +61,12 @@ async function signingSecret(): Promise<string | null> {
   return null;
 }
 
-async function sha1Hex(text: string): Promise<string> {
-  const digest = await crypto.subtle.digest('SHA-1', new TextEncoder().encode(text));
-  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('');
-}
-
-/** Each signing cookie and the scheme name its hash goes under. */
-const HASH_SCHEMES: [cookie: string, scheme: string][] = [
-  ['SAPISID', 'SAPISIDHASH'],
-  ['__Secure-1PAPISID', 'SAPISID1PHASH'],
-  ['__Secure-3PAPISID', 'SAPISID3PHASH'],
-];
-
-/**
- * The Authorization value YouTube's own web client sends:
- * `SAPISIDHASH <ts>_<sha1(ts secret origin)> SAPISID1PHASH … SAPISID3PHASH …`,
- * one hash per signing cookie the jar holds. DesktopYouTubeAuth sends only the
- * first; Google accepts that from a desktop app, but the browser holds all
- * three, so they all go.
- */
-async function authorization(origin: string): Promise<string | null> {
+/** `SAPISIDHASH <seconds>_<sha1(seconds + " " + secret + " " + origin)>`, as DesktopYouTubeAuth.sapisidHash. */
+async function sapisidHash(secret: string, origin: string): Promise<string> {
   const timestamp = Math.floor(Date.now() / 1000);
-  const parts: string[] = [];
-  for (const [name, scheme] of HASH_SCHEMES) {
-    const cookie = await browser.cookies.get({ url: `${MUSIC_ORIGIN}/`, name }).catch(() => null);
-    if (cookie?.value) parts.push(`${scheme} ${timestamp}_${await sha1Hex(`${timestamp} ${cookie.value} ${origin}`)}`);
-  }
-  return parts.length ? parts.join(' ') : null;
+  const digest = await crypto.subtle.digest('SHA-1', new TextEncoder().encode(`${timestamp} ${secret} ${origin}`));
+  const hex = [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('');
+  return `SAPISIDHASH ${timestamp}_${hex}`;
 }
 
 /** Who a signed request acts as. */
@@ -106,31 +88,25 @@ let ruleReady: Promise<void> | null = null;
  */
 export async function signedFetch(
   url: string,
-  init: { method?: string; headers?: Record<string, string>; body?: BodyInit | null; redirect?: RequestRedirect },
+  init: { method?: string; headers?: Record<string, string>; body?: BodyInit | null },
   identity: Identity,
 ): Promise<Response> {
-  const origin = new URL(url).origin;
-  const signature = await authorization(origin);
-  if (!signature) throw new SignedOutError('The browser is not signed in to YouTube.');
+  const secret = await signingSecret();
+  if (!secret) throw new SignedOutError('The browser is not signed in to YouTube.');
   ruleReady ??= installExtensionFetchRule().catch((error: unknown) => {
     ruleReady = null;
     throw error;
   });
   await ruleReady;
 
+  const origin = new URL(url).origin;
   const headers = new Headers(init.headers);
-  headers.set('Authorization', signature);
+  headers.set('Authorization', await sapisidHash(secret, origin));
   headers.set('X-Goog-AuthUser', identity.authUser);
   headers.set('X-Origin', origin);
   if (identity.pageId) headers.set('X-Goog-PageId', identity.pageId);
   else headers.delete('X-Goog-PageId');
-  return fetch(url, {
-    method: init.method ?? 'GET',
-    headers,
-    body: init.body ?? null,
-    credentials: 'include',
-    redirect: init.redirect ?? 'follow',
-  });
+  return fetch(url, { method: init.method ?? 'GET', headers, body: init.body ?? null, credentials: 'include' });
 }
 
 async function musicApi(endpoint: string, identity: Identity): Promise<unknown> {
@@ -252,92 +228,95 @@ function describeEmpty(endpoint: string, body: unknown): string {
   return `${endpoint}: no account in the answer (${keys})`;
 }
 
-async function readLogin(authUser: string): Promise<{ account: StoredAccount | null; key: string | null; why: string | null }> {
+/**
+ * One login, or null with the reason when that index isn't signed in.
+ * Only `account_menu` decides: `accounts_list` answers even for an expired
+ * index (with another login's channels), which once made a dead login look
+ * like the active one.
+ */
+async function readLogin(authUser: string): Promise<{ account: StoredAccount | null; why: string | null }> {
   const identity = { authUser, pageId: null };
   let header: Json | undefined;
-  let why: string | null = null;
   try {
     const menu = await musicApi('account/account_menu', identity);
     header = renderers(menu, 'activeAccountHeaderRenderer')[0];
-    if (!header) why = describeEmpty('account_menu', menu);
+    if (!header) return { account: null, why: describeEmpty('account_menu', menu) };
   } catch (error) {
-    why = `account_menu: ${error instanceof Error ? error.message : String(error)}`;
+    return { account: null, why: `account_menu: ${error instanceof Error ? error.message : String(error)}` };
   }
 
+  const name = text(header.accountName) || 'YouTube Music';
+  const email = text(header.email) || null;
+  const handle = text(header.channelHandle) || null;
+  const avatarUrl = photo(header);
   let channels: StoredChannel[] = [];
   try {
-    const list = await musicApi('account/accounts_list', identity);
-    channels = parseChannels(list, authUser);
-    if (!channels.length && !header) why ??= describeEmpty('accounts_list', list);
-  } catch (error) {
-    if (!header) why ??= `accounts_list: ${error instanceof Error ? error.message : String(error)}`;
+    channels = parseChannels(await musicApi('account/accounts_list', identity), authUser);
+  } catch {
+    // The switcher isn't answered for every account; the login's own channel always exists.
   }
-  // youtube.com's own switcher, the desktop app's second route, for the first login.
-  if (!channels.length && !header && authUser === '0') {
-    try {
-      const response = await signedFetch(`${YOUTUBE_ORIGIN}/getAccountSwitcherEndpoint`, { redirect: 'manual' }, identity);
-      // A signed-out request is redirected to the sign-in page.
-      if (response.type === 'opaqueredirect' || !response.ok) throw new Error('redirected to sign-in');
-      const text = await response.text();
-      const body: unknown = JSON.parse(text.slice(text.indexOf(")]}'") >= 0 ? text.indexOf(")]}'") + 4 : 0));
-      channels = parseChannels(body, authUser);
-      if (!channels.length) why = `${why}; ${describeEmpty('account switcher', body)}`;
-    } catch (error) {
-      why = `${why}; account switcher: ${error instanceof Error ? error.message : String(error)}`;
-    }
-  }
-  if (!header && !channels.length) return { account: null, key: null, why };
-
-  const selected = channels.find((c) => c.selectedOnWeb) ?? channels[0];
-  const name = (header && text(header.accountName)) || selected?.name || 'YouTube Music';
-  const email = (header && text(header.email)) || null;
-  const handle = (header && text(header.channelHandle)) || selected?.handle || null;
-  const avatarUrl = (header && photo(header)) || selected?.avatarUrl || null;
   if (!channels.length) {
     channels = [
       { id: channelId(authUser, null), name, handle: handle ?? email, avatarUrl, brand: false, authUser, pageId: null, selectedOnWeb: true },
     ];
   }
-  return {
-    account: { authUser, name, email, avatarUrl, channels },
-    // Past the last login Google answers with the first one again.
-    key: email ?? `${name}|${handle ?? ''}|${channels.map((c) => c.id.split(':')[1]).join(',')}`,
-    why: null,
-  };
+  return { account: { authUser, name, email, avatarUrl, channels }, why: null };
 }
 
-async function readAccounts(): Promise<StoredAccount[]> {
-  const accounts: StoredAccount[] = [];
-  const seen = new Set<string>();
-  problem = null;
-  for (let index = 0; index < MAX_LOGINS; index++) {
-    const { account, key, why } = await readLogin(String(index));
-    if (!account || !key) {
-      // Only the first login's failure matters: later ones end the list.
-      if (index === 0) {
-        problem = why;
-        console.warn(`BitChord: no YouTube account found: ${why}`);
-      }
-      break;
-    }
-    if (seen.has(key)) break;
-    seen.add(key);
-    accounts.push(account);
+/**
+ * The login YouTube Music itself is using in this browser: its page's
+ * `SESSION_INDEX` (ytcfg). That's the right default rather than index 0,
+ * which may be a login that has expired.
+ */
+async function webSessionIndex(): Promise<string | null> {
+  try {
+    const response = await signedFetch(`${MUSIC_ORIGIN}/`, { headers: { Accept: 'text/html' } }, { authUser: '0', pageId: null });
+    const html = await response.text();
+    return /"SESSION_INDEX":"?(\d+)/.exec(html)?.[1] ?? null;
+  } catch {
+    return null;
   }
-  return accounts;
+}
+
+async function readAccounts(): Promise<{ list: StoredAccount[]; webIndex: string | null }> {
+  problem = null;
+  const [results, webIndex] = await Promise.all([
+    Promise.all(Array.from({ length: MAX_LOGINS }, (_, i) => readLogin(String(i)))),
+    webSessionIndex(),
+  ]);
+  const list: StoredAccount[] = [];
+  const seen = new Set<string>();
+  for (const { account } of results) {
+    if (!account) continue;
+    const key = account.email ?? `${account.name}|${account.channels.map((c) => c.id.split(':')[1]).join(',')}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    list.push(account);
+  }
+  if (!list.length) {
+    problem = results[Number(webIndex ?? 0)]?.why ?? results[0]?.why ?? 'no signed-in Google account found';
+    console.warn(`BitChord: no YouTube account found: ${problem}`);
+  }
+  return { list, webIndex };
 }
 
 // ---- State --------------------------------------------------------------------
 
-let cache: { at: number; accounts: StoredAccount[] } | null = null;
-let reading: Promise<StoredAccount[]> | null = null;
+interface Accounts {
+  list: StoredAccount[];
+  /** The login YouTube Music's own page uses, the default choice. */
+  webIndex: string | null;
+}
 
-async function accounts(refresh: boolean): Promise<StoredAccount[]> {
-  if (!refresh && cache && Date.now() - cache.at < ACCOUNTS_TTL_MS) return cache.accounts;
+let cache: (Accounts & { at: number }) | null = null;
+let reading: Promise<Accounts> | null = null;
+
+async function accounts(refresh: boolean): Promise<Accounts> {
+  if (!refresh && cache && Date.now() - cache.at < ACCOUNTS_TTL_MS) return cache;
   reading ??= readAccounts()
-    .then((list) => {
-      cache = { at: Date.now(), accounts: list };
-      return list;
+    .then((read) => {
+      cache = { ...read, at: Date.now() };
+      return read;
     })
     .finally(() => (reading = null));
   return reading;
@@ -352,12 +331,13 @@ export function isSessionCookie(cookie: { name: string; domain: string }): boole
   return SESSION_COOKIES.has(cookie.name) && /(^|\.)youtube\.com$/.test(cookie.domain.replace(/^\./, ''));
 }
 
-function chooseChannel(list: StoredAccount[], selectedId: string | null): StoredChannel | null {
+function chooseChannel({ list, webIndex }: Accounts, selectedId: string | null): StoredChannel | null {
   const all = list.flatMap((a) => a.channels);
+  const web = list.find((a) => a.authUser === webIndex) ?? list[0];
   return (
     all.find((c) => c.id === selectedId) ??
-    list[0]?.channels.find((c) => c.selectedOnWeb) ??
-    list[0]?.channels[0] ??
+    web?.channels.find((c) => c.selectedOnWeb) ??
+    web?.channels[0] ??
     null
   );
 }
@@ -372,8 +352,9 @@ export async function authState(refresh = false): Promise<YtAuthState> {
   if (!browserSignedIn || !prefs.connected) {
     return { browserSignedIn, connected: prefs.connected, signedIn: false, accounts: [], active: null, problem: null };
   }
-  const list = await accounts(refresh);
-  const active = chooseChannel(list, prefs.selectedChannelId);
+  const read = await accounts(refresh);
+  const { list } = read;
+  const active = chooseChannel(read, prefs.selectedChannelId);
   return {
     browserSignedIn,
     connected: true,
@@ -393,7 +374,7 @@ export async function activeIdentity(): Promise<Identity | null> {
 }
 
 export async function selectChannel(id: string): Promise<YtAuthState> {
-  const list = await accounts(false);
+  const { list } = await accounts(false);
   if (!list.some((a) => a.channels.some((c) => c.id === id))) throw new Error(`No channel ${id} in this browser`);
   await savePrefs({ selectedChannelId: id });
   return authState();

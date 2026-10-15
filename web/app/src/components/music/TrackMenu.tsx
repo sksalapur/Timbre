@@ -38,8 +38,6 @@ function PlaylistChoices({ videoId, onDone, onBack }: { videoId: string; onDone:
       {options.data?.map((option) => (
         <MenuItem
           key={option.playlistId}
-          disabled={option.contains}
-          trailing={option.contains ? 'Added' : undefined}
           onSelect={() => {
             add.mutate({ playlistId: option.playlistId, videoId });
             onDone();

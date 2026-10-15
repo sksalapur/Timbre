@@ -52,41 +52,33 @@
 .item {
   display: flex;
   align-items: center;
-  gap: 6px;
-  height: 44px;
-  margin-bottom: 4px;
+  gap: 8px;
+  height: 36px;
+  margin-bottom: 2px;
   padding: 4px;
   border-radius: var(--radius-nav-item);
   font: var(--body-reduced);
   color: var(--systemPrimary);
 }
 
-/* Measured on Apple's sidebar: 16px/22px labels from 484px up, 14px below. */
-@media (min-width: 484px) {
-  .item {
-    font: 400 16px / 22px var(--font-family);
-  }
-}
 
 .item:hover {
   background-color: var(--systemQuinary);
 }
 
 .icon {
-  /* Apple's icons: a 24px glyph drawn in a 28px box, 2px clear either side,
-     and the label pulled 4px back in (so it starts 4px past the box). */
+  /* Apple's glyphs, drawn at 24px (their 24-unit box), which the user
+     preferred to Apple's own 28px. */
   display: inline-grid;
   place-items: center;
   flex: none;
-  width: 28px;
-  height: 28px;
-  margin: 0 2px;
+  width: 24px;
+  height: 24px;
   color: var(--systemPrimary);
 }
 
 .label {
   min-width: 0;
-  margin-left: -4px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

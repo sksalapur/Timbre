@@ -9,15 +9,15 @@ Prompt §5.3. There's no login screen: BitChord uses the YouTube session the bro
 3. The extension (`extension/lib/ytFetch.ts`, `ytAuth.ts`):
    - accepts only `https://(music|www).youtube.com/youtubei/v1/*`;
    - drops any identity headers the page sent;
-   - adds `Authorization: SAPISIDHASH … SAPISID1PHASH … SAPISID3PHASH …` (one `<ts>_<sha1(ts secret origin)>` per signing cookie: SAPISID, `__Secure-1PAPISID`, `__Secure-3PAPISID`), `X-Goog-AuthUser`, `X-Goog-PageId` for a brand channel and `X-Origin`. **All three hashes are required.** With `SAPISIDHASH` alone, as `DesktopYouTubeAuth.kt` sends it, the user's real Chrome got signed-out answers from `account_menu` (verified 2026-10-15; 0.2.1 fixed it). Playwright's Chromium sent every cookie and couldn't reproduce it;
+   - adds `Authorization: SAPISIDHASH <ts>_<sha1(ts SAPISID origin)>` (as `DesktopYouTubeAuth.kt`), `X-Goog-AuthUser`, `X-Goog-PageId` for a brand channel and `X-Origin`. That single hash is enough: in the user's Chrome it got the same signed-in answers as `SAPISIDHASH … SAPISID1PHASH … SAPISID3PHASH …`;
    - fetches with `credentials: 'include'`, so the browser attaches the cookies itself. A session rule for the extension's own requests (tabId −1) sets the YouTube Origin and Referer the signature was computed for.
 4. `onBehalfOfUser` isn't sent. The desktop app found a stale `dataSyncId` answered 400 on every request, and `X-Goog-AuthUser` plus `X-Goog-PageId` already pick the identity.
 
 ## Accounts and channels
 
-- **Logins:** `account/account_menu` is asked for each `X-Goog-AuthUser` from 0. The walk stops at the first refusal, at a missing header, or when a login repeats (past the last one Google answers with the first again). At most five.
-- **Channels:** `account/accounts_list` for each login gives its own channel and its brand channels (`pageId` from the item's tokens). If that call fails, the login's own channel stands in.
-- **Default:** the channel YouTube itself has selected (`isSelected`) on the first login. The user's choice is stored in `storage.local` (`yt.prefs`).
+- **Logins:** a browser can hold up to ten Google logins, addressed by `X-Goog-AuthUser`, and the live ones needn't be contiguous. In the user's Chrome, 1, 2 and 4 were signed in and 0 and 3 had expired (`account_menu` answers 403 for those). So every index from 0 to 9 is tried, and a login counts only when `account_menu` returns an account header. `accounts_list` alone isn't trusted: it answers even for an expired index, with another login's channels. Taking that at face value made BitChord act as dead login 0, so everything came back signed out.
+- **Channels:** `account/accounts_list` for each live login gives its own channel and its brand channels (`pageId` from the item's tokens). If that call fails, the login's own channel stands in.
+- **Default:** the login YouTube Music's own page uses: `SESSION_INDEX` from the music.youtube.com HTML (4 for the user, not 0). Within it, the channel YouTube has selected (`isSelected`). The user's choice is stored in `storage.local` (`yt.prefs`).
 - **Caching:** the list is cached for 10 minutes. A change to a session cookie (SAPISID, SID and their `__Secure-` forms; not SIDCC, which rotates constantly) clears it, re-reads, and pushes the new state.
 - **Disconnect** (sidebar account menu, or the popup) stops BitChord using the session. The user stays signed in to Google.
 
@@ -45,6 +45,14 @@ When the identity changes, the page resets every `['music', …]` query and the 
 ## Verified, and not yet
 
 - **Verified signed out** (Playwright Chromium and stock Firefox): the auth state, the refusal codes (`unauthenticated` signed out, `forbidden` off-host), pushes over both transports, the update notice.
-- **Verified in the user's Chrome:** the account, name and picture read through `account_menu`, after the three-hash fix.
+- **Verified in Firefox with a planted first-party cookie:** the extension reads the session and signs requests.
+  - Testing note: puppeteer's `page.setCookie` stores a partitioned cookie that the extension can't see. Set test cookies with `document.cookie` on a youtube.com page instead.
+- **Verified in the user's Chrome (Claude in Chrome, 0.2.4)**, reads only:
+  - the account, name and picture;
+  - every library page (songs, albums, artists, history, Made for You, playlists);
+  - the like state (`LIKE` for Liked Music tracks). Library "Songs" are saved songs, not liked ones, so they read `INDIFFERENT`;
+  - the add-to-playlist list. YouTube's list has no "already contains" flag, and its Liked Music entry is a like, so it's filtered out;
+  - an album's in-library state.
+- **Dropped:** two changes made while chasing the expired-login bug did nothing and were reverted: the three-hash signature, and setting the Cookie header from the jar through a session rule. Chrome attaches the cookies to the worker's `credentials: 'include'` requests itself.
 - **When the account can't be read**, the extension says why: an HTTP status, or YouTube's own `logged_in=0` from `responseContext.serviceTrackingParams`. The popup shows it, the Extension page too, and the sidebar shows a Retry pill.
-- **Still to check signed in:** library pages, Favorite, Add to Library, Add to Playlist, channel switching, and age-restricted playback (and whether the signed web clients' streams outlast ~60 s, given the WebPO problem in `youtube-playback.md`).
+- **Still to check signed in:** the writes (Favorite, Add to Library, Add to Playlist), not tried because they change the account; channel switching, and age-restricted playback (and whether the signed web clients' streams outlast ~60 s, given the WebPO problem in `youtube-playback.md`).
