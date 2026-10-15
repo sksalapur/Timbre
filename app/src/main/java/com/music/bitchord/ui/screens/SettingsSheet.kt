@@ -66,6 +66,7 @@ import androidx.compose.material.icons.rounded.LocalOffer
 import androidx.compose.material.icons.rounded.MusicOff
 import androidx.compose.material.icons.rounded.MotionPhotosOff
 import androidx.compose.material.icons.rounded.Extension
+import androidx.compose.material.icons.rounded.Draw
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.PlaylistPlay
 import androidx.compose.material.icons.rounded.SignalCellularAlt
@@ -189,6 +190,7 @@ fun SettingsScreen(
     onWearOs: () -> Unit,
     onSpotifyCanvasAuth: () -> Unit,
     onAppLanguage: () -> Unit,
+    onEditSignatureApi: () -> Unit,
     contentPadding: PaddingValues,
     modifier: Modifier = Modifier,
 ) {
@@ -356,9 +358,7 @@ fun SettingsScreen(
     }
     var showListenBrainzTokenDialog by remember { mutableStateOf(false) }
     var showLastfmLoginDialog by remember { mutableStateOf(false) }
-    var showSignatureApiDialog by remember { mutableStateOf(false) }
     val scrobbleScope = rememberCoroutineScope()
-    val signatureScope = rememberCoroutineScope()
 
     val version = remember(context) {
         runCatching {
@@ -937,7 +937,7 @@ fun SettingsScreen(
             val artistSignaturesTitle = stringResource(R.string.artist_signatures)
             row(artistSignaturesTitle, "signature", "artist", "logo") {
                 SettingsRow(
-                    icon = Icons.Rounded.Person,
+                    icon = Icons.Rounded.Draw,
                     title = artistSignaturesTitle,
                     subtitle = stringResource(R.string.artist_signatures_subtitle),
                     trailing = {
@@ -959,7 +959,7 @@ fun SettingsScreen(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable(onClick = { showSignatureApiDialog = true })
+                            .clickable(onClick = onEditSignatureApi)
                             .padding(start = ROW_INSET, end = ROW_INSET, top = 4.dp, bottom = 10.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
@@ -1779,80 +1779,6 @@ fun SettingsScreen(
             },
             dismissButton = {
                 TextButton(onClick = { showListenBrainzTokenDialog = false }) {
-                    Text(stringResource(R.string.cancel))
-                }
-            },
-        )
-    }
-
-    if (showSignatureApiDialog) {
-        var urlInput by remember { mutableStateOf(signatureApiUrl) }
-        var testing by remember { mutableStateOf(false) }
-        var testFailed by remember { mutableStateOf(false) }
-        AlertDialog(
-            onDismissRequest = { if (!testing) showSignatureApiDialog = false },
-            title = { Text(stringResource(R.string.artist_signatures_url)) },
-            text = {
-                Column {
-                    if (testFailed) {
-                        Text(
-                            text = stringResource(R.string.artist_signatures_test_failed),
-                            color = MaterialTheme.colorScheme.error,
-                            style = MaterialTheme.typography.bodySmall,
-                            modifier = Modifier.padding(bottom = 8.dp),
-                        )
-                    }
-                    OutlinedTextField(
-                        value = urlInput,
-                        onValueChange = {
-                            urlInput = it
-                            testFailed = false
-                        },
-                        label = { Text(stringResource(R.string.artist_signatures_url)) },
-                        placeholder = { Text(stringResource(R.string.artist_signatures_url_hint)) },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                }
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        val normalized = AppSettings.normalizeSignatureApiUrl(urlInput)
-                        if (normalized.isEmpty()) {
-                            AppSettings.setSignatureApiUrl("")
-                            com.music.bitchord.data.canvas.ArtistSignatureRepository.clear()
-                            showSignatureApiDialog = false
-                            return@TextButton
-                        }
-                        if (!com.music.bitchord.data.canvas.ArtistSignatureRepository.isValidBaseUrl(normalized)) {
-                            testFailed = true
-                            return@TextButton
-                        }
-                        testing = true
-                        testFailed = false
-                        signatureScope.launch {
-                            try {
-                                val ok = com.music.bitchord.data.canvas.ArtistSignatureRepository.checkHealth(normalized)
-                                if (ok) {
-                                    AppSettings.setSignatureApiUrl(normalized)
-                                    com.music.bitchord.data.canvas.ArtistSignatureRepository.clear()
-                                    showSignatureApiDialog = false
-                                } else {
-                                    testFailed = true
-                                }
-                            } finally {
-                                testing = false
-                            }
-                        }
-                    },
-                    enabled = !testing,
-                ) {
-                    Text(stringResource(R.string.save))
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showSignatureApiDialog = false }, enabled = !testing) {
                     Text(stringResource(R.string.cancel))
                 }
             },

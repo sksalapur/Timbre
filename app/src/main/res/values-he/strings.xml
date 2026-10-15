@@ -1358,4 +1358,5 @@
     <string name="wear_os_unsupported">התקנה בשעון דורשת Android 11 ומעלה בטלפון הזה.</string>
     <string name="wear_os_code_hint">קוד צימוד</string>
     <string name="wear_os_done">סיום</string>
+    <string name="signed_by">נחתם על ידי %1$s</string>
 </resources>

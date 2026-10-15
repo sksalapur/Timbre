@@ -1385,4 +1385,5 @@
     <string name="wear_os_unsupported">Для установки на часы на этом телефоне нужен Android 11 или новее.</string>
     <string name="wear_os_code_hint">Код подключения</string>
     <string name="wear_os_done">Готово</string>
+    <string name="signed_by">Подпись: %1$s</string>
 </resources>

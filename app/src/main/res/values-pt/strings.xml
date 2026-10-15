@@ -1358,4 +1358,5 @@
     <string name="wear_os_unsupported">Instalar em um relógio exige Android 11 ou superior neste telefone.</string>
     <string name="wear_os_code_hint">Código de pareamento</string>
     <string name="wear_os_done">Concluir</string>
+    <string name="signed_by">Assinado por %1$s</string>
 </resources>

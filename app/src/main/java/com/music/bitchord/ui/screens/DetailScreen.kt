@@ -96,7 +96,10 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -237,6 +240,12 @@ private val ARTIST_ACTION_GAP = 24.dp
 
 /** The title logo's widest share of the page, and tallest share of the photo. */
 private const val ARTIST_LOGO_WIDTH = 0.82f
+
+/** The signature closing the About section. */
+private val ABOUT_LOGO_HEIGHT = 56.dp
+
+/** A signature is drawn at this share of a title logo's size. */
+private const val SIGNATURE_SCALE = 0.7f
 private const val ARTIST_LOGO_MAX_HEIGHT = 0.30f
 
 private const val LOGO_RETRIES = 2
@@ -610,8 +619,10 @@ fun DetailScreen(
             // empty still gets the section for them.
             val hasStats = isArtist &&
                 (page.subscriberCountText != null || page.monthlyListenerCount != null)
+            // The header holds Apple's logo here, so the ink goes at the foot of the page instead.
+            val aboutSignature = if (isArtist && appleArt?.logoUrl != null) signature else null
             val showAbout = (!description.isNullOrBlank() &&
-                (page.type == BrowseType.ALBUM || isArtist)) || hasStats
+                (page.type == BrowseType.ALBUM || isArtist)) || hasStats || aboutSignature != null
             fun LazyListScope.aboutItem() {
                 if (!showAbout) return
                 item(key = "about") {
@@ -634,6 +645,16 @@ fun DetailScreen(
                             }
                         } else {
                             null
+                        },
+                        footer = aboutSignature?.let { sig ->
+                            {
+                                AboutSignature(
+                                    signature = sig,
+                                    name = page.title,
+                                    palette = palette,
+                                    horizontalPadding = ARTIST_CONTENT_GUTTER,
+                                )
+                            }
                         },
                     )
                     }
@@ -1248,7 +1269,13 @@ private fun ArtistHeader(
             // lines is nearly square, and by width alone it would swallow the
             // photograph it is meant to sit on. A signature is a panoramic ink
             // strip and reads best smaller than a title logo.
-            val maxLogoHeight = artHeight * ARTIST_LOGO_MAX_HEIGHT
+            val isSignature = logoUrl == null && signature != null
+            val sizeFactor = if (isSignature) SIGNATURE_SCALE else 1f
+            val maxLogoHeight = artHeight * ARTIST_LOGO_MAX_HEIGHT * sizeFactor
+            Column(
+                modifier = Modifier.align(Alignment.BottomCenter),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
             AsyncImage(
                 model = request,
                 contentDescription = page.title,
@@ -1267,18 +1294,25 @@ private fun ArtistHeader(
                     }
                 },
                 modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(top = 14.dp, bottom = 20.dp)
+                    .padding(top = 14.dp, bottom = if (isSignature) 6.dp else 20.dp)
                     // Sized from the incoming width in layout rather than through a
                     // BoxWithConstraints, which would subcompose the image.
                     .layout { measurable, constraints ->
-                        val widest = constraints.maxWidth * ARTIST_LOGO_WIDTH
+                        val widest = constraints.maxWidth * ARTIST_LOGO_WIDTH * sizeFactor
                         val height = minOf(widest / aspect, maxLogoHeight.toPx()).roundToInt()
                         val width = (height * aspect).roundToInt()
                         val placeable = measurable.measure(Constraints.fixed(width, height))
                         layout(width, height) { placeable.place(0, 0) }
                     },
             )
+            if (isSignature && logoShown) {
+                SignedByCaption(
+                    name = page.title,
+                    palette = palette,
+                    modifier = Modifier.padding(horizontal = HEADER_GUTTER).padding(bottom = 20.dp),
+                )
+            }
+            }
         }
         if (!logoShown) Text(
             text = page.title,
@@ -1719,6 +1753,76 @@ private fun StatChip(icon: ImageVector, text: String, palette: ArtworkPalette) {
  * something — otherwise a two-line bio would show a toggle with nothing
  * behind it to reveal.
  */
+/** "Signed by **Name**" — the artist's name in bold, whatever order the language puts it in. */
+@Composable
+private fun SignedByCaption(
+    name: String,
+    palette: ArtworkPalette,
+    modifier: Modifier = Modifier,
+    textAlign: TextAlign = TextAlign.Center,
+) {
+    val signed = stringResource(R.string.signed_by, name)
+    val nameAt = signed.indexOf(name)
+    Text(
+        text = buildAnnotatedString {
+            append(signed)
+            if (nameAt >= 0) {
+                addStyle(SpanStyle(fontWeight = FontWeight.Bold), nameAt, nameAt + name.length)
+            }
+        },
+        style = MaterialTheme.typography.bodyMedium,
+        color = palette.onBackground.copy(alpha = 0.8f),
+        textAlign = textAlign,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+        modifier = modifier,
+    )
+}
+
+/**
+ * The handwritten signature with its signed-by line, closing the About section of an artist whose
+ * header already carries Apple's title logo.
+ */
+@Composable
+private fun AboutSignature(
+    signature: ArtistSignature,
+    name: String,
+    palette: ArtworkPalette,
+    horizontalPadding: Dp,
+) {
+    val context = LocalPlatformContext.current
+    val isSvg = signature.format == "svg"
+    val aspect = signature.aspect.coerceIn(0.4f, 6f)
+    val request = remember(signature.imageUrl) {
+        ImageRequest.Builder(context).data(signature.imageUrl).apply {
+            if (isSvg) {
+                size(SVG_DECODE_WIDTH, (SVG_DECODE_WIDTH / aspect).roundToInt())
+            } else {
+                size(coil3.size.Size.ORIGINAL)
+                transformations(SignatureInkTransformation)
+            }
+        }.build()
+    }
+    var loaded by remember(signature.imageUrl) { mutableStateOf(false) }
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = horizontalPadding),
+        horizontalAlignment = Alignment.Start,
+    ) {
+        AsyncImage(
+            model = request,
+            contentDescription = name,
+            contentScale = ContentScale.Fit,
+            colorFilter = if (isSvg) ColorFilter.tint(Color.White) else null,
+            onState = { if (it is AsyncImagePainter.State.Success) loaded = true },
+            modifier = Modifier
+                .padding(top = 20.dp, bottom = 6.dp)
+                .height(ABOUT_LOGO_HEIGHT)
+                .aspectRatio(aspect),
+        )
+        if (loaded) SignedByCaption(name = name, palette = palette, textAlign = TextAlign.Start)
+    }
+}
+
 @Composable
 private fun AboutSection(
     title: String,
@@ -1727,6 +1831,8 @@ private fun AboutSection(
     horizontalPadding: Dp = ABOUT_GUTTER,
     /** Drawn under the text. */
     stats: (@Composable () -> Unit)? = null,
+    /** Drawn last, under the stats. */
+    footer: (@Composable () -> Unit)? = null,
 ) {
     var expanded by remember(text) { mutableStateOf(false) }
     var clipped by remember(text) { mutableStateOf(false) }
@@ -1770,6 +1876,7 @@ private fun AboutSection(
             Spacer(Modifier.height(if (text != null) 12.dp else 4.dp))
             stats()
         }
+        footer?.invoke()
     }
 }
 

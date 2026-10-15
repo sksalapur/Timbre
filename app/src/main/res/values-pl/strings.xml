@@ -1393,4 +1393,5 @@
     <string name="wear_os_unsupported">Instalacja na zegarku wymaga na tym telefonie Androida 11 lub nowszego.</string>
     <string name="wear_os_code_hint">Kod parowania</string>
     <string name="wear_os_done">Gotowe</string>
+    <string name="signed_by">Podpisano przez %1$s</string>
 </resources>

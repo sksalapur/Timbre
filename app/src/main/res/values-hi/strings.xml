@@ -1353,4 +1353,5 @@
     <string name="wear_os_unsupported">घड़ी पर इंस्टॉल करने के लिए इस फ़ोन में Android 11 या उसके बाद का वर्शन चाहिए।</string>
     <string name="wear_os_code_hint">पेयरिंग कोड</string>
     <string name="wear_os_done">हो गया</string>
+    <string name="signed_by">%1$s द्वारा हस्ताक्षरित</string>
 </resources>

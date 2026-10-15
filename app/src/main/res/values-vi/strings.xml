@@ -1270,4 +1270,5 @@
     <string name="wear_os_unsupported">Cài đặt trên đồng hồ cần điện thoại này chạy Android 11 trở lên.</string>
     <string name="wear_os_code_hint">Mã ghép nối</string>
     <string name="wear_os_done">Xong</string>
+    <string name="signed_by">Được ký bởi %1$s</string>
 </resources>
