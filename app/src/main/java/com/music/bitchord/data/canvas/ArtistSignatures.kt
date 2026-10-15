@@ -146,12 +146,17 @@ object ArtistSignatureRepository {
         val signatures = root.optJSONArray("signatures") ?: return null
         var best: ArtistSignature? = null
         var bestScore = Int.MIN_VALUE
+        var bestArea = -1L
         for (i in 0 until signatures.length()) {
             val sig = signatures.optJSONObject(i) ?: continue
             val url = extractUrl(sig) ?: continue
             val score = rank(sig, url)
-            if (best == null || score > bestScore) {
+            // Resolution only breaks ties: a larger raster of the same rank
+            // upscales less on the header.
+            val area = extractArea(sig)
+            if (best == null || score > bestScore || (score == bestScore && area > bestArea)) {
                 bestScore = score
+                bestArea = area
                 best = ArtistSignature(
                     imageUrl = url,
                     aspect = extractAspect(sig),
@@ -210,6 +215,15 @@ object ArtistSignatureRepository {
         val h = sig.optInt("height").takeIf { it > 0 }
             ?: asset?.optInt("height")?.takeIf { it > 0 }
         return if (w != null && h != null && h > 0) w.toFloat() / h else 2.5f
+    }
+
+    private fun extractArea(sig: JSONObject): Long {
+        val asset = sig.optJSONObject("asset")
+        val w = sig.optInt("width").takeIf { it > 0 }
+            ?: asset?.optInt("width")?.takeIf { it > 0 } ?: return 0
+        val h = sig.optInt("height").takeIf { it > 0 }
+            ?: asset?.optInt("height")?.takeIf { it > 0 } ?: return 0
+        return w.toLong() * h
     }
 
     private fun get(url: String): String? {
