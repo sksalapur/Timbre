@@ -9,7 +9,7 @@ Prompt §5.3. There's no login screen: BitChord uses the YouTube session the bro
 3. The extension (`extension/lib/ytFetch.ts`, `ytAuth.ts`):
    - accepts only `https://(music|www).youtube.com/youtubei/v1/*`;
    - drops any identity headers the page sent;
-   - adds `Authorization: SAPISIDHASH <ts>_<sha1(ts SAPISID origin)>` (as `DesktopYouTubeAuth.kt`), `X-Goog-AuthUser`, `X-Goog-PageId` for a brand channel and `X-Origin`;
+   - adds `Authorization: SAPISIDHASH … SAPISID1PHASH … SAPISID3PHASH …` (one `<ts>_<sha1(ts secret origin)>` per signing cookie: SAPISID, `__Secure-1PAPISID`, `__Secure-3PAPISID`), `X-Goog-AuthUser`, `X-Goog-PageId` for a brand channel and `X-Origin`. **All three hashes are required.** With `SAPISIDHASH` alone, as `DesktopYouTubeAuth.kt` sends it, the user's real Chrome got signed-out answers from `account_menu` (verified 2026-10-15; 0.2.1 fixed it). Playwright's Chromium sent every cookie and couldn't reproduce it;
    - fetches with `credentials: 'include'`, so the browser attaches the cookies itself. A session rule for the extension's own requests (tabId −1) sets the YouTube Origin and Referer the signature was computed for.
 4. `onBehalfOfUser` isn't sent. The desktop app found a stale `dataSyncId` answered 400 on every request, and `X-Goog-AuthUser` plus `X-Goog-PageId` already pick the identity.
 
@@ -42,15 +42,9 @@ When the identity changes, the page resets every `['music', …]` query and the 
 | Add to Playlist | `/playlist/get_add_to_playlist`, then `/browse/edit_playlist` `ACTION_ADD_VIDEO` |
 | Age-restricted playback | An age-gate refusal anonymously makes the engine ask again signed in: YTMUSIC, then WEB, then VISIONOS (the phone uses WEB_REMIX with cookies) |
 
-## Not verified yet
+## Verified, and not yet
 
-All of the above was tested signed out only (Playwright Chromium and stock Firefox; neither has a Google session):
-- the auth state;
-- the refusal codes (`unauthenticated` signed out, `forbidden` off-host);
-- pushes over both transports;
-- the update notice.
-
-Three things need a real signed-in browser:
-- Whether the extension worker's `credentials: 'include'` carries the SameSite=Lax `SAPISID` cookie. Chromium treats an extension's requests to hosts it has permission for as same-site; if a browser doesn't, set the Cookie header through the session rule instead.
-- Whether the signed web clients' streams survive past ~60 s, given the unsolved WebPO problem (`youtube-playback.md`).
-- The shapes of `account_menu`, `accounts_list` and `get_add_to_playlist`. The parsers search by renderer name, as the desktop app's do.
+- **Verified signed out** (Playwright Chromium and stock Firefox): the auth state, the refusal codes (`unauthenticated` signed out, `forbidden` off-host), pushes over both transports, the update notice.
+- **Verified in the user's Chrome:** the account, name and picture read through `account_menu`, after the three-hash fix.
+- **When the account can't be read**, the extension says why: an HTTP status, or YouTube's own `logged_in=0` from `responseContext.serviceTrackingParams`. The popup shows it, the Extension page too, and the sidebar shows a Retry pill.
+- **Still to check signed in:** library pages, Favorite, Add to Library, Add to Playlist, channel switching, and age-restricted playback (and whether the signed web clients' streams outlast ~60 s, given the WebPO problem in `youtube-playback.md`).
