@@ -15,6 +15,7 @@ import { installExtensionFetchRule } from './rules';
  */
 
 export const MUSIC_ORIGIN = 'https://music.youtube.com';
+const YOUTUBE_ORIGIN = 'https://www.youtube.com';
 
 /** The cookies the signature can be taken over, in the order Google's clients prefer them. */
 const SIGNING_COOKIES = ['SAPISID', '__Secure-3PAPISID', '__Secure-1PAPISID'];
@@ -57,12 +58,33 @@ async function signingSecret(): Promise<string | null> {
   return null;
 }
 
-/** `SAPISIDHASH <seconds>_<sha1(seconds + " " + secret + " " + origin)>`, as DesktopYouTubeAuth.sapisidHash. */
-async function sapisidHash(secret: string, origin: string): Promise<string> {
+async function sha1Hex(text: string): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-1', new TextEncoder().encode(text));
+  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+/** Each signing cookie and the scheme name its hash goes under. */
+const HASH_SCHEMES: [cookie: string, scheme: string][] = [
+  ['SAPISID', 'SAPISIDHASH'],
+  ['__Secure-1PAPISID', 'SAPISID1PHASH'],
+  ['__Secure-3PAPISID', 'SAPISID3PHASH'],
+];
+
+/**
+ * The Authorization value YouTube's own web client sends:
+ * `SAPISIDHASH <ts>_<sha1(ts secret origin)> SAPISID1PHASH … SAPISID3PHASH …`,
+ * one hash per signing cookie the jar holds. DesktopYouTubeAuth sends only the
+ * first; Google accepts that from a desktop app, but the browser holds all
+ * three, so they all go.
+ */
+async function authorization(origin: string): Promise<string | null> {
   const timestamp = Math.floor(Date.now() / 1000);
-  const digest = await crypto.subtle.digest('SHA-1', new TextEncoder().encode(`${timestamp} ${secret} ${origin}`));
-  const hex = [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('');
-  return `SAPISIDHASH ${timestamp}_${hex}`;
+  const parts: string[] = [];
+  for (const [name, scheme] of HASH_SCHEMES) {
+    const cookie = await browser.cookies.get({ url: `${MUSIC_ORIGIN}/`, name }).catch(() => null);
+    if (cookie?.value) parts.push(`${scheme} ${timestamp}_${await sha1Hex(`${timestamp} ${cookie.value} ${origin}`)}`);
+  }
+  return parts.length ? parts.join(' ') : null;
 }
 
 /** Who a signed request acts as. */
@@ -84,25 +106,31 @@ let ruleReady: Promise<void> | null = null;
  */
 export async function signedFetch(
   url: string,
-  init: { method?: string; headers?: Record<string, string>; body?: BodyInit | null },
+  init: { method?: string; headers?: Record<string, string>; body?: BodyInit | null; redirect?: RequestRedirect },
   identity: Identity,
 ): Promise<Response> {
-  const secret = await signingSecret();
-  if (!secret) throw new SignedOutError('The browser is not signed in to YouTube.');
+  const origin = new URL(url).origin;
+  const signature = await authorization(origin);
+  if (!signature) throw new SignedOutError('The browser is not signed in to YouTube.');
   ruleReady ??= installExtensionFetchRule().catch((error: unknown) => {
     ruleReady = null;
     throw error;
   });
   await ruleReady;
 
-  const origin = new URL(url).origin;
   const headers = new Headers(init.headers);
-  headers.set('Authorization', await sapisidHash(secret, origin));
+  headers.set('Authorization', signature);
   headers.set('X-Goog-AuthUser', identity.authUser);
   headers.set('X-Origin', origin);
   if (identity.pageId) headers.set('X-Goog-PageId', identity.pageId);
   else headers.delete('X-Goog-PageId');
-  return fetch(url, { method: init.method ?? 'GET', headers, body: init.body ?? null, credentials: 'include' });
+  return fetch(url, {
+    method: init.method ?? 'GET',
+    headers,
+    body: init.body ?? null,
+    credentials: 'include',
+    redirect: init.redirect ?? 'follow',
+  });
 }
 
 async function musicApi(endpoint: string, identity: Identity): Promise<unknown> {
@@ -121,7 +149,7 @@ async function musicApi(endpoint: string, identity: Identity): Promise<unknown> 
     },
     identity,
   );
-  if (!response.ok) throw new Error(`${endpoint} answered ${response.status}`);
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
   return response.json();
 }
 
@@ -208,47 +236,93 @@ function parseChannels(root: unknown, authUser: string): StoredChannel[] {
   return channels;
 }
 
+/** What went wrong reading the accounts, in words the popup can show; null when it worked. */
+let problem: string | null = null;
+
+/** Why a response has no account in it, read from what Google says about the session. */
+function describeEmpty(endpoint: string, body: unknown): string {
+  // responseContext.serviceTrackingParams carries GFEEDBACK's `logged_in`
+  // flag ("0" on an anonymous answer), whatever else the response holds.
+  const services =
+    (body as { responseContext?: { serviceTrackingParams?: { params?: Json[] }[] } })?.responseContext
+      ?.serviceTrackingParams ?? [];
+  const loggedIn = services.flatMap((service) => service.params ?? []).find((param) => param.key === 'logged_in')?.value;
+  if (loggedIn === '0') return `${endpoint}: YouTube answered as if signed out (the session wasn't accepted)`;
+  const keys = body && typeof body === 'object' ? Object.keys(body).join(', ') : typeof body;
+  return `${endpoint}: no account in the answer (${keys})`;
+}
+
+async function readLogin(authUser: string): Promise<{ account: StoredAccount | null; key: string | null; why: string | null }> {
+  const identity = { authUser, pageId: null };
+  let header: Json | undefined;
+  let why: string | null = null;
+  try {
+    const menu = await musicApi('account/account_menu', identity);
+    header = renderers(menu, 'activeAccountHeaderRenderer')[0];
+    if (!header) why = describeEmpty('account_menu', menu);
+  } catch (error) {
+    why = `account_menu: ${error instanceof Error ? error.message : String(error)}`;
+  }
+
+  let channels: StoredChannel[] = [];
+  try {
+    const list = await musicApi('account/accounts_list', identity);
+    channels = parseChannels(list, authUser);
+    if (!channels.length && !header) why ??= describeEmpty('accounts_list', list);
+  } catch (error) {
+    if (!header) why ??= `accounts_list: ${error instanceof Error ? error.message : String(error)}`;
+  }
+  // youtube.com's own switcher, the desktop app's second route, for the first login.
+  if (!channels.length && !header && authUser === '0') {
+    try {
+      const response = await signedFetch(`${YOUTUBE_ORIGIN}/getAccountSwitcherEndpoint`, { redirect: 'manual' }, identity);
+      // A signed-out request is redirected to the sign-in page.
+      if (response.type === 'opaqueredirect' || !response.ok) throw new Error('redirected to sign-in');
+      const text = await response.text();
+      const body: unknown = JSON.parse(text.slice(text.indexOf(")]}'") >= 0 ? text.indexOf(")]}'") + 4 : 0));
+      channels = parseChannels(body, authUser);
+      if (!channels.length) why = `${why}; ${describeEmpty('account switcher', body)}`;
+    } catch (error) {
+      why = `${why}; account switcher: ${error instanceof Error ? error.message : String(error)}`;
+    }
+  }
+  if (!header && !channels.length) return { account: null, key: null, why };
+
+  const selected = channels.find((c) => c.selectedOnWeb) ?? channels[0];
+  const name = (header && text(header.accountName)) || selected?.name || 'YouTube Music';
+  const email = (header && text(header.email)) || null;
+  const handle = (header && text(header.channelHandle)) || selected?.handle || null;
+  const avatarUrl = (header && photo(header)) || selected?.avatarUrl || null;
+  if (!channels.length) {
+    channels = [
+      { id: channelId(authUser, null), name, handle: handle ?? email, avatarUrl, brand: false, authUser, pageId: null, selectedOnWeb: true },
+    ];
+  }
+  return {
+    account: { authUser, name, email, avatarUrl, channels },
+    // Past the last login Google answers with the first one again.
+    key: email ?? `${name}|${handle ?? ''}|${channels.map((c) => c.id.split(':')[1]).join(',')}`,
+    why: null,
+  };
+}
+
 async function readAccounts(): Promise<StoredAccount[]> {
   const accounts: StoredAccount[] = [];
   const seen = new Set<string>();
+  problem = null;
   for (let index = 0; index < MAX_LOGINS; index++) {
-    const authUser = String(index);
-    const identity = { authUser, pageId: null };
-    let header: Json | undefined;
-    try {
-      header = renderers(await musicApi('account/account_menu', identity), 'activeAccountHeaderRenderer')[0];
-    } catch {
+    const { account, key, why } = await readLogin(String(index));
+    if (!account || !key) {
+      // Only the first login's failure matters: later ones end the list.
+      if (index === 0) {
+        problem = why;
+        console.warn(`BitChord: no YouTube account found: ${why}`);
+      }
       break;
     }
-    if (!header) break;
-    const name = text(header.accountName);
-    const email = text(header.email) || null;
-    // Past the last login Google answers with the first one again.
-    const key = email ?? `${name}|${text(header.channelHandle)}`;
     if (seen.has(key)) break;
     seen.add(key);
-
-    let channels: StoredChannel[] = [];
-    try {
-      channels = parseChannels(await musicApi('account/accounts_list', identity), authUser);
-    } catch {
-      // The switcher isn't answered for every account; the login's own channel always exists.
-    }
-    if (channels.length === 0) {
-      channels = [
-        {
-          id: channelId(authUser, null),
-          name: name || 'YouTube Music',
-          handle: text(header.channelHandle) || email,
-          avatarUrl: photo(header),
-          brand: false,
-          authUser,
-          pageId: null,
-          selectedOnWeb: true,
-        },
-      ];
-    }
-    accounts.push({ authUser, name, email, avatarUrl: photo(header), channels });
+    accounts.push(account);
   }
   return accounts;
 }
@@ -296,7 +370,7 @@ export async function authState(refresh = false): Promise<YtAuthState> {
   const prefs = await loadPrefs();
   const browserSignedIn = (await signingSecret()) !== null;
   if (!browserSignedIn || !prefs.connected) {
-    return { browserSignedIn, connected: prefs.connected, signedIn: false, accounts: [], active: null };
+    return { browserSignedIn, connected: prefs.connected, signedIn: false, accounts: [], active: null, problem: null };
   }
   const list = await accounts(refresh);
   const active = chooseChannel(list, prefs.selectedChannelId);
@@ -304,6 +378,7 @@ export async function authState(refresh = false): Promise<YtAuthState> {
     browserSignedIn,
     connected: true,
     signedIn: active !== null,
+    problem: active ? null : problem,
     accounts: list.map((a) => ({ ...a, channels: a.channels.map(publicChannel) })),
     active: active && { ...publicChannel(active), authUser: active.authUser },
   };

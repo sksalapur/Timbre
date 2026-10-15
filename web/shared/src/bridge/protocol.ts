@@ -75,6 +75,8 @@ export interface YtAuthState {
   accounts: YtAccount[];
   /** The channel in use, from `accounts`; null when not signed in. */
   active: (YtChannel & { authUser: string }) | null;
+  /** Signed in to the browser but no account could be read: what YouTube answered, for display. */
+  problem: string | null;
 }
 
 /** Pushed by the extension over the event channel (`Bridge.subscribe`). */

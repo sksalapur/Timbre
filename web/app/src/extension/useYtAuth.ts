@@ -14,7 +14,7 @@ import { extensionQueryKey, useExtension } from './useExtension';
 
 export const ytAuthQueryKey = ['yt', 'auth'] as const;
 
-const SIGNED_OUT: YtAuthState = { browserSignedIn: false, connected: true, signedIn: false, accounts: [], active: null };
+const SIGNED_OUT: YtAuthState = { browserSignedIn: false, connected: true, signedIn: false, accounts: [], active: null, problem: null };
 
 function detected(): DetectedExtension | null {
   return queryClient.getQueryData<DetectedExtension | null>(extensionQueryKey) ?? null;
@@ -104,6 +104,11 @@ export function useSelectChannel() {
     },
     onSuccess: adopt,
   });
+}
+
+/** Re-reads the accounts from YouTube rather than the extension's cache. */
+export function useRefreshYtAuth() {
+  return useMutation({ mutationFn: () => readAuth(true) });
 }
 
 /** Connect or disconnect BitChord from the browser's YouTube session (it stays signed in to Google). */

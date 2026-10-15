@@ -153,3 +153,12 @@ body {
 .action:hover {
   background: var(--divider);
 }
+
+/* Why the account couldn't be read, word for word, so a screenshot says it. */
+.problem {
+  display: block;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--secondary);
+  word-break: break-word;
+}

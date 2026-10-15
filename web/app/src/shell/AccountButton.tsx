@@ -1,7 +1,7 @@
 import { ArrowUpRight, ChevronsUpDown } from 'lucide-react';
 import { useCallback, useState } from 'react';
 import { Menu, MenuHeader, MenuItem, MenuSeparator } from '@/components/Menu';
-import { useSelectChannel, useSetConnected, useYtAuth } from '@/extension/useYtAuth';
+import { useRefreshYtAuth, useSelectChannel, useSetConnected, useYtAuth } from '@/extension/useYtAuth';
 import styles from './AccountButton.module.css';
 
 const SIGN_IN_URL = 'https://accounts.google.com/ServiceLogin?service=youtube&continue=https://music.youtube.com/';
@@ -28,6 +28,7 @@ export function AccountButton() {
   const status = useYtAuth();
   const select = useSelectChannel();
   const connect = useSetConnected();
+  const refresh = useRefreshYtAuth();
   const [anchor, setAnchor] = useState<HTMLElement | null>(null);
   const close = useCallback(() => setAnchor(null), []);
 
@@ -48,7 +49,19 @@ export function AccountButton() {
       </button>
     );
   }
-  if (!auth.active) return null;
+  if (!auth.active) {
+    // Signed in to the browser, but the account couldn't be read (the reason is on the Extension page).
+    return (
+      <button
+        className={styles.pill}
+        title={auth.problem ?? undefined}
+        onClick={() => refresh.mutate()}
+        disabled={refresh.isPending}
+      >
+        {refresh.isPending ? 'Reading account…' : 'Retry YouTube Sign-In'}
+      </button>
+    );
+  }
   const active = auth.active;
   const multiple = auth.accounts.flatMap((a) => a.channels).length > 1;
 

@@ -54,9 +54,17 @@ function youtubeRow(state: YtAuthState | null, refresh: (state: YtAuthState) => 
     (link as HTMLAnchorElement).target = '_blank';
     action = link;
   } else if (!state.connected || !state.active) {
-    who.append(el('span', 'title', 'YouTube Music'), el('span', 'detail', state.connected ? 'No channel found' : 'Disconnected'));
-    action = el('button', 'action', 'Connect');
-    action.onclick = () => void call('yt.setConnected', { connected: true }).then(refresh);
+    const detail = el('span', 'detail', state.connected ? 'Couldn’t read your account' : 'Disconnected');
+    if (state.problem) detail.title = state.problem;
+    who.append(el('span', 'title', 'YouTube Music'), detail);
+    if (state.connected) {
+      // Signed in, but the account couldn't be read: say why, and offer another try.
+      action = el('button', 'action', 'Retry');
+      action.onclick = () => void call('yt.authState', { refresh: true }).then(refresh);
+    } else {
+      action = el('button', 'action', 'Connect');
+      action.onclick = () => void call('yt.setConnected', { connected: true }).then(refresh);
+    }
   } else {
     if (state.active.avatarUrl) {
       const image = el('img', 'avatar');
@@ -71,6 +79,10 @@ function youtubeRow(state: YtAuthState | null, refresh: (state: YtAuthState) => 
     action.onclick = () => void call('yt.setConnected', { connected: false }).then(refresh);
   }
   row.append(avatar, who, action);
+  if (state.problem) {
+    const why = el('li', 'row problem', state.problem);
+    return Object.assign(row, { problemRow: why });
+  }
   return row;
 }
 
@@ -78,8 +90,10 @@ const list = document.getElementById('integrations')!;
 
 function render(state: YtAuthState | null): void {
   // Spotify and Discord gain their state and buttons in phase 9.
+  const youtube = youtubeRow(state, render) as HTMLLIElement & { problemRow?: HTMLLIElement };
   list.replaceChildren(
-    youtubeRow(state, render),
+    youtube,
+    ...(youtube.problemRow ? [youtube.problemRow] : []),
     simpleRow('Spotify', 'Not connected'),
     simpleRow('Discord', 'Not connected'),
   );

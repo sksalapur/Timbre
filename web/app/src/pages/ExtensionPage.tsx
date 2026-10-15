@@ -85,7 +85,7 @@ function youtubeStatus(auth: YtAuthStatus): string | null {
   const { browserSignedIn, connected, active } = auth.auth;
   if (!browserSignedIn) return 'Playback ready · not signed in';
   if (!connected) return 'Disconnected';
-  return active ? `Signed in as ${active.name}` : 'Signed in · no channel found';
+  return active ? `Signed in as ${active.name}` : 'Signed in · no account could be read';
 }
 
 /** One integration's state, honest about what this extension version can do. */
@@ -221,6 +221,9 @@ export default function ExtensionPage() {
             </div>
           ))}
         </section>
+        {auth.state === 'ready' && auth.auth.problem && (
+          <p className={styles.footer}>YouTube Music: {auth.auth.problem}.</p>
+        )}
         <p className={styles.footer}>
           Sign-ins stay inside the extension: this page only ever sees results, never your cookies or tokens.
         </p>
