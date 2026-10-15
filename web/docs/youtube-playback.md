@@ -53,6 +53,12 @@ Phase 3, 2026-10-15. Chromium 145 (Playwright's build) and Firefox 158, both wit
 - So our WebPO tokens aren't being accepted. Untested causes include the content binding (the player-request token is minted from the decoded visitor data), and whether YouTube now wants something beyond what Kira and googlevideo's example do. Kira itself (October 2025) no longer starts playback at all.
 - This matters for signed-in playback in phase 5, where the web clients are the ones that carry an account.
 
+**Age-restricted tracks need the user's own signed-in account** (confirmed by the user; phase 5). On the phone, InnerTubeX serves them through `WEB_REMIX_SABR`:
+- authentication optional, ranked up (+18) for restricted content when the request is signed in;
+- PO tokens: player request not required, streaming (GVS) optional.
+
+So the signed-in path is WEB_REMIX with the user's cookies, which makes the web-client token problem above a phase 5 blocker.
+
 **VISIONOS is "PROBE_ONLY" in InnerTubeX's catalog** (version 1.02). Android's automatic first choice is `VISIONOS_0_1`: version 0.1, osName `VISION_OS`, `RealityDevice14,1`, platform MOBILE, the music player endpoint. 1.02 works here today; switching to 0.1 needs YouTube.js to send a client version it doesn't define.
 
 **SABR forward seeks past the buffer** were refused before the `pyv` fix. They weren't retested afterwards, because SABR no longer carries any of the 17 tracks.

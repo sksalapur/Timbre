@@ -12,7 +12,8 @@
 }
 
 .row,
-.feature {
+.download,
+.integration {
   position: relative;
   padding: 11px 16px;
 }
@@ -24,8 +25,10 @@
   font: var(--title-3);
 }
 
+/* Hairlines between rows, inset to the text (the icon rows inset past the icon). */
 .row + .row::before,
-.feature + .feature::before {
+.download + .download::before,
+.integration + .integration::before {
   content: '';
   position: absolute;
   top: 0;
@@ -34,11 +37,21 @@
   border-top: 0.5px solid var(--labelDivider);
 }
 
+.download + .download::before {
+  left: 60px;
+}
+
+.integration + .integration::before {
+  left: 52px;
+}
+
 .value {
   display: inline-flex;
   align-items: center;
   gap: 6px;
   color: var(--systemSecondary);
+  font: var(--body-reduced);
+  text-align: right;
 }
 
 .dot {
@@ -61,17 +74,73 @@
   color: var(--systemSecondary);
 }
 
-.feature {
+/* Download rows: browser logo, title and detail, chevron. */
+.download {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 16px;
+}
+
+.download:hover {
+  background-color: var(--systemQuinary);
+}
+
+.browserIcon {
+  color: var(--systemPrimary);
+}
+
+.downloadText {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  min-width: 0;
 }
 
-.featureTitle {
+.downloadTitle {
   font: var(--title-3-emphasized);
+  color: var(--keyColor);
 }
 
-.featureDetail {
+.downloadDetail {
   font: var(--body);
   color: var(--systemSecondary);
+}
+
+.chevron {
+  color: var(--systemTertiary);
+}
+
+.steps {
+  margin: 10px 16px 0;
+  padding-inline-start: 18px;
+  list-style: decimal;
+  font: var(--body-tall);
+  color: var(--systemSecondary);
+}
+
+.steps li + li {
+  margin-top: 4px;
+}
+
+/* Integration rows: a coloured app-icon square, the name, the state. */
+.integration {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 12px;
+  font: var(--title-3);
+}
+
+.integrationIcon {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  color: #fff;
+}
+
+.integrationName {
+  min-width: 0;
 }

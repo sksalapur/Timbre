@@ -1,4 +1,4 @@
-import { ArrowUpRight, House, LayoutGrid, Radio, Search } from 'lucide-react';
+import { ArrowUpRight, House, LayoutGrid, Puzzle, Radio, Search } from 'lucide-react';
 import type { ComponentType } from 'react';
 import { PrefetchLink, PrefetchNavLink } from '@/components/PrefetchLink';
 import { LogoMark } from '@/components/icons/LogoMark';
@@ -47,6 +47,10 @@ export function Sidebar() {
           </ul>
         </div>
         <div className={styles.footer}>
+          <PrefetchNavLink to="/extension" className={styles.item} onClick={close}>
+            <Puzzle size={22} strokeWidth={1.9} className={styles.icon} />
+            <span>BitChord Extension</span>
+          </PrefetchNavLink>
           <a className={styles.footerLink} href={config.androidAppUrl} target="_blank" rel="noreferrer">
             <span>Get the Android app</span>
             <ArrowUpRight size={14} strokeWidth={2} />

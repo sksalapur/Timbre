@@ -9,7 +9,8 @@
     "zip": "wxt zip && wxt zip -b firefox",
     "typecheck": "tsc -p . && tsc -p tsconfig.node.json",
     "dev-key": "node scripts/gen-dev-key.mjs",
-    "postinstall": "wxt prepare"
+    "postinstall": "wxt prepare",
+    "package": "wxt zip && wxt zip -b firefox && node scripts/publish-to-site.mjs"
   },
   "dependencies": {
     "@bitchord/shared": "workspace:*"

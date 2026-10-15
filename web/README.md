@@ -38,6 +38,14 @@ corepack pnpm --dir web/extension build
 - **Chrome, Edge, Brave:** `chrome://extensions` → Developer mode → *Load unpacked* → `web/extension/.output/chrome-mv3`. The id is always `pkddffeebcmhhanjcigilehaeonkkfih`, pinned by the manifest `key` (`extension/dev-key/`), so the site finds it without configuration.
 - **Firefox:** `about:debugging#/runtime/this-firefox` → *Load Temporary Add-on* → `web/extension/.output/firefox-mv3/manifest.json`.
 
+To offer the extension as a download from the site's Extension page, package it:
+
+```bash
+corepack pnpm --dir web/extension package
+```
+
+This zips both builds and copies them to `app/public/downloads/` (git-ignored), which is where the page's "Download for Chrome" and "Download for Firefox" buttons point. `VITE_EXTENSION_CHROME_URL` and `VITE_EXTENSION_FIREFOX_URL` override those links, for example to point at store listings.
+
 Then open `http://localhost:5173/extension`. It shows "Installed", with the version and the transport: **Direct** on Chromium (`externally_connectable`), **Page relay** on Firefox (content script).
 
 ## Configuration

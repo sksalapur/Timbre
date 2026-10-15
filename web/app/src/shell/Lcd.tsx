@@ -27,6 +27,7 @@ export function Lcd() {
             key={nowPlaying.artworkUrl}
             src={sizedArtwork(nowPlaying.artworkUrl, 34)}
             alt=""
+            referrerPolicy="no-referrer"
             decoding="async"
             onLoad={(e) => e.currentTarget.setAttribute('data-loaded', '')}
           />

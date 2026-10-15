@@ -321,3 +321,35 @@ Responsive editorial styles (hero headlines) step up at 1000px, 1260px and 1580p
 - Synced lyrics animation: the signed-in test account plays 30-second previews only, and previews have no lyrics. am-lyrics renders our lyrics with its own animation anyway (prompt §10.2). The panel and full-screen sizing above come from Apple's CSS.
 - Light appearance was read from the token definitions, not from screenshots. The pane follows the app's dark theme.
 - Screenshots at 1024×768 and 390×844: the pane's emulated captures are too small to read detail, so the breakpoint behaviour above comes from the DOM tree at each width and from the CSS media queries.
+
+## 14. Signed in (measured 2026-10-15, phase 4)
+
+Measured with the user's own account in the built-in pane. The account has no subscription, so Apple still shows previews only.
+
+### Album and playlist actions
+
+The header's actions are a three-column grid: `primary-start primary-center primary-end`, `grid-template-columns: 1fr auto 1fr`, gap 12–14px, `margin-top: 14px`. Without a subscription Apple shows only a "Preview" pill, so the values below come from its CSS rather than a live element.
+
+- **Play**: a pill. Height 36px, min-width 150px, radius 24px, padding 0 12px, `--title-3-semibold` (15px/20px 600). Background `--button-pill-background-color` (white on dark), text `--button-pill-color` (black). Glyph, then "Play". It sits in the centre column.
+- **Shuffle** (start column) and **Add to library** (end column) are circles: 36×36, `aspect-ratio: 1`. Background `--button-circle-background-color` (`#ffffff0a` dark / `#0000000f` light), border `0.75px solid --button-circle-border-color` (`#ffffff14` / `#0000000a`).
+- At the large header layout, pills are 48px tall and 160px wide in `--title-2-semibold`; circles are 48×48.
+- The ⋯ menu is a 30px circle at the header's top right.
+
+### Playlist track list (also every song "See All")
+
+- Header row: 32px tall. Labels "Song", "Artist", "Album" and a time column, in 12px/15px 600 secondary colour, not uppercased. Static (not sticky).
+- Rows are 54px. At 1440px the columns are Song 396px, Artist 274px (padding-right 10px), Album 274px (padding-right 16px), Time 141px (padding-right 18px).
+- The Song cell holds a 40×40 artwork (radius 5px, 7px from the row's left edge), then the title 13px/16px primary at x+59. The play button sits over the artwork on hover.
+- Artist and album are links in the secondary colour (13px/16px). The outer cells round at **12px** on hover (the album list uses 6px).
+- No alternate-row tint in dark mode.
+- A song "See All" page is just the page title (34px) followed by this list, inside a section with top spacing (padding-top 28px).
+
+### Home shelves (signed in)
+
+- "Top Picks for You" and "Playlists Made for You" use **powerswoosh** cards: 3:4 portrait (260×347 at 1440px), C-grid columns 3/4/5/5.
+  - Radius 10px. The artwork fills the card over `--artwork-background-color`.
+  - A **46px chin** at the bottom: blurred artwork with a legibility gradient. Inside it, padding 0 16px: eyebrow 11px/14px 600 white (margin-bottom 3px), title 12px/15px white (margin-bottom 15px).
+  - A 30px dark platter play button at the bottom right (10px inset), above the chin.
+- "Recently Played", genre and mood shelves: square lockups (G).
+- "Recommended Playlist": a single full-width hero, 1085×444.
+- "Concerts": rows with 56px artwork.

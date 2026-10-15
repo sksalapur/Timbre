@@ -1,5 +1,6 @@
 import { lazy, Suspense, type ComponentType, type ReactNode } from 'react';
 import { matchPath } from 'react-router';
+import { prefetchPageData } from '@/data/music/queries';
 import {
   AlbumSkeleton,
   ArtistSkeleton,
@@ -31,6 +32,7 @@ export const pages: PageRoute[] = [
   { path: '/album/:id', load: () => import('@/pages/AlbumPage'), skeleton: <AlbumSkeleton /> },
   { path: '/artist/:id', load: () => import('@/pages/ArtistPage'), skeleton: <ArtistSkeleton /> },
   { path: '/playlist/:id', load: () => import('@/pages/PlaylistPage'), skeleton: <PlaylistSkeleton /> },
+  { path: '/browse/:id', load: () => import('@/pages/BrowsePage'), skeleton: <PlainSkeleton /> },
   { path: '/extension', load: () => import('@/pages/ExtensionPage'), skeleton: <PlainSkeleton /> },
   { path: '/debug', load: () => import('@/pages/DebugPage'), skeleton: <PlainSkeleton /> },
 ];
@@ -46,11 +48,12 @@ export function pageElement({ load, skeleton }: PageRoute) {
   );
 }
 
-/** Warms the chunk for whatever page `href` leads to. Safe to call repeatedly. */
+/** Warms the chunk, and the first query, for whatever page `href` leads to. Safe to call repeatedly. */
 export function preloadRoute(href: string): void {
   const pathname = href.split(/[?#]/)[0] ?? href;
   const page = pages.find((p) => matchPath(p.path, pathname));
   void page?.load().catch(() => {
     // A failed prefetch is retried by the real navigation.
   });
+  prefetchPageData(pathname);
 }
