@@ -1712,11 +1712,12 @@ object ListenTogether {
     private const val KICK_BLOCK_MS = 24L * 60 * 60 * 1000
 
     private const val PING_INTERVAL_MS = 15_000L
-    // Issue #788: 10s idle polling kept the radio awake for a status row nobody
-    // was looking at. 60s is plenty for a screen that rechecks on open anyway.
-    private const val HEALTH_POLL_INTERVAL_MS = 60_000L
-    // Debounces rapid screen toggles and network-callback bursts.
-    private const val HEALTH_MIN_GAP_MS = 30_000L
+    // Polled only while the Listen Together screen is open and no party socket is
+    // live (see shouldSkipIdleProbe), so 10s costs nothing when nobody is looking.
+    private const val HEALTH_POLL_INTERVAL_MS = 10_000L
+    // Debounces rapid screen toggles and network-callback bursts. Must stay at or
+    // below the poll interval, or the debounce silently stretches the poll.
+    private const val HEALTH_MIN_GAP_MS = 5_000L
     private const val REPORT_INTERVAL_MS = 10_000L
     private const val HEALTH_TIMEOUT_MS = 45_000L
 }
