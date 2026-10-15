@@ -32,6 +32,7 @@ import androidx.compose.material.icons.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Bedtime
 import androidx.compose.material.icons.rounded.DownloadDone
 import androidx.compose.material.icons.rounded.HighQuality
+import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.Radio
 import androidx.compose.material.icons.rounded.Share
@@ -47,6 +48,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -69,6 +71,9 @@ import androidx.compose.ui.window.PopupPositionProvider
 import androidx.compose.ui.window.PopupProperties
 import com.music.bitchord.data.model.LikeStatus
 import com.music.bitchord.data.model.Song
+import com.music.bitchord.data.SongInfo
+import com.music.bitchord.data.SongInfoRepository
+import com.music.bitchord.data.compactCount
 import com.music.bitchord.ui.LyricsProviderState
 import com.music.bitchord.ui.icons.BitChordIcons
 import java.util.Locale
@@ -286,6 +291,7 @@ internal fun DesktopSongMenu(
     onDismiss: () -> Unit,
 ) {
     var pickingSleepTimer by remember { mutableStateOf(false) }
+    var showingSongInfo by remember(song.videoId) { mutableStateOf(false) }
     var pickingLyricsProvider by remember { mutableStateOf(false) }
     var pickingLyricsOffset by remember { mutableStateOf(false) }
     val liked = likeStatus == LikeStatus.LIKE
@@ -295,6 +301,11 @@ internal fun DesktopSongMenu(
     val isOffline = song.localUri != null
 
     DesktopMenuSurface(onDismiss = onDismiss) {
+        if (showingSongInfo) {
+            DesktopMenuHeader(DesktopStrings["song_info", "Song Info"]) { showingSongInfo = false }
+            DesktopSongInfo(song)
+            return@DesktopMenuSurface
+        }
         // One drawer for both: the manual search box on top, and under it every
         // provider with what its lookup turned up — the lyric sheet's old footer
         // and its provider picker, folded into the song menu.
@@ -457,15 +468,14 @@ internal fun DesktopSongMenu(
 
         val albumId = song.albumId
         val artistId = song.artistId
-        if ((albumId != null && onOpenAlbum != null) || (artistId != null && onOpenArtist != null)) {
-            DesktopMenuDivider()
-            if (albumId != null && onOpenAlbum != null) {
-                DesktopMenuRow(Icons.Rounded.Album, DesktopStrings["open_album", "Open album"]) { onOpenAlbum(albumId) }
-            }
-            if (artistId != null && onOpenArtist != null) {
-                DesktopMenuRow(Icons.Rounded.Person, DesktopStrings["open_artist", "Open artist"]) { onOpenArtist(artistId) }
-            }
+        DesktopMenuDivider()
+        if (albumId != null && onOpenAlbum != null) {
+            DesktopMenuRow(Icons.Rounded.Album, DesktopStrings["open_album", "Open album"]) { onOpenAlbum(albumId) }
         }
+        if (artistId != null && onOpenArtist != null) {
+            DesktopMenuRow(Icons.Rounded.Person, DesktopStrings["open_artist", "Open artist"]) { onOpenArtist(artistId) }
+        }
+        DesktopMenuRow(Icons.Rounded.Info, DesktopStrings["song_info", "Song Info"]) { showingSongInfo = true }
 
         DesktopMenuDivider()
         DesktopMenuRow(
@@ -624,6 +634,39 @@ private fun DesktopMenuSurface(onDismiss: () -> Unit, content: @Composable () ->
                 .verticalScroll(rememberScrollState()),
         ) {
             content()
+        }
+    }
+}
+
+@Composable
+private fun DesktopSongInfo(song: Song) {
+    var retry by remember(song.videoId) { mutableStateOf(0) }
+    val info by produceState<SongInfo?>(null, song, retry) {
+        value = null
+        value = SongInfoRepository.load(song)
+    }
+    Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text(song.title, style = MaterialTheme.typography.titleMedium)
+        if (info == null) CircularProgressIndicator(Modifier.size(22.dp))
+        listOf(
+            DesktopStrings["song_info_album", "Album"] to (info?.album ?: song.albumName),
+            DesktopStrings["song_info_release_date", "Release date"] to (info?.releaseDate ?: info?.releaseYear),
+            DesktopStrings["song_info_views", "Plays / views"] to info?.views?.let(::compactCount),
+            DesktopStrings["song_info_likes", "Likes"] to info?.likes,
+            DesktopStrings["song_info_comments", "Comments"] to info?.comments,
+        ).forEach { (label, value) ->
+            Column {
+                Text(label, style = MaterialTheme.typography.labelMedium, color = DesktopSecondary)
+                Text(value ?: if (info == null) "—" else DesktopStrings["song_info_unavailable", "Not available"])
+            }
+        }
+        Text(DesktopStrings["song_info_counts_note", "Counts are for this YouTube upload. Plays / views are not unique listeners."],
+            style = MaterialTheme.typography.bodySmall, color = DesktopSecondary)
+        if (info?.failed == true) {
+            Text(DesktopStrings["song_info_error", "Some information could not be loaded."], color = MaterialTheme.colorScheme.error)
+            androidx.compose.material3.TextButton(onClick = { retry++ }) {
+                Text(DesktopStrings["song_info_retry", "Retry"])
+            }
         }
     }
 }
