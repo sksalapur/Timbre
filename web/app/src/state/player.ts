@@ -1,8 +1,25 @@
 import type { DetectedExtension } from '@bitchord/shared/bridge';
 import { create } from 'zustand';
+import type { Track } from '@/data/music/types';
 import { extensionQueryKey } from '@/extension/useExtension';
 import { artworkAtPixels } from '@/lib/artwork';
 import { queryClient } from '@/lib/queryClient';
+import { extendStation } from '@/playback/queue/builder';
+import {
+  applyJump,
+  asEntry,
+  BACK_RESTARTS_AFTER_SEC,
+  buildContextQueue,
+  buildOneOffQueue,
+  playedUserQueueIndices,
+  sectionedOrder,
+  shuffledStartingOrder,
+  shuffledUpcomingOrder,
+  upcomingUserQueueIndices,
+  userQueueInsertionIndex,
+  type QueueEntry,
+  type QueueSource,
+} from '@/playback/queue/timeline';
 import { trackLog } from '@/playback/trackLog';
 import type { LoadedTrack, YouTubeEngine } from '@/playback/youtube/engine';
 
@@ -18,46 +35,130 @@ export interface NowPlaying {
 }
 
 export type PlayerStatus = 'idle' | 'loading' | 'playing' | 'paused' | 'buffering' | 'error';
+export type RepeatMode = 'off' | 'all' | 'one';
 
-interface PlayerState {
+/** Crossfade lengths offered, in seconds; 0 is off. */
+export const CROSSFADE_CHOICES = [0, 3, 6, 9, 12] as const;
+
+interface Settings {
+  shuffle: boolean;
+  repeat: RepeatMode;
+  /** Keep playing similar music (YouTube Music radio) when the queue runs out. */
+  autoplay: boolean;
+  volume: number;
+  muted: boolean;
+  crossfadeSec: number;
+}
+
+interface PlayerState extends Settings {
+  /** The whole timeline: what played, what plays, what's next (playback/queue/timeline.ts). */
+  queue: QueueEntry[];
+  /** The playing entry in [queue]; -1 when nothing is loaded. */
+  index: number;
   nowPlaying: NowPlaying | null;
   status: PlayerStatus;
   error: string | null;
-  /** Plays a YouTube track. `hint` fills the player chrome before the stream resolves. */
+  /** Bumped whenever the audio element in front changes (crossfade swaps them). */
+  deck: number;
+
+  /** Plays [tracks] as the context (an album, a playlist), from [startIndex]. */
+  playTracks: (tracks: Track[], startIndex: number, source: QueueSource) => void;
+  /** Plays one song on its own (search, home); AutoPlay carries on after it. */
+  playTrack: (track: Track, source: QueueSource) => void;
+  /** Plays a bare video id (the Debug page). */
   playVideo: (videoId: string, hint?: Partial<Omit<NowPlaying, 'videoId'>>) => Promise<void>;
+  playNext: (tracks: Track[], source?: QueueSource | null) => void;
+  addToQueue: (tracks: Track[], source?: QueueSource | null) => void;
+  /** Tapping a row in Up Next (QueueTimeline.computeJumpOrder). */
+  jumpTo: (index: number) => void;
+  removeAt: (index: number) => void;
+  /** Moves an upcoming row; both indices are into [queue] and after the playing one. */
+  move: (from: number, to: number) => void;
+  /** "Clear": the upcoming hand-queued tracks. The album or playlist and AutoPlay stay. */
+  clearUpNext: () => void;
+  next: () => void;
+  previous: () => void;
   togglePlay: () => void;
   seek: (seconds: number) => void;
+  toggleShuffle: () => void;
+  cycleRepeat: () => void;
+  setAutoplay: (on: boolean) => void;
+  setVolume: (volume: number) => void;
+  toggleMute: () => void;
+  setCrossfade: (seconds: number) => void;
 }
 
-// ---- The engine, loaded on first play ---------------------------------------------
+// ---- Settings, kept across visits ---------------------------------------------------
 
-let audio: HTMLAudioElement | null = null;
-let enginePromise: Promise<YouTubeEngine> | null = null;
+const SETTINGS_KEY = 'bitchord:player';
+const DEFAULT_SETTINGS: Settings = { shuffle: false, repeat: 'off', autoplay: true, volume: 1, muted: false, crossfadeSec: 0 };
 
-/** The one media element, if playback has started at least once. */
+function loadSettings(): Settings {
+  try {
+    return { ...DEFAULT_SETTINGS, ...(JSON.parse(localStorage.getItem(SETTINGS_KEY) ?? '{}') as Partial<Settings>) };
+  } catch {
+    return DEFAULT_SETTINGS;
+  }
+}
+
+function saveSettings(state: Settings) {
+  const { shuffle, repeat, autoplay, volume, muted, crossfadeSec } = state;
+  localStorage.setItem(SETTINGS_KEY, JSON.stringify({ shuffle, repeat, autoplay, volume, muted, crossfadeSec }));
+}
+
+// ---- Decks: two engines, so a crossfade can play the next track under this one ------------
+
+interface Deck {
+  engine: YouTubeEngine;
+  audio: HTMLAudioElement;
+  /** The crossfade's share of the volume, 0–1. */
+  gain: number;
+}
+
+let decks: Deck[] | null = null;
+let decksPromise: Promise<Deck[]> | null = null;
+let active = 0;
+
+/** The audio element in front, if playback has started at least once. */
 export function getAudio(): HTMLAudioElement | null {
-  return audio;
+  return decks?.[active]?.audio ?? null;
 }
 
-function getEngine(): Promise<YouTubeEngine> {
-  enginePromise ??= (async () => {
+function getDecks(): Promise<Deck[]> {
+  decksPromise ??= (async () => {
     // Shaka, YouTube.js and googlevideo are the heavy part of the app; they
     // load on the first play, not with the page (prompt §3).
     const { YouTubeEngine } = await import('@/playback/youtube/engine');
-    audio = new Audio();
-    audio.preload = 'auto';
-    // Media from another origin is silent inside an AudioContext unless it
-    // is fetched with CORS (prompt §6, the Web Audio caveat).
-    audio.crossOrigin = 'anonymous';
-    bindElement(audio);
-    // For browser-driven tests: the element isn't in the DOM.
-    if (import.meta.env.DEV) Object.assign(window, { __bcAudio: audio });
-    const engine = new YouTubeEngine(audio);
-    engine.onFatal = (_videoId, message) => usePlayer.setState({ status: 'error', error: message });
-    engine.onRecovered = (track) => applyTrack(track);
-    return engine;
+    decks = [0, 1].map((n) => {
+      const audio = new Audio();
+      audio.preload = 'auto';
+      // Media from another origin is silent inside an AudioContext unless it
+      // is fetched with CORS (prompt §6, the Web Audio caveat).
+      audio.crossOrigin = 'anonymous';
+      const engine = new YouTubeEngine(audio);
+      const deck: Deck = { engine, audio, gain: 1 };
+      engine.onFatal = (videoId, message) => {
+        if (decks?.[active] !== deck) return;
+        trackLog.e(`stopped: ${message}`, videoId);
+        usePlayer.setState({ status: 'error', error: message });
+      };
+      engine.onRecovered = (track) => {
+        if (decks?.[active] === deck) applyTrack(track);
+      };
+      bindElement(deck, n);
+      return deck;
+    });
+    applyVolumes();
+    // For browser-driven tests: the elements aren't in the DOM.
+    if (import.meta.env.DEV) Object.defineProperty(window, '__bcAudio', { get: getAudio, configurable: true });
+    return decks;
   })();
-  return enginePromise;
+  return decksPromise;
+}
+
+function applyVolumes() {
+  const { volume, muted } = usePlayer.getState();
+  for (const deck of decks ?? []) deck.audio.volume = muted ? 0 : Math.min(1, Math.max(0, volume * deck.gain));
 }
 
 function extensionReady(): boolean {
@@ -65,101 +166,498 @@ function extensionReady(): boolean {
   return !!detected?.info.capabilities.includes('yt');
 }
 
+const artistNames = (track: Track) => track.artists.map((a) => a.name).join(', ');
+
+function hintOf(track: Track): NowPlaying {
+  return {
+    videoId: track.videoId,
+    title: track.title,
+    artist: artistNames(track),
+    artworkUrl: track.thumbnail,
+    durationSec: track.durationSec ?? 0,
+    streamInfo: null,
+  };
+}
+
 // ---- Store ------------------------------------------------------------------------
 
+/** Each load gets a number; an answer for an older one is dropped. */
+let loadToken = 0;
+/** Canonical positions of the queue before shuffle, for turning it off again. */
+let canonical: Map<string, number> | null = null;
+
 export const usePlayer = create<PlayerState>()((set, get) => ({
+  ...loadSettings(),
+  queue: [],
+  index: -1,
   nowPlaying: null,
   status: 'idle',
   error: null,
+  deck: 0,
+
+  playTracks(tracks, startIndex, source) {
+    if (!tracks.length) return;
+    const { queue, index, shuffle } = get();
+    const built = buildContextQueue(queue, index, tracks, startIndex, source);
+    if (shuffle) {
+      canonical = positions(built.timeline);
+      set({ queue: shuffledStartingOrder(built.timeline, built.startIndex) });
+      void startAt(0);
+    } else {
+      canonical = null;
+      set({ queue: built.timeline });
+      void startAt(built.startIndex);
+    }
+  },
+
+  playTrack(track, source) {
+    const { queue, index } = get();
+    canonical = null;
+    set({ queue: buildOneOffQueue(queue, index, track, source) });
+    void startAt(0);
+  },
 
   async playVideo(videoId, hint = {}) {
-    if (!extensionReady()) {
-      // Shown in the pill, so the tap visibly did something.
-      set({
-        nowPlaying: {
-          videoId,
-          title: hint.title || 'Can’t play this here yet',
-          artist: hint.artist ?? '',
-          artworkUrl: hint.artworkUrl ?? null,
-          durationSec: hint.durationSec ?? 0,
-          streamInfo: null,
-        },
-        status: 'error',
-        error: 'YouTube playback needs the BitChord extension.',
-      });
-      return;
-    }
-    set({
-      nowPlaying: {
+    get().playTrack(
+      {
         videoId,
         title: hint.title ?? '',
-        artist: hint.artist ?? '',
-        artworkUrl: hint.artworkUrl ?? null,
-        durationSec: hint.durationSec ?? 0,
-        streamInfo: null,
+        artists: hint.artist ? [{ name: hint.artist, id: null }] : [],
+        album: null,
+        durationSec: hint.durationSec ?? null,
+        explicit: false,
+        thumbnail: hint.artworkUrl ?? null,
+        index: null,
+        plays: null,
       },
-      status: 'loading',
-      error: null,
-    });
-    updateMediaSession(get().nowPlaying);
-    try {
-      const engine = await getEngine();
-      const track = await engine.load(videoId);
-      if (get().nowPlaying?.videoId !== videoId) return;
-      applyTrack(track, hint);
-    } catch (error) {
-      if (error instanceof Error && error.name === 'SupersededError') return;
-      if (get().nowPlaying?.videoId !== videoId) return;
-      set({ status: 'error', error: error instanceof Error ? error.message : String(error) });
-    }
+      { title: 'Debug', type: 'other' },
+    );
+  },
+
+  playNext(tracks, source = null) {
+    insertUser(tracks, source, true);
+  },
+
+  addToQueue(tracks, source = null) {
+    insertUser(tracks, source, false);
+  },
+
+  jumpTo(target) {
+    const { queue, index } = get();
+    if (target === index) return;
+    const jumped = applyJump(queue, index, target);
+    if (!jumped) return;
+    set({ queue: jumped.timeline });
+    void startAt(jumped.index);
+  },
+
+  removeAt(at) {
+    const { queue, index } = get();
+    if (at === index || at < 0 || at >= queue.length) return;
+    set({ queue: queue.filter((_, i) => i !== at), index: at < index ? index - 1 : index });
+    void refillAutoplay();
+  },
+
+  move(from, to) {
+    const { queue, index } = get();
+    if (from <= index || to <= index || from >= queue.length || to >= queue.length || from === to) return;
+    const next = [...queue];
+    const [entry] = next.splice(from, 1);
+    next.splice(to, 0, entry!);
+    set({ queue: next });
+  },
+
+  clearUpNext() {
+    const { queue, index } = get();
+    const drop = new Set(upcomingUserQueueIndices(queue.map((e) => e.tier), index));
+    set({ queue: queue.filter((_, i) => !drop.has(i)) });
+  },
+
+  next() {
+    void advance(false);
+  },
+
+  previous() {
+    const { index, queue, repeat } = get();
+    const audio = getAudio();
+    if (audio && audio.currentTime > BACK_RESTARTS_AFTER_SEC) return get().seek(0);
+    if (index > 0) return void startAt(index - 1);
+    if (repeat === 'all' && queue.length > 1) return void startAt(queue.length - 1);
+    get().seek(0);
   },
 
   togglePlay() {
-    if (!audio || !get().nowPlaying) return;
+    const audio = getAudio();
+    const { nowPlaying, status, index } = get();
+    if (!nowPlaying) return;
+    // A stopped or failed track starts again from where it was.
+    if (!audio || status === 'error') return void startAt(index, { startSec: audio?.currentTime ?? 0 });
     if (audio.paused) void audio.play().catch((e: unknown) => trackLog.w(`play() refused: ${String(e)}`));
-    else audio.pause();
+    else {
+      cancelCrossfade();
+      audio.pause();
+    }
   },
 
   seek(seconds) {
+    const audio = getAudio();
     if (!audio) return;
+    cancelCrossfade();
     audio.currentTime = Math.max(0, Math.min(seconds, audio.duration || seconds));
     updatePositionState();
   },
+
+  toggleShuffle() {
+    const { queue, index, shuffle } = get();
+    const head = queue.slice(0, index + 1);
+    const upcoming = queue.slice(index + 1);
+    if (!shuffle) {
+      canonical = positions(queue);
+      const order = shuffledUpcomingOrder(upcoming.map((e) => e.tier));
+      set({ shuffle: true, queue: [...head, ...order.map((i) => upcoming[i]!)] });
+    } else {
+      // Back to the order the queue had, by section; tracks added since keep their place at the end.
+      const known = canonical ?? new Map<string, number>();
+      const restored = upcoming
+        .map((entry, i) => ({ i, at: known.get(entry.entryId) ?? Number.MAX_SAFE_INTEGER - upcoming.length + i }))
+        .sort((a, b) => a.at - b.at)
+        .map((x) => x.i);
+      const order = sectionedOrder(restored, upcoming.map((e) => e.tier));
+      canonical = null;
+      set({ shuffle: false, queue: [...head, ...order.map((i) => upcoming[i]!)] });
+    }
+    saveSettings(get());
+  },
+
+  cycleRepeat() {
+    const repeat: RepeatMode = { off: 'all', all: 'one', one: 'off' }[get().repeat] as RepeatMode;
+    set({ repeat });
+    saveSettings(get());
+    if (repeat === 'off') void refillAutoplay();
+  },
+
+  setAutoplay(autoplay) {
+    set({ autoplay });
+    saveSettings(get());
+    if (autoplay) void refillAutoplay();
+    else {
+      // Turning it off takes the radio out of what's to come.
+      const { queue, index } = get();
+      set({ queue: queue.filter((e, i) => i <= index || e.tier !== 'autoplay') });
+    }
+  },
+
+  setVolume(volume) {
+    set({ volume: Math.min(1, Math.max(0, volume)), muted: false });
+    applyVolumes();
+    saveSettings(get());
+  },
+
+  toggleMute() {
+    set({ muted: !get().muted });
+    applyVolumes();
+    saveSettings(get());
+  },
+
+  setCrossfade(crossfadeSec) {
+    set({ crossfadeSec });
+    saveSettings(get());
+  },
 }));
 
-function applyTrack(track: LoadedTrack, hint: Partial<Omit<NowPlaying, 'videoId'>> = {}) {
+// For browser-driven tests, next to __bcAudio.
+if (import.meta.env.DEV) Object.assign(window, { __bcPlayer: usePlayer });
+
+function positions(queue: readonly QueueEntry[]): Map<string, number> {
+  return new Map(queue.map((e, i) => [e.entryId, i]));
+}
+
+function insertUser(tracks: Track[], source: QueueSource | null, isNext: boolean) {
+  if (!tracks.length) return;
+  const { queue, index } = usePlayer.getState();
+  const entries = tracks.map((t) => asEntry(t, 'user', source));
+  if (index < 0) {
+    usePlayer.setState({ queue: entries });
+    void startAt(0);
+    return;
+  }
+  const at = userQueueInsertionIndex(queue, index, isNext);
+  usePlayer.setState({ queue: [...queue.slice(0, at), ...entries, ...queue.slice(at)] });
+}
+
+// ---- Loading and moving through the queue -------------------------------------------
+
+/** Loads queue[at] into the deck in front and plays it. `auto` marks a move the player made on its own. */
+async function startAt(at: number, { startSec = 0, auto = false } = {}): Promise<void> {
+  const state = usePlayer.getState();
+  const entry = state.queue[at];
+  if (!entry) return;
+  cancelCrossfade();
+  const token = ++loadToken;
+
+  if (!extensionReady()) {
+    usePlayer.setState({
+      index: at,
+      nowPlaying: { ...hintOf(entry.track), title: entry.track.title || 'Can’t play this here yet' },
+      status: 'error',
+      error: 'YouTube playback needs the BitChord extension.',
+    });
+    return;
+  }
+
+  usePlayer.setState({ index: at, nowPlaying: hintOf(entry.track), status: 'loading', error: null });
+  updateMediaSession(usePlayer.getState().nowPlaying);
+  try {
+    const all = await getDecks();
+    const deck = all[active]!;
+    all[1 - active]!.engine.stop().catch(() => {});
+    deck.gain = 1;
+    applyVolumes();
+    const track = await deck.engine.load(entry.track.videoId, { startSec });
+    if (token !== loadToken) return;
+    applyTrack(track, entry.track);
+    afterTrackStarted();
+  } catch (error) {
+    if (token !== loadToken || (error instanceof Error && error.name === 'SupersededError')) return;
+    const message = error instanceof Error ? error.message : String(error);
+    usePlayer.setState({ status: 'error', error: message });
+    // A track the player reached on its own that can't play is skipped, as on the phone.
+    if (auto && planNext(true)) {
+      trackLog.w(`skipping: ${message}`, entry.track.videoId);
+      setTimeout(() => {
+        if (token === loadToken) void advance(true);
+      }, 1500);
+    }
+  }
+}
+
+type NextPlan = { kind: 'repeat-one' } | { kind: 'index'; queue: QueueEntry[]; index: number };
+
+/**
+ * What comes after the playing track, without doing it. `auto` is a track
+ * ending (repeat-one replays it); a Next tap moves on regardless.
+ */
+function planNext(auto: boolean): NextPlan | null {
+  const { queue, index, repeat } = usePlayer.getState();
+  if (auto && repeat === 'one') return { kind: 'repeat-one' };
+  if (index + 1 < queue.length) return { kind: 'index', queue, index: index + 1 };
+  if (repeat !== 'off' && queue.length) {
+    // Round again: the hand-queued tracks have had their turn; the context repeats.
+    const tiers = queue.map((e) => e.tier);
+    const played = new Set(playedUserQueueIndices(tiers, index));
+    const kept = queue.filter((e, i) => !played.has(i) && (e.tier !== 'user' || i > index));
+    return kept.length ? { kind: 'index', queue: kept, index: 0 } : null;
+  }
+  return null;
+}
+
+async function advance(auto: boolean): Promise<void> {
+  let plan = planNext(auto);
+  if (!plan && usePlayer.getState().autoplay) {
+    await refillAutoplay(true);
+    plan = planNext(auto);
+  }
+  if (!plan) {
+    // The end: leave the last track loaded and paused, as a music app does.
+    if (auto) usePlayer.setState({ status: 'paused' });
+    return;
+  }
+  if (plan.kind === 'repeat-one') {
+    const audio = getAudio();
+    if (audio) {
+      audio.currentTime = 0;
+      void audio.play();
+    }
+    return;
+  }
+  usePlayer.setState({ queue: plan.queue });
+  await startAt(plan.index, { auto });
+}
+
+/** Once a track is under way: prune hand-queued tracks already played, and top up AutoPlay. */
+function afterTrackStarted() {
+  const { queue, index } = usePlayer.getState();
+  const played = new Set(playedUserQueueIndices(queue.map((e) => e.tier), index));
+  if (played.size) {
+    usePlayer.setState({
+      queue: queue.filter((_, i) => !played.has(i)),
+      index: index - [...played].filter((i) => i < index).length,
+    });
+  }
+  void refillAutoplay();
+}
+
+// ---- AutoPlay ---------------------------------------------------------------------
+
+/** Below this many tracks still to come, AutoPlay fetches more. */
+const AUTOPLAY_LOW_WATER = 3;
+const AUTOPLAY_BATCH = 10;
+let refilling: Promise<void> | null = null;
+/** Seeds that gave nothing new, so the same empty radio isn't asked for again. */
+const exhaustedSeeds = new Set<string>();
+
+function refillAutoplay(force = false): Promise<void> {
+  const { autoplay, repeat, queue, index } = usePlayer.getState();
+  if (!autoplay || repeat !== 'off' || index < 0) return Promise.resolve();
+  if (!force && queue.length - index - 1 >= AUTOPLAY_LOW_WATER) return Promise.resolve();
+  const seed = queue.at(-1)?.track;
+  if (!seed || exhaustedSeeds.has(seed.videoId)) return Promise.resolve();
+  refilling ??= (async () => {
+    try {
+      const { fetchRadio } = await import('@/data/music/api');
+      const candidates = await fetchRadio(seed.videoId);
+      const current = usePlayer.getState();
+      const extra = extendStation(
+        current.queue.map((e) => e.track),
+        candidates,
+        AUTOPLAY_BATCH,
+      );
+      if (!extra.length) {
+        exhaustedSeeds.add(seed.videoId);
+        return;
+      }
+      const source: QueueSource = { title: `${seed.title} Radio`, type: 'radio', id: `RDAMVM${seed.videoId}` };
+      // Still the same queue tail? A new album started meanwhile shouldn't get the old radio.
+      if (current.queue.at(-1)?.track.videoId !== seed.videoId || !current.autoplay) return;
+      usePlayer.setState({ queue: [...current.queue, ...extra.map((t) => asEntry(t, 'autoplay', source))] });
+      trackLog.i(`AutoPlay added ${extra.length} tracks from ${seed.title}'s radio`, seed.videoId);
+    } catch (error) {
+      trackLog.w(`AutoPlay couldn't load the radio: ${String(error)}`, seed.videoId);
+    } finally {
+      refilling = null;
+    }
+  })();
+  return refilling;
+}
+
+// ---- Crossfade ----------------------------------------------------------------------
+
+let fade: { token: number; frame: number; pending: boolean } | null = null;
+
+function cancelCrossfade() {
+  if (!fade) return;
+  cancelAnimationFrame(fade.frame);
+  const wasPending = fade.pending;
+  fade = null;
+  if (!decks) return;
+  // Whichever deck isn't in front stops; the one in front plays on at full volume.
+  void decks[1 - active]!.engine.stop().catch(() => {});
+  decks[active]!.gain = 1;
+  applyVolumes();
+  if (wasPending) loadToken++;
+}
+
+/** Called as the track in front plays: within the crossfade length of its end, start the next one underneath. */
+function maybeCrossfade() {
+  const state = usePlayer.getState();
+  if (!decks || fade || !state.crossfadeSec || state.status !== 'playing') return;
+  const front = decks[active]!;
+  const remaining = front.audio.duration - front.audio.currentTime;
+  if (!Number.isFinite(remaining) || remaining > state.crossfadeSec || remaining < 1) return;
+  const plan = planNext(true);
+  if (!plan || plan.kind !== 'index') return;
+
+  const back = decks[1 - active]!;
+  const entry = plan.queue[plan.index]!;
+  const token = ++loadToken;
+  fade = { token, frame: 0, pending: true };
+  back.gain = 0;
+  applyVolumes();
+  trackLog.i(`crossfading into the next track over ${Math.round(remaining)}s`, entry.track.videoId);
+
+  back.engine
+    .load(entry.track.videoId, { autoplay: true })
+    .then((track) => {
+      if (!fade || fade.token !== token || !decks) return;
+      fade.pending = false;
+      const from = front;
+      const to = back;
+      // The new track is the one playing now, as far as everything else knows.
+      active = 1 - active;
+      usePlayer.setState((s) => ({ queue: plan.queue, index: plan.index, deck: s.deck + 1, status: 'playing' }));
+      applyTrack(track, entry.track);
+      afterTrackStarted();
+
+      const length = Math.max(0.5, Math.min(from.audio.duration - from.audio.currentTime, usePlayer.getState().crossfadeSec)) * 1000;
+      const started = performance.now();
+      const step = () => {
+        if (!fade || fade.token !== token) return;
+        const t = Math.min(1, (performance.now() - started) / length);
+        // Equal-power: the sum stays level through the middle.
+        from.gain = Math.cos((t * Math.PI) / 2);
+        to.gain = Math.sin((t * Math.PI) / 2);
+        applyVolumes();
+        if (t < 1 && !from.audio.ended) fade.frame = requestAnimationFrame(step);
+        else {
+          fade = null;
+          to.gain = 1;
+          from.gain = 1;
+          void from.engine.stop().catch(() => {});
+          applyVolumes();
+        }
+      };
+      fade.frame = requestAnimationFrame(step);
+    })
+    .catch((error: unknown) => {
+      if (!fade || fade.token !== token) return;
+      trackLog.w(`crossfade load failed: ${String(error)}; the next track starts when this one ends`, entry.track.videoId);
+      fade = null;
+      back.gain = 1;
+      void back.engine.stop().catch(() => {});
+      applyVolumes();
+      // If the track in front already ended while this loaded, move on now.
+      if (front.audio.ended) void advance(true);
+    });
+}
+
+function applyTrack(track: LoadedTrack, from?: Track) {
   const nowPlaying: NowPlaying = {
     videoId: track.videoId,
-    // YouTube Music metadata (from the caller) beats the video's own title.
-    title: hint.title || track.title,
+    // YouTube Music metadata (from the queue) beats the video's own title.
+    title: from?.title || track.title,
     // Auto-generated YouTube channels are named "Artist - Topic".
-    artist: hint.artist || track.author.replace(/ - Topic$/, ''),
-    artworkUrl: hint.artworkUrl ?? track.thumbnails[0]?.url ?? null,
-    durationSec: track.durationSec || hint.durationSec || 0,
+    artist: (from && artistNames(from)) || track.author.replace(/ - Topic$/, ''),
+    artworkUrl: from?.thumbnail ?? track.thumbnails[0]?.url ?? null,
+    durationSec: track.durationSec || from?.durationSec || 0,
     streamInfo: `${track.format} via ${track.client}`,
   };
   usePlayer.setState({ nowPlaying, error: null });
   updateMediaSession(nowPlaying);
 }
 
-/** The element's own events are the source of truth for play state. */
-function bindElement(element: HTMLAudioElement) {
+/** The elements' own events are the source of truth for play state; only the deck in front speaks. */
+function bindElement(deck: Deck, n: number) {
+  const element = deck.audio;
+  const inFront = () => active === n;
   const set = (status: PlayerStatus) => {
+    if (!inFront()) return;
     if (usePlayer.getState().status === 'error' && status !== 'playing') return;
     usePlayer.setState({ status });
   };
   element.addEventListener('playing', () => set('playing'));
-  element.addEventListener('pause', () => set('paused'));
+  element.addEventListener('pause', () => {
+    if (!element.ended) set('paused');
+  });
   element.addEventListener('waiting', () => set('buffering'));
-  element.addEventListener('ended', () => set('paused'));
-  element.addEventListener('durationchange', updatePositionState);
-  element.addEventListener('ratechange', updatePositionState);
-  element.addEventListener('seeked', updatePositionState);
+  element.addEventListener('ended', () => {
+    if (!inFront()) return;
+    // A crossfade still loading takes over when it's ready (or advances on failure).
+    if (fade?.pending) return;
+    void advance(true);
+  });
+  element.addEventListener('timeupdate', () => {
+    if (inFront()) maybeCrossfade();
+  });
+  for (const event of ['durationchange', 'ratechange', 'seeked'] as const) {
+    element.addEventListener(event, () => {
+      if (inFront()) updatePositionState();
+    });
+  }
   element.addEventListener('play', () => {
-    if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing';
+    if (inFront() && 'mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing';
   });
   element.addEventListener('pause', () => {
-    if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused';
+    if (inFront() && 'mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused';
   });
 }
 
@@ -191,19 +689,20 @@ function updateMediaSession(track: NowPlaying | null) {
       // Not every browser knows every action.
     }
   };
-  handle('play', () => void audio?.play());
-  handle('pause', () => audio?.pause());
+  const player = () => usePlayer.getState();
+  handle('play', () => void getAudio()?.play());
+  handle('pause', () => getAudio()?.pause());
   handle('seekto', (details) => {
-    if (details.seekTime !== undefined) usePlayer.getState().seek(details.seekTime);
+    if (details.seekTime !== undefined) player().seek(details.seekTime);
   });
-  handle('seekbackward', (details) => usePlayer.getState().seek((audio?.currentTime ?? 0) - (details.seekOffset ?? 10)));
-  handle('seekforward', (details) => usePlayer.getState().seek((audio?.currentTime ?? 0) + (details.seekOffset ?? 10)));
-  // Previous/next arrive with the queue in phase 6.
-  handle('previoustrack', null);
-  handle('nexttrack', null);
+  handle('seekbackward', (details) => player().seek((getAudio()?.currentTime ?? 0) - (details.seekOffset ?? 10)));
+  handle('seekforward', (details) => player().seek((getAudio()?.currentTime ?? 0) + (details.seekOffset ?? 10)));
+  handle('previoustrack', () => player().previous());
+  handle('nexttrack', () => player().next());
 }
 
 function updatePositionState() {
+  const audio = getAudio();
   if (!audio || !('mediaSession' in navigator) || !Number.isFinite(audio.duration) || audio.duration <= 0) return;
   try {
     navigator.mediaSession.setPositionState({

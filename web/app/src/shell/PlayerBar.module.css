@@ -86,6 +86,11 @@
   color: var(--systemSecondary) !important;
 }
 
+/* Shuffle and repeat, when on: the key colour, as Apple's toggles. */
+.small[aria-pressed='true'] {
+  color: var(--keyColor) !important;
+}
+
 .skip {
   width: 28px;
   height: 28px;
@@ -120,6 +125,74 @@
 
 .action[aria-pressed='true'] {
   color: var(--keyColor);
+}
+
+/* Volume: the slider pops up above the speaker on hover (report §1, "volume (slider on hover)"). */
+.volume {
+  position: relative;
+  display: grid;
+}
+
+.volumePopover {
+  position: absolute;
+  bottom: 100%;
+  right: -12px;
+  padding: 12px 14px 14px;
+}
+
+.volumePopover::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 4px;
+  z-index: -1;
+  border-radius: 12px;
+  background-color: var(--systemStandardThickMaterialSover);
+  backdrop-filter: saturate(2.2) blur(32px);
+  -webkit-backdrop-filter: saturate(2.2) blur(32px);
+  box-shadow:
+    0 0 0 0.5px var(--vibrantDivider),
+    0 10px 40px var(--glassMaterialShadowColor);
+}
+
+.slider {
+  display: block;
+  width: 120px;
+  height: 16px;
+  margin: 0;
+  background: transparent;
+  appearance: none;
+  cursor: pointer;
+}
+
+.slider::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 2px;
+  background: linear-gradient(to right, var(--systemPrimary) var(--fill), var(--systemQuaternary) var(--fill));
+}
+
+.slider::-moz-range-track {
+  height: 4px;
+  border-radius: 2px;
+  background: linear-gradient(to right, var(--systemPrimary) var(--fill), var(--systemQuaternary) var(--fill));
+}
+
+.slider::-webkit-slider-thumb {
+  width: 12px;
+  height: 12px;
+  margin-top: -4px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 0 2px #0006;
+  appearance: none;
+}
+
+.slider::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border: 0;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 0 2px #0006;
 }
 
 @media (max-width: 483.98px) {

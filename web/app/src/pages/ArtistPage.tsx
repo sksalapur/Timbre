@@ -5,7 +5,7 @@ import shelfStyles from '@/components/Shelf.module.css';
 import { Artwork } from '@/components/music/Artwork';
 import { browseHref } from '@/components/music/links';
 import { TrackLockup } from '@/components/music/Lockups';
-import { playTrack } from '@/components/music/play';
+import { playList } from '@/components/music/play';
 import { Shelves } from '@/components/music/ShelfView';
 import { LoadError, NeedsExtension } from '@/components/music/States';
 import { useArtist, useYouTubeReady } from '@/data/music/queries';
@@ -37,6 +37,7 @@ export default function ArtistPage() {
   if (!artist.data) return <ArtistSkeleton />;
 
   const data = artist.data;
+  const topSongs = { title: `${data.name}: Top Songs`, type: 'artist' as const, id: data.id };
   return (
     <>
       <header className={styles.hero}>
@@ -51,7 +52,7 @@ export default function ArtistPage() {
             className={styles.play}
             aria-label={`Play ${data.name}`}
             disabled={!data.topSongs.length}
-            onClick={() => data.topSongs[0] && playTrack(data.topSongs[0])}
+            onClick={() => playList(data.topSongs, 0, { source: topSongs })}
           >
             <PlayIcon size={26} />
           </button>
@@ -67,9 +68,9 @@ export default function ArtistPage() {
           </div>
           <div className={shelfStyles.body}>
             <ul className={`${shelfStyles.list} ${shelfStyles.tracks}`}>
-              {data.topSongs.map((track) => (
+              {data.topSongs.map((track, i) => (
                 <li key={track.videoId}>
-                  <TrackLockup item={asItem(track)} />
+                  <TrackLockup item={asItem(track)} onPlay={() => playList(data.topSongs, i, { source: topSongs })} />
                 </li>
               ))}
             </ul>

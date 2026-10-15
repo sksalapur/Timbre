@@ -1,6 +1,6 @@
 import { useParams } from 'react-router';
 import { DetailHeader } from '@/components/music/DetailHeader';
-import { playTrack } from '@/components/music/play';
+import { playList, shuffleList } from '@/components/music/play';
 import { Shelves } from '@/components/music/ShelfView';
 import { LoadError, NeedsExtension } from '@/components/music/States';
 import { TrackList } from '@/components/music/TrackList';
@@ -23,21 +23,28 @@ export default function AlbumPage() {
 
   const data = album.data;
   const artists = data.artists.map((a) => a.name).join(', ');
-  // Album tracks carry no artist of their own; playing one credits the album's.
   const tracks = data.tracks;
-  const credit = (t: (typeof tracks)[number]) => (t.artists.length ? t : { ...t, artists: data.artists });
+  // Album tracks carry no artist or artwork of their own; the queue credits the album's.
+  const context = {
+    source: { title: data.title, type: 'album' as const, id: data.id },
+    fallbackArtwork: data.thumbnail,
+    fallbackArtists: data.artists,
+  };
   return (
     <>
       <DetailHeader
         info={data}
         canPlay={tracks.length > 0}
-        onPlay={() => tracks[0] && playTrack(credit(tracks[0]), data.thumbnail)}
-        onShuffle={() => {
-          const pick = tracks[Math.floor(Math.random() * tracks.length)];
-          if (pick) playTrack(credit(pick), data.thumbnail);
-        }}
+        onPlay={() => playList(tracks, 0, context)}
+        onShuffle={() => shuffleList(tracks, context)}
       />
-      <TrackList tracks={tracks} variant="album" fallbackArtwork={data.thumbnail} fallbackArtists={data.artists} />
+      <TrackList
+        tracks={tracks}
+        variant="album"
+        fallbackArtwork={data.thumbnail}
+        fallbackArtists={data.artists}
+        source={context.source}
+      />
       <footer className={styles.footer}>
         <p>{data.subtitle}</p>
         <p>{data.meta}</p>

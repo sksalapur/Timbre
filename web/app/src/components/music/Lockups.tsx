@@ -118,10 +118,11 @@ export function CircleLockup({ item, width = 160 }: { item: MusicItem; width?: n
 }
 
 /** A song row inside a shelf (report §2, track lockup): 40px art, title, byline. */
-export function TrackLockup({ item }: { item: MusicItem }) {
+export function TrackLockup({ item, onPlay }: { item: MusicItem; onPlay?: () => void }) {
+  const play = onPlay ?? (() => playTrack(item));
   return (
     <div className={styles.track}>
-      <button className={styles.trackArt} aria-label={`Play ${item.title}`} onClick={() => playTrack(item)}>
+      <button className={styles.trackArt} aria-label={`Play ${item.title}`} onClick={play}>
         <Artwork src={item.thumbnail} displayWidth={40} radius="var(--radius-artwork-small)" />
         <span className={styles.trackPlay} aria-hidden="true">
           <PlayIcon size={16} />
@@ -129,7 +130,7 @@ export function TrackLockup({ item }: { item: MusicItem }) {
       </button>
       <div className={styles.trackText}>
         <div className={styles.trackTitle}>
-          <button className={styles.trackTitleButton} onClick={() => playTrack(item)}>
+          <button className={styles.trackTitleButton} onClick={play}>
             {item.title}
           </button>
           {item.explicit && <ExplicitBadge />}

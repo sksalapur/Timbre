@@ -61,12 +61,27 @@
   color: var(--keyColor);
 }
 
+/* The hit area for scrubbing: taller than the 2px line it carries. */
+.scrubber {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 14px;
+  cursor: pointer;
+  touch-action: none;
+}
+
 .progress {
   position: absolute;
   left: 0;
   right: 0;
   bottom: 6px;
   height: 2px;
+  transition:
+    height 0.1s ease-in,
+    left 0.1s ease-in,
+    right 0.1s ease-in;
   border-radius: 1px;
   background-color: var(--systemQuaternary);
   overflow: hidden;
@@ -79,4 +94,44 @@
   transform-origin: left center;
   transform: scaleX(var(--progress));
   background-color: var(--systemSecondary);
+}
+
+.lcd:hover .progress,
+.scrubber[data-dragging] .progress {
+  height: 4px;
+  bottom: 5px;
+}
+
+/* Elapsed and remaining, shown on hover at the line's ends; the line shortens to make room. */
+.lcd:hover .progress,
+.scrubber[data-dragging] .progress {
+  left: 34px;
+  right: 34px;
+}
+
+.time {
+  position: absolute;
+  bottom: 2px;
+  width: 30px;
+  font: 500 10px / 12px var(--font-family);
+  font-variant-numeric: tabular-nums;
+  color: var(--systemSecondary);
+  opacity: 0;
+  transition: opacity 0.1s ease-in;
+  pointer-events: none;
+}
+
+.elapsed {
+  left: 0;
+  text-align: start;
+}
+
+.remaining {
+  right: 0;
+  text-align: end;
+}
+
+.lcd:hover .time,
+.scrubber[data-dragging] .time {
+  opacity: 1;
 }

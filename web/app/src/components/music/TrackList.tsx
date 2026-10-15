@@ -7,7 +7,7 @@ import { usePlayer } from '@/state/player';
 import { Artwork } from './Artwork';
 import { ExplicitBadge } from './ExplicitBadge';
 import { albumHref, artistHref, formatDuration } from './links';
-import { playTrack } from './play';
+import { playList, playTrack, type ListContext } from './play';
 import { TrackMenu } from './TrackMenu';
 import styles from './TrackList.module.css';
 
@@ -26,6 +26,8 @@ interface TrackListProps {
   fallbackArtists?: ArtistRef[];
   /** Called when the list nears its end, to load the next page of a long playlist. */
   onNearEnd?: () => void;
+  /** Where the list comes from: playing a row queues the list from there. Without it, a row plays alone. */
+  source?: ListContext['source'];
 }
 
 function Artists({ artists }: { artists: ArtistRef[] }) {
@@ -55,17 +57,14 @@ interface RowProps {
   variant: Variant;
   position: number;
   fallbackArtwork: string | null | undefined;
-  fallbackArtists: ArtistRef[] | undefined;
+  onPlayRow: () => void;
 }
 
-function Row({ track, variant, position, fallbackArtwork, fallbackArtists }: RowProps) {
+function Row({ track, variant, position, fallbackArtwork, onPlayRow }: RowProps) {
   const current = usePlayer((s) => s.nowPlaying?.videoId === track.videoId);
   const playing = usePlayer((s) => s.nowPlaying?.videoId === track.videoId && (s.status === 'playing' || s.status === 'buffering'));
   const togglePlay = usePlayer((s) => s.togglePlay);
-  const onPlay = () =>
-    current
-      ? togglePlay()
-      : playTrack(track.artists.length || !fallbackArtists ? track : { ...track, artists: fallbackArtists }, fallbackArtwork);
+  const onPlay = () => (current ? togglePlay() : onPlayRow());
 
   return (
     <div className={styles.row} data-variant={variant} data-current={current || undefined} onDoubleClick={onPlay}>
@@ -137,7 +136,12 @@ function Header() {
  * hover fill, the number (or artwork) turning into a play button. Long lists
  * are virtualized against the page's scroll container (prompt §3).
  */
-export function TrackList({ tracks, variant, fallbackArtwork, fallbackArtists, onNearEnd }: TrackListProps) {
+export function TrackList({ tracks, variant, fallbackArtwork, fallbackArtists, onNearEnd, source }: TrackListProps) {
+  const playRow = (i: number) => {
+    if (source) return playList(tracks, i, { source, fallbackArtwork, fallbackArtists });
+    const track = tracks[i]!;
+    playTrack(track.artists.length || !fallbackArtists ? track : { ...track, artists: fallbackArtists }, fallbackArtwork);
+  };
   const container = useRef<HTMLDivElement>(null);
   const [scrollElement, setScrollElement] = useState<HTMLElement | null>(null);
   useEffect(() => setScrollElement(document.getElementById('scrollable-page')), []);
@@ -175,13 +179,26 @@ export function TrackList({ tracks, variant, fallbackArtwork, fallbackArtists, o
                   transform: `translateY(${item.start - virtualizer.options.scrollMargin}px)`,
                 }}
               >
-                <Row track={tracks[item.index]!} variant={variant} position={item.index + 1} fallbackArtwork={fallbackArtwork} fallbackArtists={fallbackArtists} />
+                <Row
+                  track={tracks[item.index]!}
+                  variant={variant}
+                  position={item.index + 1}
+                  fallbackArtwork={fallbackArtwork}
+                  onPlayRow={() => playRow(item.index)}
+                />
               </div>
             ))}
           </div>
         ) : (
           tracks.map((track, i) => (
-            <Row key={`${track.videoId}-${i}`} track={track} variant={variant} position={i + 1} fallbackArtwork={fallbackArtwork} fallbackArtists={fallbackArtists} />
+            <Row
+              key={`${track.videoId}-${i}`}
+              track={track}
+              variant={variant}
+              position={i + 1}
+              fallbackArtwork={fallbackArtwork}
+              onPlayRow={() => playRow(i)}
+            />
           ))
         )}
       </div>

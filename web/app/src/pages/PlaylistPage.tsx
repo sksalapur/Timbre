@@ -1,7 +1,7 @@
 import { useCallback } from 'react';
 import { useParams } from 'react-router';
 import { DetailHeader } from '@/components/music/DetailHeader';
-import { playTrack } from '@/components/music/play';
+import { playList, shuffleList } from '@/components/music/play';
 import { LoadError, NeedsExtension } from '@/components/music/States';
 import { TrackList } from '@/components/music/TrackList';
 import { usePlaylist, useYouTubeReady } from '@/data/music/queries';
@@ -28,18 +28,16 @@ export default function PlaylistPage() {
   if (!playlist.data || !header) return <PlaylistSkeleton />;
 
   const tracks = playlist.data.pages.flatMap((page) => page.tracks);
+  const context = { source: { title: header.title, type: 'playlist' as const, id } };
   return (
     <>
       <DetailHeader
         info={header}
         canPlay={tracks.length > 0}
-        onPlay={() => tracks[0] && playTrack(tracks[0])}
-        onShuffle={() => {
-          const pick = tracks[Math.floor(Math.random() * tracks.length)];
-          if (pick) playTrack(pick);
-        }}
+        onPlay={() => playList(tracks, 0, context)}
+        onShuffle={() => shuffleList(tracks, context)}
       />
-      <TrackList tracks={tracks} variant="playlist" onNearEnd={onNearEnd} />
+      <TrackList tracks={tracks} variant="playlist" onNearEnd={onNearEnd} source={context.source} />
       {isFetchingNextPage && <div className={styles.loadingMore}>Loading more songs…</div>}
       <footer className={styles.footer}>
         <p>{header.meta}</p>

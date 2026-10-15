@@ -79,6 +79,7 @@ export default function LibraryPage() {
           <TrackList
             tracks={tracks}
             variant="playlist"
+            source={{ title, type: 'library', id: section }}
             onNearEnd={library.hasNextPage && !library.isFetchingNextPage ? () => void library.fetchNextPage() : undefined}
           />
         </div>

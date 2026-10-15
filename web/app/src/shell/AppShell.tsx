@@ -4,6 +4,7 @@ import { config } from '@/config';
 import { useExtension } from '@/extension/useExtension';
 import { isMobileBrowser } from '@/lib/platform';
 import { useUi } from '@/state/ui';
+import { useKeyboardShortcuts } from './useKeyboardShortcuts';
 import styles from './AppShell.module.css';
 import { Banner, bannerButtonClass } from './Banner';
 import { MobileTopBar } from './MobileTopBar';
@@ -18,6 +19,7 @@ const mobile = isMobileBrowser();
  * player pill, the side panel, and the bottom band when there is one.
  */
 export function AppShell() {
+  useKeyboardShortcuts();
   const extension = useExtension();
   const bannerDismissed = useUi((s) => s.installBannerDismissed);
   const dismissBanner = useUi((s) => s.dismissInstallBanner);

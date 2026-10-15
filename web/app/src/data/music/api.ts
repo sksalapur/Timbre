@@ -1,4 +1,5 @@
-import type { YTMusic } from 'youtubei.js/web';
+import type { YTMusic, YTNodes } from 'youtubei.js/web';
+import type { Candidate } from '@/playback/queue/builder';
 import { getInnertube, getMusicClient, getSignedInnertube } from '@/playback/youtube/innertube';
 import { LIBRARY_SECTIONS, LIKED_MUSIC_PLAYLIST, type LibrarySection } from './library';
 import {
@@ -226,4 +227,56 @@ export async function addToPlaylist(playlistId: string, videoId: string): Promis
     actions: [{ action: 'ACTION_ADD_VIDEO', addedVideoId: videoId, dedupeOption: 'DEDUPE_OPTION_SKIP' }],
     client: 'YTMUSIC',
   });
+}
+
+// ---- AutoPlay (phase 6) -------------------------------------------------------------
+
+/**
+ * A music video rather than the catalogue song: YouTube marks each watch
+ * endpoint with its type, ATV for the song and OMV/UGC for videos. (A radio
+ * seeded on a video id is all videos; one seeded on a song is mostly songs.)
+ */
+function isMusicVideo(item: YTNodes.PlaylistPanelVideo): boolean {
+  const type = (item.endpoint?.payload as { watchEndpointMusicSupportedConfigs?: { watchEndpointMusicConfig?: { musicVideoType?: string } } } | undefined)
+    ?.watchEndpointMusicSupportedConfigs?.watchEndpointMusicConfig?.musicVideoType;
+  return type !== undefined ? type !== 'MUSIC_VIDEO_TYPE_ATV' : !item.album;
+}
+
+/**
+ * The radio YouTube Music would play after [videoId]: its "RDAMVM" mix, as
+ * Innertube.next asks for it on the phone. Signed in it's the user's own
+ * station. Music videos are flagged so the station builder can prefer the
+ * catalogue cut (QueueBuilder).
+ */
+export async function fetchRadio(videoId: string): Promise<Candidate[]> {
+  const yt = await getMusicClient();
+  const panel = await yt.music.getUpNext(videoId, true);
+  const out: Candidate[] = [];
+  for (const raw of panel.contents as unknown as Raw[]) {
+    // A wrapper pairs the two cuts of one track (song and music video), with
+    // either as its primary; take the catalogue song (the one with an album).
+    const cuts = (raw.type === 'PlaylistPanelVideoWrapper'
+      ? [raw.primary, ...((raw.counterpart as unknown[] | undefined) ?? [])]
+      : [raw]) as (YTNodes.PlaylistPanelVideo | null | undefined)[];
+    const panelVideos = cuts.filter((c): c is YTNodes.PlaylistPanelVideo => c?.type === 'PlaylistPanelVideo');
+    const item = panelVideos.find((c) => !isMusicVideo(c)) ?? panelVideos[0];
+    if (!item) continue;
+    if (!item.video_id) continue;
+    const thumbs = [...(item.thumbnail ?? [])].sort((a, b) => b.width - a.width);
+    out.push({
+      track: {
+        videoId: item.video_id,
+        title: item.title?.toString() ?? '',
+        artists: (item.artists ?? []).map((a) => ({ name: a.name, id: a.channel_id ?? null })),
+        album: item.album ? { name: item.album.name, id: item.album.id ?? null } : null,
+        durationSec: item.duration?.seconds || null,
+        explicit: (item.badges ?? []).some((b) => /explicit/i.test(JSON.stringify(b))),
+        thumbnail: thumbs[0]?.url ?? null,
+        index: null,
+        plays: null,
+      },
+      isVideo: isMusicVideo(item),
+    });
+  }
+  return out;
 }
