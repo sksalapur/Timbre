@@ -458,9 +458,35 @@ object ListenTogether {
 
     fun setScreenActive(active: Boolean) {
         isScreenActive = active
-        if (active) {
+        if (active && !shouldSkipIdleProbe(
+                screenActive = true,
+                connectionLive = _state.value.connection == Connection.LIVE,
+                inParty = _state.value.code != null,
+                metered = runCatching { AppSettings.meteredConnection.value }.getOrNull(),
+            )
+        ) {
             refreshServerHealth(showChecking = false)
         }
+    }
+
+    /**
+     * Whether the periodic idle health poll should be skipped.
+     *
+     * Pure so it can be unit-tested without Android. Issue #788: the old
+     * monitor polled `/healthz` every 10s whenever the screen was open, even
+     * on metered data with no party. The socket itself proves reachability
+     * while live, and nothing reads the status row unless the screen is open.
+     */
+    internal fun shouldSkipIdleProbe(
+        screenActive: Boolean,
+        connectionLive: Boolean,
+        inParty: Boolean,
+        metered: Boolean?,
+    ): Boolean {
+        if (!screenActive) return true
+        if (connectionLive) return true
+        if (!inParty && metered == true) return true
+        return false
     }
 
     private fun startHealthMonitor() {
@@ -471,7 +497,15 @@ object ListenTogether {
                 // Nobody is looking at the status row unless the screen is open,
                 // and every poll is a request to a server shared by every install.
                 // A live party socket already proves the server is reachable.
-                if (isScreenActive && _state.value.connection != Connection.LIVE) {
+                // Off-party polls are also skipped on metered connections (#788).
+                val snapshot = _state.value
+                if (!shouldSkipIdleProbe(
+                        screenActive = isScreenActive,
+                        connectionLive = snapshot.connection == Connection.LIVE,
+                        inParty = snapshot.code != null,
+                        metered = runCatching { AppSettings.meteredConnection.value }.getOrNull(),
+                    )
+                ) {
                     refreshServerHealth(showChecking = false)
                 }
             }
@@ -652,7 +686,18 @@ object ListenTogether {
                 manager.registerDefaultNetworkCallback(
                     object : ConnectivityManager.NetworkCallback() {
                         override fun onAvailable(network: Network) {
-                            refreshServerHealth(showChecking = false)
+                            // A real network switch is worth one recheck, unless
+                            // it would be skipped as idle anyway (#788).
+                            val snapshot = _state.value
+                            if (!shouldSkipIdleProbe(
+                                    screenActive = isScreenActive,
+                                    connectionLive = snapshot.connection == Connection.LIVE,
+                                    inParty = snapshot.code != null,
+                                    metered = runCatching { AppSettings.meteredConnection.value }.getOrNull(),
+                                )
+                            ) {
+                                refreshServerHealth(showChecking = false)
+                            }
                         }
                         override fun onLost(network: Network) {
                             _serverConnectionState.value = ServerConnectionState.Offline
@@ -667,6 +712,9 @@ object ListenTogether {
         }
 
         startHealthMonitor()
+        // One resolution per process so create/join targets the right server
+        // (custom vs default fallback) without opening the screen first. The
+        // periodic monitor above is what was draining in #788, not this.
         refreshServerHealth(showChecking = true)
     }
 
@@ -1664,7 +1712,11 @@ object ListenTogether {
     private const val KICK_BLOCK_MS = 24L * 60 * 60 * 1000
 
     private const val PING_INTERVAL_MS = 15_000L
+    // Polled only while the Listen Together screen is open and no party socket is
+    // live (see shouldSkipIdleProbe), so 10s costs nothing when nobody is looking.
     private const val HEALTH_POLL_INTERVAL_MS = 10_000L
+    // Debounces rapid screen toggles and network-callback bursts. Must stay at or
+    // below the poll interval, or the debounce silently stretches the poll.
     private const val HEALTH_MIN_GAP_MS = 5_000L
     private const val REPORT_INTERVAL_MS = 10_000L
     private const val HEALTH_TIMEOUT_MS = 45_000L

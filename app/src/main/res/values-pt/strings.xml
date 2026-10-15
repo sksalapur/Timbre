@@ -1298,6 +1298,12 @@
     <string name="spotify_sign_in">Entrar com Spotify</string>
     <string name="spotify_use_spdc_token">Usar token sp_dc</string>
     <string name="spotify_track_unavailable">Não foi possível encontrar essa música no YouTube Music</string>
+    <string name="artist_signatures">Assinaturas de artistas</string>
+    <string name="artist_signatures_subtitle">Mostra uma assinatura manuscrita quando o Apple Music não tem logotipo de título</string>
+    <string name="artist_signatures_url">URL da API de assinaturas</string>
+    <string name="artist_signatures_url_hint">https://signatures.example.com</string>
+    <string name="artist_signatures_unconfigured">Não configurado — toque para definir a URL da API</string>
+    <string name="artist_signatures_test_failed">Não foi possível alcançar a API nesse URL</string>
     <string name="search_source_addons">Addons</string>
     <string name="search_addons_none">Nenhum addon ativado. Adicione um em Configurações → Fontes.</string>
     <string name="app_icon">Ícone do app</string>
@@ -1352,4 +1358,5 @@
     <string name="wear_os_unsupported">Instalar em um relógio exige Android 11 ou superior neste telefone.</string>
     <string name="wear_os_code_hint">Código de pareamento</string>
     <string name="wear_os_done">Concluir</string>
+    <string name="signed_by">Assinado por %1$s</string>
 </resources>

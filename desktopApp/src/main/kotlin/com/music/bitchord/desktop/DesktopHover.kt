@@ -67,7 +67,10 @@ private const val HOVER_MS = 140
  * a frosted bar, and anything stronger would look like a selected state rather than a hovered one.
  */
 @Composable
-internal fun Modifier.desktopHoverWash(): Modifier = composed {
+internal fun Modifier.desktopHoverWash(
+    restAlpha: Float = 0f,
+    hoverAlpha: Float = WASH_ALPHA,
+): Modifier = composed {
     val interaction = remember { MutableInteractionSource() }
     val hovered by interaction.collectIsHoveredAsState()
     val wash by animateFloatAsState(
@@ -78,15 +81,17 @@ internal fun Modifier.desktopHoverWash(): Modifier = composed {
     this
         .hoverable(interaction)
         .drawBehind {
-            if (wash <= 0.01f) return@drawBehind
+            val alpha = restAlpha + (hoverAlpha - restAlpha) * wash
+            if (alpha <= 0.001f) return@drawBehind
             drawCircle(
-                color = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.12f * wash),
+                color = androidx.compose.ui.graphics.Color.White.copy(alpha = alpha),
                 radius = size.minDimension / 2f,
             )
         }
 }
 
 private const val WASH_MS = 120
+private const val WASH_ALPHA = 0.12f
 
 /**
  * A list row's acknowledgement of the pointer: a faint rounded wash behind the whole row.

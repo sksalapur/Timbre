@@ -62,7 +62,10 @@ internal fun DesktopAccountButton(
     onClick: () -> Unit,
 ) {
     Box(
-        Modifier.size(36.dp).clip(CircleShape).clickable(onClick = onClick),
+        // Rests at the toolbar buttons' hover wash and brightens a step when pointed at.
+        Modifier.size(36.dp).clip(CircleShape)
+            .desktopHoverWash(restAlpha = 0.12f, hoverAlpha = 0.2f)
+            .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
         if (avatar != null) {

@@ -1271,6 +1271,12 @@
     <string name="spotify_sign_in">Spotify でサインイン</string>
     <string name="spotify_use_spdc_token">sp_dc トークンを使用</string>
     <string name="spotify_track_unavailable">その曲は YouTube Music で見つかりません</string>
+    <string name="artist_signatures">アーティストの署名</string>
+    <string name="artist_signatures_subtitle">Apple Musicにタイトルロゴがない場合に手書きの署名を表示します</string>
+    <string name="artist_signatures_url">署名APIのURL</string>
+    <string name="artist_signatures_url_hint">https://signatures.example.com</string>
+    <string name="artist_signatures_unconfigured">未設定 — APIのURLを設定するにはタップしてください</string>
+    <string name="artist_signatures_test_failed">そのURLでAPIに到達できませんでした</string>
     <string name="search_source_addons">アドオン</string>
     <string name="search_addons_none">有効なアドオンがありません。設定 → ソースで追加してください。</string>
     <string name="app_icon">アプリアイコン</string>
@@ -1325,4 +1331,5 @@
     <string name="wear_os_unsupported">ウォッチへのインストールには、このスマートフォンが Android 11 以降である必要があります。</string>
     <string name="wear_os_code_hint">ペア設定コード</string>
     <string name="wear_os_done">完了</string>
+    <string name="signed_by">%1$s のサイン</string>
 </resources>

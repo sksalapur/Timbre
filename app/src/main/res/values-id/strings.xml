@@ -1270,6 +1270,12 @@
     <string name="spotify_sign_in">Masuk dengan Spotify</string>
     <string name="spotify_use_spdc_token">Gunakan token sp_dc</string>
     <string name="spotify_track_unavailable">Lagu itu tidak ditemukan di YouTube Music</string>
+    <string name="artist_signatures">Tanda tangan artis</string>
+    <string name="artist_signatures_subtitle">Menampilkan tanda tangan tulisan tangan saat Apple Music tidak memiliki logo judul</string>
+    <string name="artist_signatures_url">URL API tanda tangan</string>
+    <string name="artist_signatures_url_hint">https://signatures.example.com</string>
+    <string name="artist_signatures_unconfigured">Belum dikonfigurasi — ketuk untuk mengatur URL API</string>
+    <string name="artist_signatures_test_failed">Tidak dapat menjangkau API di URL tersebut</string>
     <string name="search_source_addons">Addon</string>
     <string name="search_addons_none">Tidak ada addon yang aktif. Tambahkan satu di Pengaturan → Sumber.</string>
     <string name="app_icon">Ikon aplikasi</string>
@@ -1324,4 +1330,5 @@
     <string name="wear_os_unsupported">Memasang di jam tangan memerlukan Android 11 atau lebih baru di ponsel ini.</string>
     <string name="wear_os_code_hint">Kode pemasangan</string>
     <string name="wear_os_done">Selesai</string>
+    <string name="signed_by">Ditandatangani oleh %1$s</string>
 </resources>
