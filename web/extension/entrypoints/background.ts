@@ -7,6 +7,8 @@ import {
   type BridgeResponse,
   type Capability,
 } from '@bitchord/shared/bridge';
+import { installRules } from '../lib/rules';
+import { ytFetch } from '../lib/ytFetch';
 
 declare const __SITE_ORIGINS__: string[];
 
@@ -14,7 +16,7 @@ declare const __SITE_ORIGINS__: string[];
 const ALLOWED_ORIGINS = new Set(__SITE_ORIGINS__);
 
 /** Grows as each phase lands its methods. */
-const CAPABILITIES: Capability[] = [];
+const CAPABILITIES: Capability[] = ['yt'];
 
 function originOf(sender: Browser.runtime.MessageSender): string | null {
   if (sender.origin) return sender.origin;
@@ -41,6 +43,13 @@ async function handle(request: BridgeRequest): Promise<BridgeResponse> {
         browser: import.meta.env.FIREFOX ? 'firefox' : 'chromium',
         capabilities: CAPABILITIES,
       });
+    case 'yt.fetch':
+      try {
+        return okResponse<'yt.fetch'>(request.id, await ytFetch((request as BridgeRequest<'yt.fetch'>).params));
+      } catch (error) {
+        const code = (error as { code?: string }).code === 'forbidden' ? 'forbidden' : 'network';
+        return errorResponse(request.id, code, error instanceof Error ? error.message : String(error));
+      }
     default:
       return errorResponse(request.id, 'unsupported', `${request.method} isn't available in this version of the extension.`);
   }
@@ -68,6 +77,13 @@ function listener(
 }
 
 export default defineBackground(() => {
+  // Dynamic rules persist, but are rewritten on every install and startup so
+  // an update that changes them never leaves stale ones behind.
+  const refreshRules = () =>
+    installRules(__SITE_ORIGINS__).catch((error: unknown) => console.error('BitChord: installing rules failed', error));
+  browser.runtime.onInstalled.addListener(refreshRules);
+  browser.runtime.onStartup.addListener(refreshRules);
+
   // Chromium: the page itself, through externally_connectable.
   browser.runtime.onMessageExternal?.addListener(listener);
 

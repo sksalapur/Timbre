@@ -174,6 +174,12 @@ importers:
       '@tanstack/react-query':
         specifier: ^5.104.3
         version: 5.104.3(react@19.3.1)
+      bgutils-js:
+        specifier: ^4.0.3
+        version: 4.0.3
+      googlevideo:
+        specifier: ^4.1.1
+        version: 4.1.1
       lucide-react:
         specifier: ^1.57.0
         version: 1.57.0(@types/react@19.3.0)(react@19.3.1)
@@ -186,6 +192,12 @@ importers:
       react-router:
         specifier: ^8.4.0
         version: 8.4.0(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
+      shaka-player:
+        specifier: ^4.16.52
+        version: 4.16.52
+      youtubei.js:
+        specifier: ^18.1.0
+        version: 18.1.0
       zustand:
         specifier: ^5.0.15
         version: 5.0.15(@types/react@19.3.0)(react@19.3.1)
@@ -271,6 +283,9 @@ packages:
   '@babel/types@7.29.8':
     resolution: {integrity: sha512-Vj1jF3cPfxg7OAfoI7QnVKLoILlm2JF9pnVHrX8qx7AHMiYWT+NDAA7jChlNgRS4WTLc/fD1lXLmPixluj+3Gg==}
     engines: {node: '>=6.9.0'}
+
+  '@bufbuild/protobuf@2.16.0':
+    resolution: {integrity: sha512-FWa0sPlqYGJgpTs6OxBRcL/AW4JT0OIO+W1ajerluoTVh8CV0B7XM1qsNCRgnkSCkRCgOICKHRQlY17jrsm0+Q==}
 
   '@jridgewell/gen-mapping@0.3.13':
     resolution: {integrity: sha512-2kkt/7niJ6MgEPxF0bYdQ6etZaA+fQvDcLKckhy1yIQOzaoKjBBjSj63/aLVjYE3qhRt5dvM+uUyfCg6UKCBbA==}
@@ -616,6 +631,9 @@ packages:
     resolution: {integrity: sha512-Izi8RQcffqCeNVgFigKli1ssklIbpHnCYc6AknXGYoB6grJqyeby7jv12JUQgmTAnIDnbck1uxksT4dzN3PWBA==}
     engines: {node: '>=12'}
 
+  bgutils-js@4.0.3:
+    resolution: {integrity: sha512-nvhrzqRYqFcC3AJbf1fENc/jzyMk95wH9UC9ruQzTZCq+itYWuHi2a9leK/bC1lLfi+R4a28wJZxpD5KiTFf+w==}
+
   boolbase@2.0.0:
     resolution: {integrity: sha512-DkVaaQHymRhpYEYo9x1oo7Q7B0Y6KJUsjm3c9eTyFDby4MHLBTwZ6ZDWBel5zrYxj1WsZgC5oLpiz+93MluXeA==}
     engines: {node: '>=20.19.0'}
@@ -780,6 +798,9 @@ packages:
       picomatch:
         optional: true
 
+  fflate@0.8.3:
+    resolution: {integrity: sha512-tbZNuJrLwGUp3zshBtdy4W+ORxZuIh8a5ilyIEQDC5rY1f3U20JMry0Ll3WBzU58EZKsEuJFXhb5gwv8CsPvgA==}
+
   filesize@11.0.26:
     resolution: {integrity: sha512-CgbdcjFLDJzMUnxQxHZ5uVxREmTVkjoXnppVB0AH8X0N8Uz4CZarWZLFALLv/Ymyf6EEu1AgaLPS6laXiqBEWA==}
     engines: {node: '>= 10.8.0'}
@@ -796,6 +817,9 @@ packages:
   giget@3.3.1:
     resolution: {integrity: sha512-r+mvuDjrjMpsdw46Kmeydb8bdHm7wOKw8wNBtTndkjbPjgAp5oUJUxRE76wZFknxIPokfWvep2qSXK37aXE6zg==}
     hasBin: true
+
+  googlevideo@4.1.1:
+    resolution: {integrity: sha512-14o64O+CXXlQ1stYZK/+ypCEwZb25lzEuzhbFYYEzf26R+HhBDOR+Dkdk7MKkZ3qXeIjvZfeC0AJlVKjwQCFjw==}
 
   hookable@6.1.2:
     resolution: {integrity: sha512-+abwxtiEA52GCVIsQqut3S/uKTbUwYIp4Pe/vv+6py5XiXBCqMZHg6pA6Y5qhgLSEys0/cYuPbO0z1QFj5ZCmg==}
@@ -943,6 +967,10 @@ packages:
     resolution: {integrity: sha512-1DiZmDHPXMBgMRjeUtHy1q1VYmeJscHxhIAexX9z/zjRMP80+0ETuPfssi8z+kMY4DwUgsKuHqpjxgmeA9gBNA==}
     engines: {node: '>=18'}
 
+  meriyah@7.4.0:
+    resolution: {integrity: sha512-4npg8C/aeb+kOZo8/6XZrwzo+neA+NQU7U6BHP3KxqTzprtYQb+Fs752GRuvsJLREvblRjQng4F76DEe2QKblQ==}
+    engines: {node: '>=20.0.0'}
+
   mlly@1.8.2:
     resolution: {integrity: sha512-d+ObxMQFmbt10sretNDytwt85VrbkhhUA/JBGm1MPaWJ65Cl4wOgLaB1NYvJSZ0Ef03MMEU/0xpPMXUIQ29UfA==}
 
@@ -1046,6 +1074,10 @@ packages:
 
   scule@1.3.0:
     resolution: {integrity: sha512-6FtHJEvt+pVMIB9IBY+IcCJ6Z5f1iQnytgyfKMhDKgmzYG+TeH/wx1y3l27rshSbLiSanrR9ffZDrEsmjlQF2g==}
+
+  shaka-player@4.16.52:
+    resolution: {integrity: sha512-B56UZ0hAK16mLBjlzZ2FWZBREyh8hVDrDJnHYTP8pWKjmn2vgZMa6cb7ljkvZI1qHTz3v+zt2G3EXlzIqWn6zA==}
+    engines: {node: '>=18'}
 
   source-map-js@1.2.2:
     resolution: {integrity: sha512-KGj/8Y43x35aZVDtt+J4mK1hoLGHULMYfSkODJNQjNDC3oW1PqPoxMwo0pLUsWM/UEGzON/NxeHywEfNXNP3Vw==}
@@ -1282,6 +1314,9 @@ packages:
     resolution: {integrity: sha512-GZtjxm/J/4TSxuL3FNYjCmLktBTnIw/rVmKSIyKeYAZpmJB2ig9VauCC5xsa82GNKVKDAqpOn3KVzNt0zmrU0g==}
     engines: {node: '>=12'}
 
+  youtubei.js@18.1.0:
+    resolution: {integrity: sha512-4Goo3ZeO6/kE8Mq67eC8Z9K1rijeqRwyKxf/YM4lqf8bB4r/s8JC0V3YFx7+l/AJR3LnAsulTsiIj+AFe0cduA==}
+
   zustand@5.0.15:
     resolution: {integrity: sha512-MpSEjRiBkA9crSYeOUH32rJC7SVqAbm0Fqcqge/bUi2PPoLcBWKOsG+C8mevmpr8TwXHBVkChbbJiyvkE+i/3A==}
     engines: {node: '>=12.20.0'}
@@ -1328,6 +1363,8 @@ snapshots:
     dependencies:
       '@babel/helper-string-parser': 7.29.7
       '@babel/helper-validator-identifier': 7.29.7
+
+  '@bufbuild/protobuf@2.16.0': {}
 
   '@jridgewell/gen-mapping@0.3.13':
     dependencies:
@@ -1544,6 +1581,8 @@ snapshots:
 
   assertion-error@2.0.1: {}
 
+  bgutils-js@4.0.3: {}
+
   boolbase@2.0.0: {}
 
   c12@3.3.4(magicast@0.5.5):
@@ -1685,6 +1724,8 @@ snapshots:
     optionalDependencies:
       picomatch: 4.0.7
 
+  fflate@0.8.3: {}
+
   filesize@11.0.26: {}
 
   fsevents@2.3.3:
@@ -1693,6 +1734,10 @@ snapshots:
   get-caller-file@2.0.5: {}
 
   giget@3.3.1: {}
+
+  googlevideo@4.1.1:
+    dependencies:
+      '@bufbuild/protobuf': 2.16.0
 
   hookable@6.1.2: {}
 
@@ -1803,6 +1848,8 @@ snapshots:
       source-map-js: 1.2.2
 
   many-keys-map@3.0.3: {}
+
+  meriyah@7.4.0: {}
 
   mlly@1.8.2:
     dependencies:
@@ -1917,6 +1964,8 @@ snapshots:
   scheduler@0.28.0: {}
 
   scule@1.3.0: {}
+
+  shaka-player@4.16.52: {}
 
   source-map-js@1.2.2: {}
 
@@ -2128,6 +2177,12 @@ snapshots:
       string-width: 4.2.3
       y18n: 5.0.8
       yargs-parser: 21.1.1
+
+  youtubei.js@18.1.0:
+    dependencies:
+      '@bufbuild/protobuf': 2.16.0
+      fflate: 0.8.3
+      meriyah: 7.4.0
 
   zustand@5.0.15(@types/react@19.3.0)(react@19.3.1):
     optionalDependencies:

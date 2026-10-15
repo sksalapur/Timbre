@@ -1,18 +1,21 @@
 import { ListMusic, MessageSquareQuote, Repeat, Shuffle, Volume2 } from 'lucide-react';
-import { LogoMark } from '@/components/icons/LogoMark';
-import { BackwardIcon, ForwardIcon, PlayIcon } from '@/components/icons/Transport';
+import { BackwardIcon, ForwardIcon, PauseIcon, PlayIcon } from '@/components/icons/Transport';
+import { usePlayer } from '@/state/player';
 import { useUi } from '@/state/ui';
+import { Lcd } from './Lcd';
 import styles from './PlayerBar.module.css';
 
 /**
- * The floating glass player pill (report §1). Phase 2 has nothing to play, so
- * this is the empty state: transport disabled, the mark in the LCD. Playback,
- * the scrubber and the volume slider arrive with phases 3 and 6.
+ * The floating glass player pill (report §1). Previous/next, shuffle and
+ * repeat arrive with the queue in phase 6; the scrubber and volume slider too.
  */
 export function PlayerBar() {
   const sidePanel = useUi((s) => s.sidePanel);
   const toggleSidePanel = useUi((s) => s.toggleSidePanel);
   const hasLyrics = false;
+  const hasTrack = usePlayer((s) => s.nowPlaying !== null);
+  const playing = usePlayer((s) => s.status === 'playing' || s.status === 'buffering');
+  const togglePlay = usePlayer((s) => s.togglePlay);
 
   return (
     <div className={styles.bar} data-panel-open={sidePanel !== null}>
@@ -25,8 +28,13 @@ export function PlayerBar() {
             <button className={styles.skip} disabled aria-label="Previous">
               <BackwardIcon size={22} />
             </button>
-            <button className={styles.play} disabled aria-label="Play">
-              <PlayIcon size={24} />
+            <button
+              className={styles.play}
+              disabled={!hasTrack}
+              aria-label={playing ? 'Pause' : 'Play'}
+              onClick={togglePlay}
+            >
+              {playing ? <PauseIcon size={24} /> : <PlayIcon size={24} />}
             </button>
             <button className={styles.skip} disabled aria-label="Next">
               <ForwardIcon size={22} />
@@ -38,9 +46,7 @@ export function PlayerBar() {
         </div>
 
         <div className={styles.lcd}>
-          <div className={styles.lcdEmpty}>
-            <LogoMark size={26} />
-          </div>
+          <Lcd />
         </div>
 
         <div className={styles.actions}>

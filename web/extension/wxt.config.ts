@@ -19,10 +19,17 @@ export default defineConfig({
     name: 'BitChord',
     description: 'Connects the BitChord web player to YouTube Music, Spotify and Discord.',
     homepage_url: SITE_ORIGINS[0],
-    permissions: ['storage'],
-    // Host permissions for YouTube, Spotify and Discord arrive with the phases
-    // that use them (prompt §4.2), so the install prompt only ever asks for
-    // what the build actually does.
+    permissions: ['storage', 'declarativeNetRequest'],
+    // YouTube now (phase 3); Spotify and Discord arrive with the phases that
+    // use them, so the install prompt only asks for what the build does. The
+    // site's own origins are listed because header rules need host access to
+    // the initiator as well as the target.
+    host_permissions: [
+      'https://music.youtube.com/*',
+      'https://www.youtube.com/*',
+      'https://*.googlevideo.com/*',
+      ...matchPatternsFor(SITE_ORIGINS),
+    ],
     ...(browser === 'firefox'
       ? {
           browser_specific_settings: {

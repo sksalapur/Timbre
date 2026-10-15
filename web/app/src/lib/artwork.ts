@@ -12,3 +12,9 @@ export function sizedArtwork(url: string, cssPx: number, aspect = 1): string {
   const base = url.replace(/=[^/=]*$/, '');
   return `${base}=w${w}-h${h}-l90-rj`;
 }
+
+/** The same, at an exact pixel size regardless of the screen (Media Session artwork, canvases). */
+export function artworkAtPixels(url: string, px: number): string {
+  if (!/googleusercontent\.com|ggpht\.com/.test(url)) return url;
+  return `${url.replace(/=[^/=]*$/, '')}=w${px}-h${px}-l90-rj`;
+}

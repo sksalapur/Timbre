@@ -32,6 +32,7 @@ export const pages: PageRoute[] = [
   { path: '/artist/:id', load: () => import('@/pages/ArtistPage'), skeleton: <ArtistSkeleton /> },
   { path: '/playlist/:id', load: () => import('@/pages/PlaylistPage'), skeleton: <PlaylistSkeleton /> },
   { path: '/extension', load: () => import('@/pages/ExtensionPage'), skeleton: <PlainSkeleton /> },
+  { path: '/debug', load: () => import('@/pages/DebugPage'), skeleton: <PlainSkeleton /> },
 ];
 
 export const notFound: PageRoute = { path: '*', load: () => import('@/pages/NotFoundPage'), skeleton: <PlainSkeleton /> };

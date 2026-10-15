@@ -89,6 +89,8 @@ BitChord's Android version binds the token to the session's visitor data for the
   startTimeSecs?, playbackContext.reloadPlaybackContext? }
 ```
 
+**Don't copy `adPlaybackContext: { pyv: true }`.** With it, googlevideo cuts every stream off at ~70 s (measured in phase 3; see `youtube-playback.md`). BitChord's player request leaves it out.
+
 Kira first tries **Onesie** (an encrypted player request through a googlevideo edge, `services/onesie.ts`), and falls back to `innertube.actions.execute('/player', { ...params, parse: false })`. For phase 3 we start with the plain `/player` call. Onesie is an optimisation; consider it once plain playback works.
 
 ## Playback tracking
