@@ -200,6 +200,7 @@ import com.music.bitchord.playback.hasYouTubeOriginal
 import com.music.bitchord.playback.loadAutoplayTracks
 import com.music.bitchord.playback.playSongs
 import com.music.bitchord.playback.playBoundedContext
+import com.music.bitchord.playback.contextEntryKey
 import com.music.bitchord.playback.toMediaItem
 import com.music.bitchord.playback.toSong
 import com.music.bitchord.playback.toDirectYouTubeMediaItem
@@ -2361,7 +2362,12 @@ private fun BitChordApp(
             },
             onJumpTo = { index ->
                 controller?.let { c ->
-                    QueueCoordinator.jumpToQueueItem(c, index, player.queue)
+                    // The session applies the jump plan to its own player (see
+                    // its seekTo override); editing the queue from here would
+                    // round-trip every item through the controller and lose
+                    // their bounded-window metadata.
+                    c.seekTo(index, 0L)
+                    c.play()
                 }
             },
             onRemoveFromQueue = { controller?.removeMediaItem(it) },
@@ -2977,11 +2983,11 @@ private fun BitChordApp(
                                 page.browseId,
                             )
                             val selected = songs.getOrNull(index)
-                            val pageSongIds =
-                                (page.songs as? UiState.Success)?.data.orEmpty().mapTo(HashSet()) { it.videoId }
+                            val pageSongKeys =
+                                (page.songs as? UiState.Success)?.data.orEmpty().mapTo(HashSet()) { it.contextEntryKey() }
                             val useBounded =
                                 (page.type == BrowseType.ALBUM || page.type == BrowseType.PLAYLIST) &&
-                                    selected?.videoId?.let(pageSongIds::contains) == true &&
+                                    selected?.contextEntryKey()?.let(pageSongKeys::contains) == true &&
                                     !CastController.state.value.casting
                             val latestPage = if (useBounded) {
                                 viewModel.takePlaybackContext(page.browseId)
@@ -2995,7 +3001,7 @@ private fun BitChordApp(
                             val queue = latestSongs ?: songs.map(withAlbum)
                             if (queue.isEmpty()) return
                             val queueIndex = selected?.let { tapped ->
-                                queue.indexOfFirst { it.videoId == tapped.videoId }
+                                queue.indexOfFirst { it.contextEntryKey() == tapped.contextEntryKey() }
                             }?.takeIf { it >= 0 } ?: index
                             playFrom(
                                 queue,

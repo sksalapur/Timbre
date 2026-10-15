@@ -10,6 +10,8 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import java.nio.charset.StandardCharsets
+import java.util.concurrent.Executor
+import java.util.concurrent.Executors
 
 /**
  * Durable state for the logical bounded CONTEXT queue.
@@ -53,29 +55,60 @@ object BoundedContextPersistence {
     @Synchronized
     internal fun initForTesting(testPrefs: SharedPreferences) {
         prefs = testPrefs
+        writer = Executor { it.run() }
     }
 
-    @Synchronized
+    /**
+     * Encoding the canonical list is O(collection) and the service saves on
+     * every track change and queue edit, so [save] only records the newest
+     * state on the caller's (main) thread. One background writer encodes and
+     * stores whatever is newest when it gets there; a burst of saves costs one
+     * encode.
+     */
+    private var writer: Executor = Executors.newSingleThreadExecutor { runnable ->
+        Thread(runnable, "bounded-context-save").apply { isDaemon = true }
+    }
+    private var pending: State? = null
+
+    /** Bumped by every clear and synchronous write, so an older queued write is dropped. */
+    private var generation = 0L
+
     fun save(state: State) {
-        val encoded = encode(state) ?: return
-        val currentEntryId = state.entries.getOrNull(state.currentIndex)?.song?.queueEntryId
-        prefs.edit()
-            .putString(KEY_STATE, encoded)
-            .putString(KEY_CURRENT_ENTRY_ID, currentEntryId)
-            .putLong(KEY_POSITION, state.positionMs.coerceAtLeast(0L))
-            .apply()
+        synchronized(this) {
+            val queued = pending != null
+            pending = state
+            if (queued) return
+        }
+        writer.execute(::flushPending)
     }
 
-    @Synchronized
-    fun saveImmediately(state: State) {
+    private fun flushPending() {
+        val (state, startedAt) = synchronized(this) {
+            val next = pending ?: return
+            pending = null
+            next to generation
+        }
         val encoded = encode(state) ?: return
-        val currentEntryId = state.entries.getOrNull(state.currentIndex)?.song?.queueEntryId
+        synchronized(this) {
+            if (startedAt != generation) return
+            write(state, encoded).apply()
+        }
+    }
+
+    fun saveImmediately(state: State) {
+        synchronized(this) {
+            generation += 1
+            pending = null
+        }
+        val encoded = encode(state) ?: return
+        synchronized(this) { write(state, encoded).commit() }
+    }
+
+    private fun write(state: State, encoded: String): SharedPreferences.Editor =
         prefs.edit()
             .putString(KEY_STATE, encoded)
-            .putString(KEY_CURRENT_ENTRY_ID, currentEntryId)
+            .putString(KEY_CURRENT_ENTRY_ID, state.entries.getOrNull(state.currentIndex)?.song?.queueEntryId)
             .putLong(KEY_POSITION, state.positionMs.coerceAtLeast(0L))
-            .commit()
-    }
 
     /**
      * Update only the cheap progress scalars for the entry that was persisted.
@@ -109,11 +142,15 @@ object BoundedContextPersistence {
 
     @Synchronized
     fun clear() {
+        generation += 1
+        pending = null
         prefs.edit().clear().apply()
     }
 
     @Synchronized
     fun clearImmediately() {
+        generation += 1
+        pending = null
         prefs.edit().clear().commit()
     }
 
@@ -375,7 +412,7 @@ object BoundedContextPersistence {
             val index = canonicalIndex
             if (index != null) {
                 if (index !in contextSongs.indices) return null
-                if (resolvedSong.videoId != contextSongs[index].videoId) return null
+                if (resolvedSong.contextEntryKey() != contextSongs[index].contextEntryKey()) return null
                 if (cycleId == null || cycleId < 0L) return null
             } else if (cycleId != null) {
                 return null
@@ -517,7 +554,7 @@ object BoundedContextPersistence {
         val canonical = context.songs
         if (canonical.isEmpty() || canonical.size > MAX_CANONICAL_SONGS) return null
         if (canonical.any { it.videoId.isBlank() || it.queueTier != QueueTier.CONTEXT }) return null
-        if (canonical.map { it.videoId }.toSet().size != canonical.size) return null
+        if (canonical.map { it.contextEntryKey() }.toSet().size != canonical.size) return null
         if (canonical.any { !it.matchesSource(source) }) return null
 
         val window = runCatching { QueueWindow.restore(state.window) }.getOrNull() ?: return null
@@ -558,7 +595,7 @@ object BoundedContextPersistence {
                 ) return null
                 if (!anchors.add(canonicalIndex to cycleId)) return null
                 val expected = canonical[canonicalIndex]
-                if (entry.song.videoId != expected.videoId) return null
+                if (entry.song.contextEntryKey() != expected.contextEntryKey()) return null
             }
         }
 
@@ -594,7 +631,10 @@ object BoundedContextPersistence {
     // A complete 10k-song canonical context plus all physical tails can exceed
     // the old 4 MiB cutoff.  This remains a bounded prefs record while leaving
     // enough room for real metadata and long user/autoplay tails.
-    private const val MAX_SERIALIZED_BYTES = 64 * 1024 * 1024
+    // Past this the snapshot is skipped and LastPlayed restores instead. A
+    // SharedPreferences value stays resident for the life of the process, and
+    // encoding allocates it several times over, so this is a heap budget.
+    private const val MAX_SERIALIZED_BYTES = 8 * 1024 * 1024
     private const val MAX_CANONICAL_SONGS = 100_000
     private const val MAX_PHYSICAL_ENTRIES = 100_000
     private const val MAX_HISTORY = 25

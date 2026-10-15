@@ -39,6 +39,10 @@ object BoundedContextRequests {
         val songs: List<Song>,
         val continuationToken: String?,
         val version: Long,
+        /** The service has taken this context and is walking its continuation. */
+        val serviceOwned: Boolean = false,
+        /** The service stopped walking the continuation; the page should resume it. */
+        val released: Boolean = false,
     )
 
     private data class Pending(
@@ -110,9 +114,23 @@ object BoundedContextRequests {
                 songs = updatedRequest.songs,
                 continuationToken = updatedRequest.continuationToken,
                 version = version,
+                serviceOwned = true,
             ),
         )
         return true
+    }
+
+    /**
+     * The service gave up on the active context's continuation (repeated load
+     * failures). Republished without service ownership so the detail page picks
+     * the walk back up from the newest token instead of stopping short.
+     */
+    @Synchronized
+    fun release(handoffToken: String) {
+        val current = active ?: return
+        if (current.request.handoffToken != handoffToken) return
+        version += 1
+        publishLocked(current.copy(version = version, serviceOwned = false, released = true))
     }
 
     /** Publishes a shared [ContextRegistry] snapshot without unpacking it first. */
@@ -139,6 +157,7 @@ object BoundedContextRequests {
                 songs = stored.songs,
                 continuationToken = stored.continuationToken,
                 version = version,
+                serviceOwned = true,
             ),
         )
         return stored

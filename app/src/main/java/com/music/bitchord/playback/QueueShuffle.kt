@@ -376,13 +376,22 @@ object QueueShuffle {
 
         // Map all existing context MediaItems by canonicalIndex so we preserve existing instances & metadata
         val existingByCanonical = HashMap<Int, MediaItem>()
+        // Context rows the canonical order can't place (no index, or a second
+        // copy of one). They stay in the queue on the side of the current
+        // track they were on, rather than being dropped.
+        val unplacedHistory = ArrayList<MediaItem>()
+        val unplacedUpcoming = ArrayList<MediaItem>()
         for (i in items.indices) {
             if (i == currentIndex) continue
             val item = items[i]
             if (item.queueTier == QueueTier.CONTEXT) {
                 val idx = getCanonicalIndex(item, c)
-                if (idx != null && !existingByCanonical.containsKey(idx)) {
+                if (idx != null && idx in canonicalList.indices && !existingByCanonical.containsKey(idx)) {
                     existingByCanonical[idx] = item
+                } else if (i < currentIndex) {
+                    unplacedHistory += item
+                } else {
+                    unplacedUpcoming += item
                 }
             }
         }
@@ -394,15 +403,14 @@ object QueueShuffle {
         }
         val followingRange = ((resolvedCurrentIndex + 1).coerceAtLeast(0)) until canonicalList.size
 
+        // Only rows still in the queue are reordered. Filling gaps from the
+        // canonical list put back every track the listener had removed, and
+        // re-grew history the service had already trimmed to its 25 rows.
         // Canonical context preceding the current track (history)
-        val precedingContext = precedingRange.map { cIdx ->
-            existingByCanonical[cIdx] ?: canonicalList[cIdx]
-        }
+        val precedingContext = unplacedHistory + precedingRange.mapNotNull { existingByCanonical[it] }
 
         // Canonical context following the current track (upcoming)
-        val followingContext = followingRange.map { cIdx ->
-            existingByCanonical[cIdx] ?: canonicalList[cIdx]
-        }
+        val followingContext = followingRange.mapNotNull { existingByCanonical[it] } + unplacedUpcoming
 
         // Played manual user queue tracks in history (before current track)
         val historyUserQueue = items.filterIndexed { idx, it -> idx < currentIndex && it.queueTier == QueueTier.USER_QUEUE }

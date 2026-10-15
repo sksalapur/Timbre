@@ -633,7 +633,7 @@ class QueueShuffleTierTest {
     }
 
     @Test
-    fun `shuffle play more than 25 tracks and restore rebuilds history from canonicalContext`() {
+    fun `shuffle play more than 25 tracks and restore reorders without resurrecting trimmed history`() {
         val totalTracks = 40
         val songs = (0 until totalTracks).map { testSong("track-$it", QueueTier.CONTEXT, "id-$it") }
         val canonicalItems = songs.mapIndexed { idx, s ->
@@ -671,32 +671,22 @@ class QueueShuffleTierTest {
         assertEquals(false, QueueShuffle.enabled.value)
 
         // Verify:
-        // 1. Current track index matches c (history was fully restored to canonical 0 until c)
-        assertEquals(c, state.currentIndex)
+        // 1. The current track is still current.
         assertEquals(currentItem.mediaId, state.items[state.currentIndex].mediaId)
 
-        // 2. Next track immediately after current track is canonical c + 1
-        if (c + 1 < totalTracks) {
-            val nextItem = state.items[state.currentIndex + 1]
-            assertEquals(c + 1, QueueShuffle.getCanonicalIndex(nextItem))
-        }
+        // 2. Only rows still in the queue were reordered: the 3 trimmed tracks
+        //    stay gone, nothing is duplicated.
+        assertEquals(totalTracks - 3, state.items.size)
+        assertEquals(state.items.size, state.items.map { it.mediaId }.toSet().size)
 
-        // 3. History range (0 until c) is completely reconstructed from canonicalContext
-        for (i in 0 until c) {
-            val historyItem = state.items[i]
-            assertEquals(i, QueueShuffle.getCanonicalIndex(historyItem))
-            assertEquals(QueueTier.CONTEXT, historyItem.queueTier)
-        }
-
-        // 4. Following range is in canonical order c + 1 until totalTracks
-        for (i in (c + 1) until totalTracks) {
-            val upcomingItem = state.items[i]
-            assertEquals(i, QueueShuffle.getCanonicalIndex(upcomingItem))
-            assertEquals(QueueTier.CONTEXT, upcomingItem.queueTier)
-        }
-
-        // 5. Total items equals totalTracks (40)
-        assertEquals(totalTracks, state.items.size)
+        // 3. History and upcoming are each in canonical order around c.
+        val history = state.items.take(state.currentIndex).map { QueueShuffle.getCanonicalIndex(it)!! }
+        val upcoming = state.items.drop(state.currentIndex + 1).map { QueueShuffle.getCanonicalIndex(it)!! }
+        assertEquals(history.sorted(), history)
+        assertEquals(upcoming.sorted(), upcoming)
+        assertTrue(history.all { it < c })
+        assertTrue(upcoming.all { it > c })
+        state.items.forEach { assertEquals(QueueTier.CONTEXT, it.queueTier) }
     }
 
     @Test

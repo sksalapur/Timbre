@@ -3,6 +3,13 @@ package com.music.bitchord.playback
 import com.music.bitchord.data.model.Song
 import java.util.Collections
 
+/**
+ * Identity of a row within a collection. A playlist may list the same video
+ * twice; YouTube tells those rows apart by [Song.setVideoId], so both survive.
+ */
+fun Song.contextEntryKey(): String =
+    setVideoId?.takeIf { it.isNotBlank() }?.let { "$videoId@$it" } ?: videoId
+
 /** The state of the continuation token owned by a registered context. */
 enum class ContinuationState {
     /** A token is available and no request is currently using it. */
@@ -126,7 +133,7 @@ class ContextRegistry(
 
     /**
      * Replaces the active context and invalidates any in-flight continuation.
-     * The initial list is de-duplicated by [Song.videoId] in arrival order.
+     * The initial list is de-duplicated by [contextEntryKey] in arrival order.
      */
     fun register(
         contextToken: String,
@@ -460,7 +467,7 @@ class ContextRegistry(
                 require(song.videoId.isNotBlank()) {
                     "restored songs must not contain blank video ids"
                 }
-                require(ids.add(song.videoId)) {
+                require(ids.add(song.contextEntryKey())) {
                     "restored songs must not contain duplicate video ids"
                 }
             }
@@ -469,15 +476,15 @@ class ContextRegistry(
 
         fun immutableSongs(songs: Collection<Song>): List<Song> {
             val byVideoId = LinkedHashMap<String, Song>(songs.size)
-            songs.forEach { byVideoId.putIfAbsent(it.videoId, it) }
+            songs.forEach { byVideoId.putIfAbsent(it.contextEntryKey(), it) }
             return Collections.unmodifiableList(byVideoId.values.toList())
         }
 
         fun newSongs(existing: List<Song>, candidates: List<Song>): List<Song> {
-            val known = existing.asSequence().mapTo(HashSet()) { it.videoId }
+            val known = existing.asSequence().mapTo(HashSet()) { it.contextEntryKey() }
             val added = ArrayList<Song>()
             candidates.forEach { candidate ->
-                if (known.add(candidate.videoId)) added += candidate
+                if (known.add(candidate.contextEntryKey())) added += candidate
             }
             return added
         }

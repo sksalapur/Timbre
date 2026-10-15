@@ -507,6 +507,15 @@ class QueueCoordinatorTest {
                     activeIndex = startIndex
                     null
                 }
+                "replaceMediaItems" -> {
+                    val from = args[0] as Int
+                    val to = args[1] as Int
+                    @Suppress("UNCHECKED_CAST")
+                    val newItems = args[2] as List<MediaItem>
+                    repeat(to - from) { items.removeAt(from) }
+                    items.addAll(from, newItems)
+                    null
+                }
                 "seekTo" -> {
                     activeIndex = args[0] as Int
                     null
@@ -708,7 +717,8 @@ class QueueCoordinatorTest {
         var repeatMode: Int = Player.REPEAT_MODE_OFF,
     ) {
         var seekCallCount = 0
-        var setMediaItemsCallCount = 0
+        /** setMediaItems or replaceMediaItems: any edit to the queue's contents. */
+        var queueEditCallCount = 0
 
         val player: Player = Proxy.newProxyInstance(
             Player::class.java.classLoader,
@@ -747,6 +757,7 @@ class QueueCoordinatorTest {
                     val to = args[1] as Int
                     @Suppress("UNCHECKED_CAST")
                     val newItems = args[2] as List<MediaItem>
+                    queueEditCallCount++
                     for (i in (to - 1) downTo from) {
                         items.removeAt(i)
                     }
@@ -760,7 +771,7 @@ class QueueCoordinatorTest {
                     @Suppress("UNCHECKED_CAST")
                     val newItems = args[0] as List<MediaItem>
                     val startIndex = args[1] as Int
-                    setMediaItemsCallCount++
+                    queueEditCallCount++
                     items.clear()
                     items.addAll(newItems)
                     activeIndex = startIndex
@@ -795,7 +806,7 @@ class QueueCoordinatorTest {
         QueueCoordinator.jumpToQueueItem(testPlayer.player, targetIndex = 4, cachedTimeline = songs)
 
         assertEquals(1, testPlayer.seekCallCount)
-        assertEquals(0, testPlayer.setMediaItemsCallCount)
+        assertEquals(0, testPlayer.queueEditCallCount)
         assertEquals(4, testPlayer.activeIndex)
         assertEquals(5, testPlayer.items.size)
         assertEquals(listOf("c0", "c1", "c2", "c3", "c4"), testPlayer.items.map { it.mediaId })
@@ -816,7 +827,7 @@ class QueueCoordinatorTest {
         QueueCoordinator.jumpToQueueItem(testPlayer.player, targetIndex = 2, cachedTimeline = songs)
 
         assertEquals(1, testPlayer.seekCallCount)
-        assertEquals(0, testPlayer.setMediaItemsCallCount)
+        assertEquals(0, testPlayer.queueEditCallCount)
         assertEquals(2, testPlayer.activeIndex)
         assertEquals(5, testPlayer.items.size)
         assertEquals(listOf("c0", "c1", "c2", "c3", "c4"), testPlayer.items.map { it.mediaId })
@@ -837,7 +848,7 @@ class QueueCoordinatorTest {
         QueueCoordinator.jumpToQueueItem(testPlayer.player, targetIndex = 1, cachedTimeline = songs)
 
         assertEquals(1, testPlayer.seekCallCount)
-        assertEquals(0, testPlayer.setMediaItemsCallCount)
+        assertEquals(0, testPlayer.queueEditCallCount)
         assertEquals(1, testPlayer.activeIndex)
         assertEquals(5, testPlayer.items.size)
         assertEquals(listOf("c0", "c1", "c2", "c3", "c4"), testPlayer.items.map { it.mediaId })
@@ -867,7 +878,7 @@ class QueueCoordinatorTest {
             val p = TestPlayer(items, activeIndex = 0)
             QueueCoordinator.jumpToQueueItem(p.player, targetIndex = 4, cachedTimeline = songs)
 
-            assertEquals(1, p.setMediaItemsCallCount)
+            assertEquals(1, p.queueEditCallCount)
             assertEquals(2, p.activeIndex)
             assertEquals(listOf("c0", "c1", "c2", "u1", "u2"), p.items.map { it.mediaId })
             assertEquals("e-u1", p.items[3].queueEntryId)
@@ -895,7 +906,7 @@ class QueueCoordinatorTest {
             val p = TestPlayer(items, activeIndex = 0)
             QueueCoordinator.jumpToQueueItem(p.player, targetIndex = 4, cachedTimeline = songs)
 
-            assertEquals(1, p.setMediaItemsCallCount)
+            assertEquals(1, p.queueEditCallCount)
             assertEquals(2, p.activeIndex)
             assertEquals(listOf("c0", "c1", "c2", "u1", "u2"), p.items.map { it.mediaId })
             assertEquals("e-u1", p.items[3].queueEntryId)
@@ -925,7 +936,7 @@ class QueueCoordinatorTest {
             val p = TestPlayer(items, activeIndex = 0)
             QueueCoordinator.jumpToQueueItem(p.player, targetIndex = 4, cachedTimeline = songs)
 
-            assertEquals(1, p.setMediaItemsCallCount)
+            assertEquals(1, p.queueEditCallCount)
             assertEquals(2, p.activeIndex)
             assertEquals(listOf("c0", "c1", "c2", "u1", "u2", "c3"), p.items.map { it.mediaId })
             assertEquals("e-u1", p.items[3].queueEntryId)
@@ -956,7 +967,7 @@ class QueueCoordinatorTest {
             val p = TestPlayer(items, activeIndex = 0)
             QueueCoordinator.jumpToQueueItem(p.player, targetIndex = 2, cachedTimeline = songs)
 
-            assertEquals(1, p.setMediaItemsCallCount)
+            assertEquals(1, p.queueEditCallCount)
             assertEquals(1, p.activeIndex)
             assertEquals(listOf("c0", "c1", "u1", "u2", "c2", "c3"), p.items.map { it.mediaId })
             assertEquals("e-u1", p.items[2].queueEntryId)
@@ -984,7 +995,7 @@ class QueueCoordinatorTest {
         // Tap U2 (index 2)
         QueueCoordinator.jumpToQueueItem(testPlayer.player, targetIndex = 2, cachedTimeline = songs)
 
-        assertEquals(1, testPlayer.setMediaItemsCallCount)
+        assertEquals(1, testPlayer.queueEditCallCount)
         assertEquals(1, testPlayer.activeIndex)
         assertEquals(listOf("c0", "u2", "u3", "c1"), testPlayer.items.map { it.mediaId })
         assertEquals("e-u2", testPlayer.items[1].queueEntryId)
@@ -1011,7 +1022,7 @@ class QueueCoordinatorTest {
         // Tap A2 (index 4)
         QueueCoordinator.jumpToQueueItem(testPlayer.player, targetIndex = 4, cachedTimeline = songs)
 
-        assertEquals(1, testPlayer.setMediaItemsCallCount)
+        assertEquals(1, testPlayer.queueEditCallCount)
         assertEquals(1, testPlayer.activeIndex)
         assertEquals(listOf("c0", "a2", "u1"), testPlayer.items.map { it.mediaId })
         assertEquals(QueueTier.CONTEXT, testPlayer.items[1].queueTier)
@@ -1223,7 +1234,7 @@ class QueueCoordinatorTest {
         QueueCoordinator.jumpToQueueItem(playlistPlayer.player, targetIndex = 4, cachedTimeline = playlistTracks)
 
         assertEquals(albumPlayer.seekCallCount, playlistPlayer.seekCallCount)
-        assertEquals(albumPlayer.setMediaItemsCallCount, playlistPlayer.setMediaItemsCallCount)
+        assertEquals(albumPlayer.queueEditCallCount, playlistPlayer.queueEditCallCount)
         assertEquals(albumPlayer.activeIndex, playlistPlayer.activeIndex)
         assertEquals(albumPlayer.items.map { it.mediaId }, playlistPlayer.items.map { it.mediaId })
     }

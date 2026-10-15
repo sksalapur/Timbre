@@ -183,6 +183,9 @@ import java.util.UUID
 /** Session command used by both the player UI and the media notification. */
 const val ACTION_TOGGLE_AUTOPLAY = "com.music.bitchord.action.TOGGLE_AUTOPLAY"
 
+/** Backoff before each retry of a failed bounded continuation page. */
+private val BOUNDED_CONTINUATION_RETRIES_MS = longArrayOf(2_000L, 5_000L, 15_000L)
+
 /** Session command used by album/playlist playback to install a bounded context. */
 const val ACTION_START_BOUNDED_CONTEXT = "com.music.bitchord.action.START_BOUNDED_CONTEXT"
 const val ACTION_CLEAR_BOUNDED_CONTEXT = "com.music.bitchord.action.CLEAR_BOUNDED_CONTEXT"
@@ -2477,6 +2480,10 @@ class PlaybackService : MediaLibraryService() {
             if (crossfade?.isTransitioning() != true) applyDeferredBoundedQueueEdit()
             return
         }
+        // A party's queue is the server's, not the album last played here.
+        // A stale canonical order would let turning shuffle off splice that
+        // album back in whenever the party plays one of its tracks.
+        if (ListenTogether.state.value.inParty) QueueShuffle.clearCanonicalContext()
         player?.let(QueueShuffle::toggle)
         refreshCustomLayouts()
     }
@@ -2570,7 +2577,7 @@ class PlaybackService : MediaLibraryService() {
 
         val requestedIndex = request.startIndex
             .coerceIn(requestedSongs.indices)
-        val selectedVideoId = requestedSongs[requestedIndex].videoId
+        val selectedKey = requestedSongs[requestedIndex].contextEntryKey()
         val contextToken = "${source.type.name}:${source.id.orEmpty()}:${UUID.randomUUID()}"
         val registered = boundedContextRegistry.register(
             contextToken = contextToken,
@@ -2579,7 +2586,7 @@ class PlaybackService : MediaLibraryService() {
             songs = requestedSongs,
             continuationToken = request.continuationToken,
         )
-        val selectedIndex = registered.songs.indexOfFirst { it.videoId == selectedVideoId }
+        val selectedIndex = registered.songs.indexOfFirst { it.contextEntryKey() == selectedKey }
             .takeIf { it >= 0 } ?: 0
         val shuffle = request.shuffle
         val window = QueueWindow(registered.songs.size).startAt(selectedIndex, shuffle)
@@ -2655,16 +2662,28 @@ class PlaybackService : MediaLibraryService() {
 
     /** Follows the continuation independently of the detail-page lifecycle. */
     private fun startBoundedContinuationLoading(contextToken: String) {
+        boundedContinuationJob?.cancel()
         boundedContinuationJob = scope.launch {
+            var failures = 0
             while (isActive && boundedContextToken == contextToken) {
                 val request = boundedContextRegistry.claimContinuation(contextToken) ?: return@launch
                 val page = withContext(Dispatchers.IO) {
                     YtMusicRepository.moreSongs(request.continuationToken).getOrNull()
                 }
                 if (page == null) {
+                    // fail() leaves the token claimable. A single dropped
+                    // request used to end loading for good, leaving both the
+                    // queue and the page cut short; retry with backoff, then
+                    // hand the walk back to the detail page.
                     boundedContextRegistry.fail(request)
-                    return@launch
+                    if (++failures > BOUNDED_CONTINUATION_RETRIES_MS.size) {
+                        boundedContextRequest?.handoffToken?.let(BoundedContextRequests::release)
+                        return@launch
+                    }
+                    delay(BOUNDED_CONTINUATION_RETRIES_MS[failures - 1])
+                    continue
                 }
+                failures = 0
                 val source = boundedContextSource
                 val songs = page.songs.map { song ->
                     if (source == null) song else song.copy(
@@ -2777,6 +2796,18 @@ class PlaybackService : MediaLibraryService() {
             return
         }
         if (window.currentCanonicalIndex != anchor) window.jumpTo(anchor)
+        // Shuffle toggled in the party cleared this; the projection needs it back.
+        QueueShuffle.setCanonicalContext(
+            snapshot.songs.mapIndexed { index, song ->
+                val canonical = song.copy(queueEntryId = "context:${snapshot.contextToken}:$index")
+                QueueShuffle.withQueueMetadata(
+                    canonical.toMediaItem(),
+                    newEntryId = canonical.queueEntryId,
+                    newCanonicalIndex = index,
+                    newTier = QueueTier.CONTEXT,
+                )
+            },
+        )
         boundedEditState = BoundedQueueEdits.requestRefresh(boundedEditState)
         if (crossfade?.isTransitioning() != true) applyDeferredBoundedQueueEdit()
     }
@@ -2784,7 +2815,7 @@ class PlaybackService : MediaLibraryService() {
     private fun boundedMediaItems(plan: BoundedContextPlan, window: QueueWindow): List<MediaItem> {
         val canonical = plan.canonicalContext
         val history = plan.history.map { song ->
-            boundedMediaItem(song, canonical.indexOfFirst { it.videoId == song.videoId }, window.cycleId)
+            boundedMediaItem(song, canonical.indexOfFirst { it.contextEntryKey() == song.contextEntryKey() }, window.cycleId)
         }
         val current = boundedMediaItem(plan.current, plan.currentCanonicalIndex, window.cycleId)
         val user = plan.userQueue.map { it.copy(queueEntryId = it.queueEntryId ?: UUID.randomUUID().toString()).toMediaItem() }
@@ -7715,49 +7746,24 @@ class PlaybackService : MediaLibraryService() {
                 cast.seekTo(positionMs)
                 return
             }
-            val skipped = skippedByQueueJump(currentMediaItemIndex, mediaItemIndex)
-            if (skipped == null) {
+            if (mediaItemIndex <= wrappedPlayer.currentMediaItemIndex) {
                 wrappedPlayer.seekTo(mediaItemIndex, positionMs)
                 return
             }
-
-            // A direct choice of a later queue row bypasses items between current and target.
-            // Invariant: CONTEXT tracks belong to the album/playlist collection and must NEVER
-            // be pruned or moved on a seek, preserving complete collection history for backward navigation.
-            // Only unplayed USER_QUEUE items bypassed during an in-tier jump within USER_QUEUE
-            // are consumed/removed.
-            val targetTier = wrappedPlayer.getMediaItemAt(mediaItemIndex).queueTier
-            if (targetTier == QueueTier.CONTEXT) {
-                wrappedPlayer.seekTo(mediaItemIndex, positionMs)
-                return
-            }
-
-            val removableIndices = mutableListOf<Int>()
-            for (i in skipped) {
-                val tier = wrappedPlayer.getMediaItemAt(i).queueTier
-                val isRemovable = if (targetTier == QueueTier.USER_QUEUE) {
-                    tier == QueueTier.USER_QUEUE
-                } else {
-                    false
-                }
-                if (isRemovable) {
-                    removableIndices.add(i)
-                }
-            }
-
-            // Remove in reverse order so preceding indices remain valid during removal
-            for (i in removableIndices.asReversed()) {
-                wrappedPlayer.removeMediaItem(i)
-            }
-            var newTargetIndex = mediaItemIndex - removableIndices.count { it < mediaItemIndex }
-            if (targetTier == QueueTier.USER_QUEUE) {
-                val nextIndex = wrappedPlayer.currentMediaItemIndex + 1
-                if (newTargetIndex > nextIndex) {
-                    wrappedPlayer.moveMediaItem(newTargetIndex, nextIndex)
-                    newTargetIndex = nextIndex
-                }
-            }
-            wrappedPlayer.seekTo(newTargetIndex, positionMs)
+            // A direct choice of a later queue row bypasses items between
+            // current and target (and an AutoPlay row, even the next one,
+            // becomes the new context). The in-app queue tap lands here too (as a
+            // controller seek), so the notification, Auto, Wear and the app
+            // all follow the one plan in [QueueTimeline.computeJumpOrder] —
+            // in particular, bypassed USER_QUEUE rows are re-pinned after the
+            // target rather than left behind the playhead, where
+            // [QueueCoordinator.consumePlayedUserQueue] would delete them.
+            QueueCoordinator.jumpToQueueItem(
+                wrappedPlayer,
+                mediaItemIndex,
+                positionMs = positionMs,
+                play = false,
+            )
         }
 
         override fun seekToPreviousMediaItem() {

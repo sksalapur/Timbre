@@ -127,6 +127,8 @@ object QueueCoordinator {
         targetIndex: Int,
         cachedTimeline: List<Song>? = null,
         tierAt: (Int) -> QueueTier = player::queueTierAt,
+        positionMs: Long = 0L,
+        play: Boolean = true,
     ) {
         val currentIndex = player.currentMediaItemIndex
         val count = player.mediaItemCount
@@ -137,8 +139,8 @@ object QueueCoordinator {
         val plan = QueueTimeline.computeJumpOrder(tiers, currentIndex, targetIndex) ?: return
 
         if (plan.isPureSeek) {
-            player.seekTo(plan.newTargetIndex, 0L)
-            player.play()
+            player.seekTo(plan.newTargetIndex, positionMs)
+            if (play) player.play()
             return
         }
 
@@ -152,10 +154,21 @@ object QueueCoordinator {
             }
         }
 
-        player.setMediaItems(newItems, plan.newTargetIndex, 0L)
+        // Every plan keeps 0..current as it stands, so only the tail is
+        // edited in place. Must run on the session's own player: items read
+        // back through a MediaController have lost their playback URI and are
+        // rebuilt by the session's resolver, which drops the bounded-window
+        // metadata (canonical index, repeat cycle) along with it.
+        val historyKept = plan.newOrderIndices.take(currentIndex + 1) == (0..currentIndex).toList()
+        if (historyKept) {
+            QueueShuffle.replaceChanged(player, currentIndex + 1, count, newItems.drop(currentIndex + 1))
+            player.seekTo(plan.newTargetIndex, positionMs)
+        } else {
+            player.setMediaItems(newItems, plan.newTargetIndex, positionMs)
+        }
         if (runCatching { player.playbackState }.getOrNull() == Player.STATE_IDLE) {
             player.prepare()
         }
-        player.play()
+        if (play) player.play()
     }
 }

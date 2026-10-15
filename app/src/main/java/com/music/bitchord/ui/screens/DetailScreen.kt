@@ -462,16 +462,14 @@ fun DetailScreen(
     LaunchedEffect(page.browseId, page.title, credit, canvasEnabled, prioritizeSpotifyCanvas) {
         // An artist's clip is set below, by the lookup that finds it.
         if (isArtist) return@LaunchedEffect
-        if (!canvasEnabled) {
+        if (!canvasEnabled || page.type != BrowseType.ALBUM) {
             canvas = null
             return@LaunchedEffect
         }
         // As on the player: the credit fills in once the tracks load, so this
         // can run twice. Keep a clip that is already playing if the second
         // pass comes back empty.
-        val resolved = CanvasRepository.canvasForAlbum(page.title, credit)
-            ?: (songs.firstOrNull()?.albumName?.takeIf { it.isNotBlank() }?.let { CanvasRepository.canvasForAlbum(it, credit) })
-        canvas = resolved ?: canvas
+        canvas = CanvasRepository.canvasForAlbum(page.title, credit) ?: canvas
     }
     // An artist's clip comes with the same Apple lookup as its photograph.
     val artistVideo = appleArt?.videoUrl
