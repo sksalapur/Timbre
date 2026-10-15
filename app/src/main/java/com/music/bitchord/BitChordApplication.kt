@@ -10,6 +10,9 @@ import coil3.disk.DiskCache
 import coil3.disk.directory
 import coil3.memory.MemoryCache
 import coil3.request.crossfade
+import coil3.svg.SvgDecoder
+import coil3.network.okhttp.OkHttpNetworkFetcherFactory
+import okhttp3.OkHttpClient
 import com.music.bitchord.auth.AuthStore
 import com.music.bitchord.data.DebugLog
 import com.music.bitchord.data.lyrics.LyricsTranslation
@@ -164,6 +167,29 @@ class BitChordApplication : Application(), SingletonImageLoader.Factory {
     }
 
     /**
+     * Coil's own transport, separate from [Http][com.music.bitchord.data.Http]'s
+     * playback-tuned client.
+     *
+     * Wikimedia (which serves signature art) answers generic clients with
+     * HTTP 403 under its User-Agent policy, so every image request carries an
+     * identifying agent. Anything else falls through to Coil's own fetchers.
+     */
+    private val coilHttpClient: OkHttpClient by lazy {
+        OkHttpClient.Builder()
+            .addInterceptor { chain ->
+                chain.proceed(
+                    chain.request().newBuilder()
+                        .header(
+                            "User-Agent",
+                            "BitChord/${BuildConfig.VERSION_NAME} (Android; +https://github.com/kushagrasinghx/BitChord)",
+                        )
+                        .build(),
+                )
+            }
+            .build()
+    }
+
+    /**
      * Artwork loading, which was previously left entirely on Coil's defaults.
      *
      * The defaults aren't unreasonable, but the disk cache is sized at 2% of
@@ -183,6 +209,11 @@ class BitChordApplication : Application(), SingletonImageLoader.Factory {
                 // Covers filed on the SMB share; anything else falls
                 // through to Coil's own fetchers. See SmbCoverFetcher.
                 add(SmbCoverFetcher.Factory())
+                // Artist signatures are usually SVG, which Coil can't
+                // decode without this. See ArtistSignatureRepository.
+                add(SvgDecoder.Factory())
+                // Wikimedia 403s Coil's default client; see [coilHttpClient].
+                add(OkHttpNetworkFetcherFactory(callFactory = { coilHttpClient }))
             }
             .memoryCache {
                 MemoryCache.Builder()

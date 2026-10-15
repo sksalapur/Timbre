@@ -1294,6 +1294,12 @@
     <string name="spotify_sign_in">Se connecter avec Spotify</string>
     <string name="spotify_use_spdc_token">Utiliser un jeton sp_dc</string>
     <string name="spotify_track_unavailable">Impossible de trouver ce titre sur YouTube Music</string>
+    <string name="artist_signatures">Signatures d\'artistes</string>
+    <string name="artist_signatures_subtitle">Affiche une signature manuscrite quand Apple Music n\'a pas de logo de titre</string>
+    <string name="artist_signatures_url">URL de l\'API de signatures</string>
+    <string name="artist_signatures_url_hint">https://signatures.example.com</string>
+    <string name="artist_signatures_unconfigured">Non configuré — touchez pour définir l\'URL de l\'API</string>
+    <string name="artist_signatures_test_failed">Impossible de joindre l\'API à cette URL</string>
     <string name="search_source_addons">Addons</string>
     <string name="search_addons_none">Aucun addon n’est activé. Ajoutez-en un dans Réglages → Sources.</string>
     <string name="app_icon">Icône de l’app</string>

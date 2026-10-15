@@ -215,6 +215,8 @@ fun SettingsScreen(
     val lyricsBlur by AppSettings.lyricsBlur.collectAsStateWithLifecycle()
     val animatedCanvas by AppSettings.animatedCanvas.collectAsStateWithLifecycle()
     val canvasOverCellular by AppSettings.canvasOverCellular.collectAsStateWithLifecycle()
+    val signatureApiEnabled by AppSettings.signatureApiEnabled.collectAsStateWithLifecycle()
+    val signatureApiUrl by AppSettings.signatureApiUrl.collectAsStateWithLifecycle()
     val fullBleedArtwork by AppSettings.fullBleedArtwork.collectAsStateWithLifecycle()
     val legacyMeshGradient by AppSettings.legacyMeshGradient.collectAsStateWithLifecycle()
     val syncedLyrics by AppSettings.syncedLyrics.collectAsStateWithLifecycle()
@@ -354,7 +356,9 @@ fun SettingsScreen(
     }
     var showListenBrainzTokenDialog by remember { mutableStateOf(false) }
     var showLastfmLoginDialog by remember { mutableStateOf(false) }
+    var showSignatureApiDialog by remember { mutableStateOf(false) }
     val scrobbleScope = rememberCoroutineScope()
+    val signatureScope = rememberCoroutineScope()
 
     val version = remember(context) {
         runCatching {
@@ -920,6 +924,49 @@ fun SettingsScreen(
                     ) {
                         Text(
                             text = spotifyCanvasTitle,
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onBackground,
+                            modifier = Modifier.weight(1f),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        Chevron()
+                    }
+                }
+            }
+            val artistSignaturesTitle = stringResource(R.string.artist_signatures)
+            row(artistSignaturesTitle, "signature", "artist", "logo") {
+                SettingsRow(
+                    icon = Icons.Rounded.Person,
+                    title = artistSignaturesTitle,
+                    subtitle = stringResource(R.string.artist_signatures_subtitle),
+                    trailing = {
+                        Switch(
+                            checked = signatureApiEnabled,
+                            onCheckedChange = AppSettings::setSignatureApiEnabled,
+                            colors = SwitchDefaults.colors(
+                                checkedTrackColor = MaterialTheme.colorScheme.primary,
+                                checkedBorderColor = MaterialTheme.colorScheme.primary,
+                            ),
+                        )
+                    },
+                    onClick = { AppSettings.setSignatureApiEnabled(!signatureApiEnabled) },
+                )
+            }
+            if (signatureApiEnabled) {
+                val signatureUrlTitle = stringResource(R.string.artist_signatures_url)
+                row(signatureUrlTitle, "signature", "api", "url", divided = false) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable(onClick = { showSignatureApiDialog = true })
+                            .padding(start = ROW_INSET, end = ROW_INSET, top = 4.dp, bottom = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            text = signatureApiUrl.ifBlank {
+                                stringResource(R.string.artist_signatures_unconfigured)
+                            },
                             style = MaterialTheme.typography.bodyLarge,
                             color = MaterialTheme.colorScheme.onBackground,
                             modifier = Modifier.weight(1f),
@@ -1732,6 +1779,80 @@ fun SettingsScreen(
             },
             dismissButton = {
                 TextButton(onClick = { showListenBrainzTokenDialog = false }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            },
+        )
+    }
+
+    if (showSignatureApiDialog) {
+        var urlInput by remember { mutableStateOf(signatureApiUrl) }
+        var testing by remember { mutableStateOf(false) }
+        var testFailed by remember { mutableStateOf(false) }
+        AlertDialog(
+            onDismissRequest = { if (!testing) showSignatureApiDialog = false },
+            title = { Text(stringResource(R.string.artist_signatures_url)) },
+            text = {
+                Column {
+                    if (testFailed) {
+                        Text(
+                            text = stringResource(R.string.artist_signatures_test_failed),
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.padding(bottom = 8.dp),
+                        )
+                    }
+                    OutlinedTextField(
+                        value = urlInput,
+                        onValueChange = {
+                            urlInput = it
+                            testFailed = false
+                        },
+                        label = { Text(stringResource(R.string.artist_signatures_url)) },
+                        placeholder = { Text(stringResource(R.string.artist_signatures_url_hint)) },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val normalized = AppSettings.normalizeSignatureApiUrl(urlInput)
+                        if (normalized.isEmpty()) {
+                            AppSettings.setSignatureApiUrl("")
+                            com.music.bitchord.data.canvas.ArtistSignatureRepository.clear()
+                            showSignatureApiDialog = false
+                            return@TextButton
+                        }
+                        if (!com.music.bitchord.data.canvas.ArtistSignatureRepository.isValidBaseUrl(normalized)) {
+                            testFailed = true
+                            return@TextButton
+                        }
+                        testing = true
+                        testFailed = false
+                        signatureScope.launch {
+                            try {
+                                val ok = com.music.bitchord.data.canvas.ArtistSignatureRepository.checkHealth(normalized)
+                                if (ok) {
+                                    AppSettings.setSignatureApiUrl(normalized)
+                                    com.music.bitchord.data.canvas.ArtistSignatureRepository.clear()
+                                    showSignatureApiDialog = false
+                                } else {
+                                    testFailed = true
+                                }
+                            } finally {
+                                testing = false
+                            }
+                        }
+                    },
+                    enabled = !testing,
+                ) {
+                    Text(stringResource(R.string.save))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showSignatureApiDialog = false }, enabled = !testing) {
                     Text(stringResource(R.string.cancel))
                 }
             },

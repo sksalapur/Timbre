@@ -1250,6 +1250,12 @@
     <string name="spotify_sign_in">Spotify ile oturum aç</string>
     <string name="spotify_use_spdc_token">sp_dc token\'ı kullan</string>
     <string name="spotify_track_unavailable">O şarkı YouTube Music’de bulunamadı</string>
+    <string name="artist_signatures">Sanatçı imzaları</string>
+    <string name="artist_signatures_subtitle">Apple Music\'te başlık logosu yokken el yazısı imza gösterir</string>
+    <string name="artist_signatures_url">İmza API URL\'si</string>
+    <string name="artist_signatures_url_hint">https://signatures.example.com</string>
+    <string name="artist_signatures_unconfigured">Yapılandırılmadı — API URL\'sini ayarlamak için dokunun</string>
+    <string name="artist_signatures_test_failed">Bu URL\'de API\'ye ulaşılamadı</string>
     <string name="search_source_addons">Eklentiler</string>
     <string name="search_addons_none">Etkin eklenti yok. Ayarlar → Kaynaklar bölümünden bir tane ekleyin.</string>
     <string name="app_icon">Uygulama simgesi</string>
