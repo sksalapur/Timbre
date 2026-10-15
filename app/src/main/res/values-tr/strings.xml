@@ -1245,4 +1245,12 @@
     <string name="spotify_library_subtitle">Spotify çalma listeleriniz</string>
     <string name="spotify_sign_in">Spotify ile oturum aç</string>
     <string name="spotify_track_unavailable">O şarkı YouTube Music’de bulunamadı</string>
+    <string name="artist_signatures">Sanatçı imzaları</string>
+    <string name="artist_signatures_subtitle">Apple Music\'te başlık logosu yokken el yazısı imza gösterir</string>
+    <string name="artist_signatures_url">İmza API URL\'si</string>
+    <string name="artist_signatures_url_hint">https://signatures.example.com</string>
+    <string name="artist_signatures_unconfigured">Yapılandırılmadı — API URL\'sini ayarlamak için dokunun</string>
+    <string name="artist_signatures_test_failed">Bu URL\'de API\'ye ulaşılamadı</string>
+    <string name="chinese_simplified">Çince (Basitleştirilmiş)</string>
+    <string name="chinese_traditional">Çince (Geleneksel)</string>
 </resources>

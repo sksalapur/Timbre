@@ -1293,4 +1293,12 @@
     <string name="spotify_library_subtitle">Suas playlists do Spotify</string>
     <string name="spotify_sign_in">Entrar com Spotify</string>
     <string name="spotify_track_unavailable">Não foi possível encontrar essa música no YouTube Music</string>
+    <string name="artist_signatures">Assinaturas de artistas</string>
+    <string name="artist_signatures_subtitle">Mostra uma assinatura manuscrita quando o Apple Music não tem logotipo de título</string>
+    <string name="artist_signatures_url">URL da API de assinaturas</string>
+    <string name="artist_signatures_url_hint">https://signatures.example.com</string>
+    <string name="artist_signatures_unconfigured">Não configurado — toque para definir a URL da API</string>
+    <string name="artist_signatures_test_failed">Não foi possível alcançar a API nesse URL</string>
+    <string name="chinese_simplified">Chinês (simplificado)</string>
+    <string name="chinese_traditional">Chinês (tradicional)</string>
 </resources>

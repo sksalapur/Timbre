@@ -1266,4 +1266,12 @@
     <string name="spotify_library_subtitle">あなたの Spotify プレイリスト</string>
     <string name="spotify_sign_in">Spotify でサインイン</string>
     <string name="spotify_track_unavailable">その曲は YouTube Music で見つかりません</string>
+    <string name="artist_signatures">アーティストの署名</string>
+    <string name="artist_signatures_subtitle">Apple Musicにタイトルロゴがない場合に手書きの署名を表示します</string>
+    <string name="artist_signatures_url">署名APIのURL</string>
+    <string name="artist_signatures_url_hint">https://signatures.example.com</string>
+    <string name="artist_signatures_unconfigured">未設定 — APIのURLを設定するにはタップしてください</string>
+    <string name="artist_signatures_test_failed">そのURLでAPIに到達できませんでした</string>
+    <string name="chinese_simplified">中国語 (簡体字)</string>
+    <string name="chinese_traditional">中国語 (繁体字)</string>
 </resources>
