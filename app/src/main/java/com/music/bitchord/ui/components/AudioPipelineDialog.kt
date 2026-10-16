@@ -241,44 +241,85 @@ fun AudioPipelineDialog(
             val isDsdSource = nerdStats?.takeIf { it.mimeType?.startsWith("audio/dsd") == true } != null
             val isDspStageActive = eqEnabled || spatialAudio || (loudnessNormalization && outputStatus.loudnessGainDb != null)
             val isBluetoothRoute = outputStatus.routeKind == com.music.bitchord.playback.AudioRouting.Kind.BLUETOOTH
-            val isBitPerfectPath = !isDsdSource && !isDspStageActive && outputStatus.outputExact && !isBluetoothRoute
+            val isPhoneSpeaker = outputStatus.routeKind == com.music.bitchord.playback.AudioRouting.Kind.PHONE
+            val isDirectUsb = outputStatus.transportType == com.music.bitchord.playback.audio.TransportType.DIRECT_USB
+            val isDirectAudioTrack = outputStatus.directPlaybackActual
+
+            // Check if source bit-depth is downgraded by decoder or sink (e.g. 24-bit source -> 16-bit PCM)
+            val sourceBitDepth = nerdStats?.bitDepth ?: 16
+            val isSourceHiRes = sourceBitDepth > 16
+            val isBitDepthTruncated = isSourceHiRes && (
+                outputStatus.actualEncoding == android.media.AudioFormat.ENCODING_PCM_16BIT ||
+                outputStatus.decoderOutputEncoding?.contains("16-bit") == true
+            )
+
+            // AudioFlinger mixer check: active whenever systemMixerRateHz is present and not bypassed
+            val isAudioFlingerMixed = outputStatus.systemMixerRateHz != null && !isDirectUsb && !isDirectAudioTrack
+
+            // Truly bit-perfect ONLY when:
+            // 1. Not DSD
+            // 2. No DSP modifying digital audio samples (EQ, Spatializer, Loudness gain off)
+            // 3. Not built-in phone speaker (Phone speaker always mixes through AudioFlinger & OEM DSP)
+            // 4. Not lossy Bluetooth
+            // 5. Not mixed by AudioFlinger (bypassed via Direct USB or Direct AudioTrack)
+            // 6. Source bit depth is not truncated to 16-bit
+            val isBitPerfectPath = !isDsdSource &&
+                !isDspStageActive &&
+                !isBluetoothRoute &&
+                !isPhoneSpeaker &&
+                !isAudioFlingerMixed &&
+                !isBitDepthTruncated &&
+                (isDirectUsb || isDirectAudioTrack || (outputStatus.outputExact && outputStatus.systemMixerRateHz == null))
 
             val certTagColor = when {
                 isBitPerfectPath -> Color(0xFF00E676)
+                isPhoneSpeaker -> Color(0xFFFFD54F)
                 isBluetoothRoute -> Color(0xFFFFD54F)
                 isDspStageActive -> Color(0xFFFFB74D)
+                isBitDepthTruncated -> Color(0xFFFFD54F)
+                isAudioFlingerMixed -> Color(0xFFFFD54F)
                 else -> Color(0xFFFFD54F)
             }
 
             val certTagTitle = when {
+                isBitPerfectPath && isDirectUsb -> "🟢 BIT-PERFECT: Direct Userspace USB (Bit-Exact)"
                 isBitPerfectPath -> "🟢 BIT-PERFECT: Bit-Exact Signal Path"
+                isPhoneSpeaker -> "🟡 Phone Speaker (Framework Mixed)"
                 isBluetoothRoute -> {
                     val bt = outputStatus.bluetoothTelemetry
                     val codec = if (bt != null && bt.hasNamedCodec) bt.codecName else "A2DP"
                     "🟡 Framework Mixed ($codec)"
                 }
                 isDspStageActive -> "🟡 DSP Modified Signal Path"
-                outputStatus.systemMixerRateHz != null -> "🟡 Framework Mixed (AudioFlinger)"
+                isBitDepthTruncated -> "🟡 Downsampled ($sourceBitDepth-bit → 16-bit)"
+                isAudioFlingerMixed -> "🟡 Framework Mixed (AudioFlinger)"
                 else -> "🟡 Downstream Converted"
             }
 
             val certTagSubtitle = when {
+                isBitPerfectPath && isDirectUsb -> {
+                    val dev = outputStatus.directUsbProbe?.productName ?: outputStatus.deviceName
+                    val uac = outputStatus.directUsbProbe?.uacVersion?.let { "UAC$it" } ?: "UAC"
+                    "Bypassing Android AudioFlinger mixer directly to $dev via $uac"
+                }
                 isBitPerfectPath -> "Source bit-depth and sample-rate delivered untouched to output device"
+                isPhoneSpeaker -> "Audio passes through Android AudioFlinger and speaker DSP. Connect an IEM or a lossless-codec-supported TWS for bit-perfect audio."
                 isBluetoothRoute -> {
                     val bt = outputStatus.bluetoothTelemetry
                     val codec = if (bt != null && bt.hasNamedCodec) bt.codecName else "Bluetooth A2DP"
                     val rate = bt?.sampleRateHz?.let { " • ${rateText(it)}" }.orEmpty()
                     val bits = bt?.bitDepth?.let { " • $it-bit" }.orEmpty()
-                    "Active Bluetooth codec: $codec$bits$rate"
+                    "Active Bluetooth codec: $codec$bits$rate • Connect an IEM or lossless TWS for bit-perfect audio"
                 }
                 isDspStageActive -> when {
                     eqEnabled -> "Equalizer active (altering decoded audio samples)"
                     spatialAudio -> "Spatial audio processor active (stereo expansion)"
                     else -> "Loudness normalization active (altering digital gain)"
                 }
-                outputStatus.systemMixerRateHz != null -> {
+                isBitDepthTruncated -> "Source is $sourceBitDepth-bit, but decoded/rendered as 16-bit PCM • Enable Direct Bit-Perfect Mode"
+                isAudioFlingerMixed -> {
                     val rateStr = outputStatus.systemMixerRateHz?.let(::rateText) ?: "48 kHz"
-                    "Resampled by Android system mixer to $rateStr"
+                    "Resampled/managed by Android AudioFlinger mixer ($rateStr) • Direct bypass requires kernel/HAL direct playback support"
                 }
                 else -> outputStatus.outputExactDetail ?: "Decoded stream converted downstream"
             }
@@ -546,6 +587,9 @@ fun AudioPipelineDialog(
             ) {
                 PipelineRow(stringResource(R.string.pipeline_device_name), deviceName)
                 PipelineRow("Route", outputStatus.routeKind.name)
+                if (outputStatus.routeKind == com.music.bitchord.playback.AudioRouting.Kind.PHONE) {
+                    PipelineNote("Built-in phone speakers always pass through the Android AudioFlinger mixer and OEM hardware protection limiter. For bit-perfect audio, connect a wired IEM, a USB DAC, or a lossless-codec-supported TWS (e.g. LDAC / LHDC).")
+                }
                 PipelineRow("Transport", outputStatus.transportType.label)
 
                 val directStatusText = when {
@@ -581,6 +625,26 @@ fun AudioPipelineDialog(
                 }
                 mixerText?.let {
                     PipelineRow("System", it)
+                }
+
+                if (outputStatus.routeKind == com.music.bitchord.playback.AudioRouting.Kind.USB) {
+                    val probe = outputStatus.directUsbProbe
+                    if (probe != null) {
+                        PipelineRow("USB Protocol", "UAC${probe.uacVersion}")
+                        val permLabel = if (probe.hasPermission) "Granted (Exclusive Bit-Perfect)" else "Not Granted (Android ALSA Shared)"
+                        PipelineRow("Exclusive Access", permLabel)
+                        if (probe.maxCalculatedSampleRate > 0) {
+                            PipelineRow("DAC Max Rate", "${probe.maxCalculatedSampleRate / 1000} kHz")
+                        }
+                        if (probe.supportedBitDepths.isNotEmpty()) {
+                            PipelineRow("DAC Bit Depths", probe.supportedBitDepths.joinToString(" / ") { "$it-bit" })
+                        }
+                        PipelineRow(
+                            "Kernel / Pipeline",
+                            if (probe.isViable) "Userspace USB Direct (AudioFlinger Bypassed)"
+                            else "Android ALSA Kernel snd-usb-audio (Shared Mixer)"
+                        )
+                    }
                 }
 
                 outputStatus.usbEndpointFormat?.let {

@@ -188,20 +188,32 @@ class AndroidPlayerHost(context: Context) : PlayerHost {
 
 private fun AudioOutputStatus.Snapshot.toOutputFormat(): OutputFormatUi {
     val encoding = AudioOutputStatus.encodingLabel(this)
+    val isDirectUsb = transportType == com.music.bitchord.playback.audio.TransportType.DIRECT_USB
+    val isPhoneSpeaker = routeKind == com.music.bitchord.playback.AudioRouting.Kind.PHONE
     val rate = actualSampleRateHz?.takeIf { it > 0 }
-    val summary = if (rate == null) {
-        encoding
-    } else {
-        "$encoding · ${"%.1f".format(Locale.ROOT, rate / 1000f).removeSuffix(".0")} kHz"
+        ?: directUsbProbe?.takeIf { isDirectUsb }?.maxCalculatedSampleRate?.takeIf { it > 0 }
+    val summary = when {
+        isPhoneSpeaker && rate != null ->
+            "Phone Speaker · $encoding · ${"%.1f".format(Locale.ROOT, rate / 1000f).removeSuffix(".0")} kHz"
+        isPhoneSpeaker ->
+            "Phone Speaker · $encoding"
+        isDirectUsb && rate != null ->
+            "Direct USB · $encoding · ${"%.1f".format(Locale.ROOT, rate / 1000f).removeSuffix(".0")} kHz"
+        isDirectUsb ->
+            "Direct USB · $encoding"
+        rate == null ->
+            encoding
+        else ->
+            "$encoding · ${"%.1f".format(Locale.ROOT, rate / 1000f).removeSuffix(".0")} kHz"
     }
-    // What the route is *capable* of, read off the negotiated AudioTrack.
-    val carriesHiRes = when (actualEncoding) {
+    // What the route is *capable* of. Phone speaker NEVER carries true bit-perfect hi-res.
+    val carriesHiRes = !isPhoneSpeaker && ((when (actualEncoding) {
         AudioFormat.ENCODING_PCM_24BIT_PACKED,
         AudioFormat.ENCODING_PCM_32BIT,
         AudioFormat.ENCODING_PCM_FLOAT,
         -> true
         else -> (actualSampleRateHz ?: 0) > 48_000
-    }
+    }) || isDirectUsb)
     return OutputFormatUi(summary = summary, carriesHiRes = carriesHiRes)
 }
 

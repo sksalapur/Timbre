@@ -186,17 +186,34 @@ object UsbDirectManager {
         maxPacketSize: Int,
         hasPermission: Boolean,
     ): Pair<Boolean, String> {
-        val isViable = hasPermission && uacVersion >= 2
+        val isViable = hasPermission && uacVersion >= 1
         val reason = buildString {
             if (!hasPermission) {
                 append("Direct USB requires USB host permission for '$productName' (managed by Android ALSA driver)")
-            } else if (uacVersion < 2) {
-                append("UAC1 device (max packet $maxPacketSize bytes) currently owned by kernel snd-usb-audio driver")
+            } else if (uacVersion < 1) {
+                append("USB audio device (max packet $maxPacketSize bytes) currently owned by kernel snd-usb-audio driver")
             } else {
-                append("UAC2 device ready for direct userspace transfer (max packet $maxPacketSize bytes)")
+                append("UAC$uacVersion device ready for direct userspace transfer (max packet $maxPacketSize bytes, ALSA bypassed)")
             }
         }
         return Pair(isViable, reason)
+    }
+
+    /**
+     * Finds the first attached USB device exposing a standard USB Audio Class interface.
+     */
+    fun findFirstUsbAudioDevice(context: Context): UsbDevice? {
+        val usbManager = context.getSystemService(Context.USB_SERVICE) as? UsbManager ?: return null
+        val deviceList = runCatching { usbManager.deviceList }.getOrNull() ?: return null
+        for (device in deviceList.values) {
+            for (i in 0 until device.interfaceCount) {
+                val iface = device.getInterface(i)
+                if (iface.interfaceClass == UsbConstants.USB_CLASS_AUDIO) {
+                    return device
+                }
+            }
+        }
+        return null
     }
 
     const val ACTION_USB_PERMISSION = "com.music.bitchord.USB_PERMISSION"
@@ -209,35 +226,26 @@ object UsbDirectManager {
         val usbManager = context.getSystemService(Context.USB_SERVICE) as? UsbManager
             ?: return Pair(false, "USB Manager unavailable")
 
-        val deviceList = runCatching { usbManager.deviceList }.getOrNull()
-        if (deviceList.isNullOrEmpty()) {
-            return Pair(false, "No USB DAC connected. Direct Mode will activate automatically upon connection.")
+        val device = findFirstUsbAudioDevice(context)
+            ?: return Pair(false, "No USB DAC connected. Direct Mode will activate automatically upon connection.")
+
+        val productName = device.productName ?: "USB DAC"
+        if (usbManager.hasPermission(device)) {
+            return Pair(true, "Permission already granted for $productName")
         }
 
-        for (device in deviceList.values) {
-            for (i in 0 until device.interfaceCount) {
-                val iface = device.getInterface(i)
-                if (iface.interfaceClass == UsbConstants.USB_CLASS_AUDIO) {
-                    if (usbManager.hasPermission(device)) {
-                        return Pair(true, "Permission already granted for ${device.productName ?: "USB DAC"}")
-                    }
-                    val flags = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
-                        PendingIntent.FLAG_MUTABLE
-                    } else {
-                        0
-                    }
-                    val intent = PendingIntent.getBroadcast(
-                        context,
-                        0,
-                        Intent(ACTION_USB_PERMISSION).setPackage(context.packageName),
-                        flags
-                    )
-                    usbManager.requestPermission(device, intent)
-                    return Pair(true, "Requesting exclusive USB access for ${device.productName ?: "USB DAC"}…")
-                }
-            }
+        val flags = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+            PendingIntent.FLAG_MUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        } else {
+            PendingIntent.FLAG_UPDATE_CURRENT
         }
-
-        return Pair(false, "No USB Audio Class DAC found among connected devices.")
+        val intent = PendingIntent.getBroadcast(
+            context,
+            0,
+            Intent(ACTION_USB_PERMISSION).setPackage(context.packageName),
+            flags,
+        )
+        usbManager.requestPermission(device, intent)
+        return Pair(true, "Requesting exclusive USB access for $productName…")
     }
 }
