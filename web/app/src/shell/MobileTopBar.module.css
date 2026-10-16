@@ -14,7 +14,6 @@
     z-index: calc(var(--z-web-chrome) - 2);
     background-color: var(--glassMaterialBackground);
     backdrop-filter: var(--glassMaterialBackdropFilter);
-    -webkit-backdrop-filter: var(--glassMaterialBackdropFilter);
   }
 }
 

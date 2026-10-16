@@ -16,7 +16,6 @@
   border-radius: 10px;
   background-color: var(--systemStandardThickMaterialSover);
   backdrop-filter: saturate(2.2) blur(32px);
-  -webkit-backdrop-filter: saturate(2.2) blur(32px);
   box-shadow:
     0 0 0 0.5px var(--vibrantDivider),
     0 10px 40px var(--glassMaterialShadowColor);

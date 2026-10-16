@@ -48,7 +48,6 @@
   pointer-events: auto;
   background-color: var(--systemStandardThinMaterialSover);
   backdrop-filter: saturate(180%) blur(60px);
-  -webkit-backdrop-filter: saturate(180%) blur(60px);
 }
 
 .platter:hover {

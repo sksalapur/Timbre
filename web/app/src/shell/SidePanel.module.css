@@ -9,7 +9,6 @@
   z-index: var(--z-web-chrome);
   background-color: var(--glassMaterialBackground);
   backdrop-filter: var(--glassMaterialBackdropFilter);
-  -webkit-backdrop-filter: var(--glassMaterialBackdropFilter);
   box-shadow: 0 10px 40px var(--glassMaterialShadowColor);
   animation: slide-in var(--duration-panel) var(--ease-out-panel) forwards;
 }

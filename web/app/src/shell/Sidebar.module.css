@@ -7,7 +7,6 @@
   z-index: var(--z-web-chrome);
   background-color: var(--glassMaterialBackground);
   backdrop-filter: var(--glassMaterialBackdropFilter);
-  -webkit-backdrop-filter: var(--glassMaterialBackdropFilter);
 }
 
 .header {

@@ -43,7 +43,6 @@
   z-index: -1;
   background-color: var(--glassMaterialBackground);
   backdrop-filter: saturate(2.2) blur(16px);
-  -webkit-backdrop-filter: saturate(2.2) blur(16px);
   box-shadow: 0 10px 40px var(--glassMaterialShadowColor);
 }
 

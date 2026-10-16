@@ -20,7 +20,6 @@
   z-index: -1;
   background-color: var(--systemHeaderMaterialSover);
   backdrop-filter: saturate(180%) blur(20px);
-  -webkit-backdrop-filter: saturate(180%) blur(20px);
 }
 
 .sectionTitle {
