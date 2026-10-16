@@ -19,35 +19,42 @@ import { useUi } from '@/state/ui';
 import { Lcd } from './Lcd';
 import styles from './PlayerBar.module.css';
 
-/** Apple's volume control: the speaker mutes; hovering it shows the slider. */
-function VolumeControl() {
+/**
+ * Apple's volume control: the speaker mutes, and hovering it slides the level
+ * in where the other actions were (they fade out while it's open).
+ */
+function VolumeControl({ open, onOpen }: { open: boolean; onOpen: () => void }) {
   const volume = usePlayer((s) => s.volume);
   const muted = usePlayer((s) => s.muted);
   const setVolume = usePlayer((s) => s.setVolume);
   const toggleMute = usePlayer((s) => s.toggleMute);
-  const [open, setOpen] = useState(false);
   const level = muted ? 0 : volume;
   return (
-    <div className={styles.volume} onPointerEnter={() => setOpen(true)} onPointerLeave={() => setOpen(false)}>
-      <button className={styles.action} aria-label={muted ? 'Unmute' : 'Mute'} aria-pressed={muted} onClick={toggleMute}>
+    <>
+      <input
+        className={styles.slider}
+        data-open={open || undefined}
+        type="range"
+        min={0}
+        max={1}
+        step={0.01}
+        value={level}
+        aria-label="Volume"
+        tabIndex={open ? 0 : -1}
+        style={{ '--fill': `${level * 100}%` } as React.CSSProperties}
+        onChange={(e) => setVolume(Number(e.currentTarget.value))}
+      />
+      <button
+        className={styles.action}
+        aria-label={muted ? 'Unmute' : 'Mute'}
+        aria-pressed={muted}
+        onClick={toggleMute}
+        onPointerEnter={onOpen}
+        onFocus={onOpen}
+      >
         <VolumeIcon level={level} size={20} />
       </button>
-      {open && (
-        <div className={styles.volumePopover}>
-          <input
-            className={styles.slider}
-            type="range"
-            min={0}
-            max={1}
-            step={0.01}
-            value={level}
-            aria-label="Volume"
-            style={{ '--fill': `${level * 100}%` } as React.CSSProperties}
-            onChange={(e) => setVolume(Number(e.currentTarget.value))}
-          />
-        </div>
-      )}
-    </div>
+    </>
   );
 }
 
@@ -64,6 +71,7 @@ export function PlayerBar() {
   const shuffle = usePlayer((s) => s.shuffle);
   const repeat = usePlayer((s) => s.repeat);
   const { togglePlay, next, previous, toggleShuffle, cycleRepeat } = usePlayer.getState();
+  const [volumeOpen, setVolumeOpen] = useState(false);
 
   return (
     <div className={styles.bar} data-panel-open={sidePanel !== null}>
@@ -97,7 +105,14 @@ export function PlayerBar() {
           <Lcd />
         </div>
 
-        <div className={styles.actions}>
+        <div
+          className={styles.actions}
+          data-volume-open={volumeOpen || undefined}
+          onPointerLeave={() => setVolumeOpen(false)}
+          onBlur={(e) => {
+            if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setVolumeOpen(false);
+          }}
+        >
           <FavoriteButton videoId={videoId} className={styles.action} />
           {hasLyrics && (
             <button
@@ -117,7 +132,7 @@ export function PlayerBar() {
           >
             <UpNextIcon size={18} />
           </button>
-          <VolumeControl />
+          <VolumeControl open={volumeOpen} onOpen={() => setVolumeOpen(true)} />
         </div>
       </div>
     </div>

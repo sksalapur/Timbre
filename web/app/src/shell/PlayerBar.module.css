@@ -19,7 +19,7 @@
 .pill {
   position: relative;
   display: grid;
-  grid-template-columns: 152px minmax(180px, 427px) minmax(57px, auto);
+  grid-template-columns: 184px minmax(180px, 427px) minmax(57px, auto);
   align-items: center;
   width: min(668px, 100%);
   height: var(--player-pill-height);
@@ -81,8 +81,8 @@
 }
 
 .small {
-  width: 24px;
-  height: 24px;
+  width: 28px;
+  height: 28px;
   color: var(--systemSecondary) !important;
 }
 
@@ -127,41 +127,47 @@
   color: var(--keyColor);
 }
 
-/* Volume: the slider pops up above the speaker on hover (report §1, "volume (slider on hover)"). */
-.volume {
+/*
+ * Volume: hovering the speaker slides the level in over the other actions,
+ * which fade out, so nothing pops up outside the pill. It closes when the
+ * pointer leaves the actions.
+ */
+.actions {
   position: relative;
-  display: grid;
 }
 
-.volumePopover {
-  position: absolute;
-  bottom: 100%;
-  right: -12px;
-  padding: 12px 14px 14px;
+.actions > .action:not(:last-child) {
+  transition: opacity 0.15s ease;
 }
 
-.volumePopover::before {
-  content: '';
-  position: absolute;
-  inset: 0 0 4px;
-  z-index: -1;
-  border-radius: 12px;
-  background-color: var(--systemStandardThickMaterialSover);
-  backdrop-filter: saturate(2.2) blur(32px);
-  -webkit-backdrop-filter: saturate(2.2) blur(32px);
-  box-shadow:
-    0 0 0 0.5px var(--vibrantDivider),
-    0 10px 40px var(--glassMaterialShadowColor);
+.actions[data-volume-open] > .action:not(:last-child) {
+  opacity: 0;
+  pointer-events: none;
 }
 
 .slider {
+  position: absolute;
+  right: 33px;
+  top: 50%;
   display: block;
-  width: 120px;
+  width: 96px;
   height: 16px;
-  margin: 0;
+  margin: -8px 0 0;
   background: transparent;
   appearance: none;
   cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(8px);
+  transition:
+    opacity 0.15s ease,
+    transform 0.15s ease;
+}
+
+.slider[data-open] {
+  opacity: 1;
+  pointer-events: auto;
+  transform: none;
 }
 
 .slider::-webkit-slider-runnable-track {
