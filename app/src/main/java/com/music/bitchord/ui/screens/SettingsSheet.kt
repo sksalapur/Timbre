@@ -997,15 +997,12 @@ fun SettingsScreen(
                     icon = Icons.Rounded.GraphicEq,
                     title = outputPrecisionTitle,
                     subtitle = buildString {
-                        if (directBitPerfect) {
-                            append("Managed by Bit-Perfect Mode ? ")
-                        }
                         append(outputStatus.sink)
-                        append(" ? ")
+                        append(" · ")
                         append(outputStatus.deviceName)
                         (outputStatus.actualSampleRateHz ?: outputStatus.sampleRatesHz.firstOrNull())
-                            ?.let { append(" ?  kHz") }
-                        append(" ? ")
+                            ?.let { append(" · ${it / 1000.0} kHz") }
+                        append(" · ")
                         append(AudioOutputStatus.encodingLabel(outputStatus))
                     },
                     onInfoClick = {
