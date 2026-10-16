@@ -34,6 +34,17 @@ type AmLyricsElement = HTMLElement & {
 const HIDE_FOOTER = '.lyrics-footer { visibility: hidden !important; pointer-events: none !important; }';
 
 /**
+ * am-lyrics fades the four lines either side of the current one (0.7, 0.58,
+ * 0.46) and leaves every line past them at its base 0.8, so the fifth line on
+ * came back brighter. Those stay at the farthest step. Gaps keep their own
+ * opacity, and the library's !important rules (scrolling by hand, unsynced
+ * lyrics) still win.
+ */
+const FAR_LINES =
+  '.lyrics-line:not(.active):not(.pre-active):not(.lyrics-activest):not(.post-active-line):not(.next-active-line)' +
+  ':not(.prev-2):not(.prev-3):not(.next-2):not(.next-3):not(.lyrics-gap) { opacity: 0.46; }';
+
+/**
  * am-lyrics, exactly as it is, fed our TTML and a steered clock (prompt §10.2).
  * The clock reads the media time each frame, stamps the reading with when it
  * was taken, and is told about every seek and track change: the "lyric clock
@@ -69,7 +80,7 @@ function LyricsView({ ttml }: { ttml: string }) {
       const root = el.shadowRoot;
       if (!root) return;
       const sheet = new CSSStyleSheet();
-      sheet.replaceSync(HIDE_FOOTER);
+      sheet.replaceSync(HIDE_FOOTER + FAR_LINES);
       root.adoptedStyleSheets = [...root.adoptedStyleSheets, sheet];
     });
     return () => {
