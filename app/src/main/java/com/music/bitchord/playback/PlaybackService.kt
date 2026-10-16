@@ -1210,7 +1210,8 @@ class PlaybackService : MediaLibraryService() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_RECONFIGURE_OUTPUT) {
-            requestOutputReconfiguration()
+            val force = intent.getBooleanExtra(EXTRA_FORCE_REBUILD, false)
+            requestOutputReconfiguration(force)
             return START_NOT_STICKY
         }
         return super.onStartCommand(intent, flags, startId)
@@ -2706,6 +2707,7 @@ class PlaybackService : MediaLibraryService() {
             reason = Player.MEDIA_ITEM_TRANSITION_REASON_AUTO,
             alreadyAudible = true,
         )
+        applyOutputRoute()
 
         // A crossfade starts the incoming item on the player that was idle, so
         // it never delivers onMediaItemTransition to playbackListener. Keep
@@ -5657,7 +5659,8 @@ class PlaybackService : MediaLibraryService() {
         val manager = audioManager ?: return
         val usb = preferredUsbDevice()
         val chosen = AudioRouting.infoFor(manager, AudioRouting.selectedId.value)
-        val preferred = chosen ?: usb.takeIf { AppSettings.preferUsbDac.value }
+        val shouldPreferUsb = AppSettings.preferUsbDac.value || AppSettings.directBitPerfectMode.value
+        val preferred = chosen ?: usb.takeIf { shouldPreferUsb }
         eachPlayer { it.setPreferredAudioDevice(preferred) }
 
         val activeDevice = resolveActiveOutputDevice()
@@ -5802,17 +5805,17 @@ class PlaybackService : MediaLibraryService() {
         return negotiation.output.encoding
     }
 
-    internal fun requestOutputReconfiguration() {
+    internal fun requestOutputReconfiguration(forceRebuild: Boolean = false) {
         outputReconfigureJob?.cancel()
         outputReconfigureJob = scope.launch {
             // Replacing two renderers during a blend would cut one half of it.
             // Wait for the short transition to settle, then swap the engine.
             while (crossfade?.isTransitioning() == true) delay(50)
             val requestedFloat = shouldEnableFloatOutput()
-            if (requestedFloat == configuredFloatOutput) {
-                applyOutputRoute()
-            } else {
+            if (forceRebuild || requestedFloat != configuredFloatOutput) {
                 rebuildPlayersForOutput(requestedFloat)
+            } else {
+                applyOutputRoute()
             }
         }
     }
@@ -5905,7 +5908,8 @@ class PlaybackService : MediaLibraryService() {
         val manager = audioManager ?: return null
         val infos = runCatching { manager.getDevices(AudioManager.GET_DEVICES_OUTPUTS) }.getOrNull() ?: return null
         val chosen = AudioRouting.infoFor(manager, AudioRouting.selectedId.value)
-        val preferred = chosen ?: preferredUsbDevice().takeIf { AppSettings.preferUsbDac.value }
+        val shouldPreferUsb = AppSettings.preferUsbDac.value || AppSettings.directBitPerfectMode.value
+        val preferred = chosen ?: preferredUsbDevice().takeIf { shouldPreferUsb }
         return preferred ?: AudioRouting.activeOf(infos, null)
     }
 
@@ -8013,18 +8017,20 @@ class PlaybackService : MediaLibraryService() {
 
     companion object {
         const val ACTION_RECONFIGURE_OUTPUT = "com.music.bitchord.playback.ACTION_RECONFIGURE_OUTPUT"
+        const val EXTRA_FORCE_REBUILD = "com.music.bitchord.playback.EXTRA_FORCE_REBUILD"
 
         @Volatile
         private var activeInstance: PlaybackService? = null
 
-        fun requestOutputReconfiguration(context: Context? = null) {
+        fun requestOutputReconfiguration(context: Context? = null, forceRebuild: Boolean = false) {
             val active = activeInstance
             if (active != null) {
-                active.requestOutputReconfiguration()
+                active.requestOutputReconfiguration(forceRebuild)
             } else if (context != null) {
                 runCatching {
                     val intent = Intent(context, PlaybackService::class.java).apply {
                         action = ACTION_RECONFIGURE_OUTPUT
+                        putExtra(EXTRA_FORCE_REBUILD, forceRebuild)
                     }
                     context.startService(intent)
                 }

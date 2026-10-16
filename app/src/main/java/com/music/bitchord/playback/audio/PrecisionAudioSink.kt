@@ -95,6 +95,7 @@ class PrecisionAudioSink(
         private set
 
     private var processCounter: Long = 0L
+    private var hasPublishedAudibleTelemetry: Boolean = false
 
     /** Sample rate of the configured format, for timestamping split sub-blocks. */
     private var configuredSampleRate: Int = 0
@@ -287,6 +288,10 @@ class PrecisionAudioSink(
             presentationTimeUs,
             encodedAccessUnitCount,
         )
+        if (!hasPublishedAudibleTelemetry && isAudible()) {
+            hasPublishedAudibleTelemetry = true
+            publishTelemetry(inEncoding, outEncoding)
+        }
 
         val channelCount = audioBlock.channelCount
         val bytesPerFrame = inEncoding.bytesPerFrame(channelCount)
@@ -430,6 +435,7 @@ class PrecisionAudioSink(
         processedEndUs = C.TIME_UNSET
         dspChain.transition.leadUs = 0L
         streaming = false
+        hasPublishedAudibleTelemetry = false
         outputByteBuffer.clear()
         outputByteBuffer.flip()
         audioBlock.clear()
@@ -447,6 +453,7 @@ class PrecisionAudioSink(
         processedEndUs = C.TIME_UNSET
         dspChain.transition.leadUs = 0L
         streaming = false
+        hasPublishedAudibleTelemetry = false
         processCounter = 0L
         outputByteBuffer.clear()
         outputByteBuffer.flip()
@@ -650,6 +657,14 @@ class PrecisionAudioSink(
             else -> "$sourceLabel → 16-bit; this route cannot open a float track"
         }
         AudioOutputStatus.publishOutputExactness(exact = exact, detail = detail)
+    }
+
+    fun publishCurrentTelemetry() {
+        if (!isAudible()) return
+        val inEnc = inputPcmEncoding ?: return
+        val outEnc = targetOutputEncoding ?: return
+        hasPublishedAudibleTelemetry = true
+        publishTelemetry(inEnc, outEnc)
     }
 
     private fun publishTelemetry(inEncoding: PcmEncoding, outEncoding: PcmEncoding) {

@@ -68,7 +68,7 @@ class UsbConnectionObserver(private val activity: AppCompatActivity) {
                     val device = extractUsbDevice(intent)
                     Log.d(TAG, "USB device detached: ${device?.productName}")
                     resetDeviceState()
-                    PlaybackService.requestOutputReconfiguration(activity)
+                    PlaybackService.requestOutputReconfiguration(activity, forceRebuild = false)
                 }
 
                 UsbDirectManager.ACTION_USB_PERMISSION -> {
@@ -84,7 +84,7 @@ class UsbConnectionObserver(private val activity: AppCompatActivity) {
                             "Bit-Perfect Mode: $productName authorized",
                             Toast.LENGTH_SHORT,
                         ).show()
-                        PlaybackService.requestOutputReconfiguration(activity)
+                        PlaybackService.requestOutputReconfiguration(activity, forceRebuild = true)
                     } else {
                         Log.w(TAG, "User declined exclusive USB access for '$productName'")
                     }
@@ -117,7 +117,7 @@ class UsbConnectionObserver(private val activity: AppCompatActivity) {
             if (hasUsb) {
                 Log.d(TAG, "AudioDeviceCallback: USB audio device removed")
                 resetDeviceState()
-                PlaybackService.requestOutputReconfiguration(activity)
+                PlaybackService.requestOutputReconfiguration(activity, forceRebuild = false)
             }
         }
     }
@@ -207,7 +207,7 @@ class UsbConnectionObserver(private val activity: AppCompatActivity) {
                 lastPromptedDeviceKey = deviceKey
                 isPromptPending = false
                 Log.i(TAG, "Exclusive USB permission already active for '${device.productName}'")
-                PlaybackService.requestOutputReconfiguration(activity)
+                PlaybackService.requestOutputReconfiguration(activity, forceRebuild = true)
             }
             return
         }

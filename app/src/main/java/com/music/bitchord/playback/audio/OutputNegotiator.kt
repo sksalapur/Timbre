@@ -197,6 +197,8 @@ object OutputNegotiator {
         delegateSupportsPcm24: Boolean,
         knownSystemMixerRateHz: Int?,
     ): OutputDescriptor {
+        val bitPerfectActive = com.music.bitchord.data.settings.AppSettings.directBitPerfectMode.value
+        val effectiveMode = if (bitPerfectActive) OutputPcmMode.FLOAT_32 else requestedMode
         val advertisesFloat = advertisedEncodings.contains(AudioFormat.ENCODING_PCM_FLOAT)
         val advertisesPcm24 = advertisedEncodings.contains(AudioFormat.ENCODING_PCM_24BIT_PACKED)
 
@@ -241,7 +243,7 @@ object OutputNegotiator {
 
         // 3. Android DIRECT Playback Evaluation (API 33+)
         // Priority 3A: Direct Float32
-        if (requestedMode == OutputPcmMode.FLOAT_32 && directSupport.supportsFloat && delegateSupportsFloat) {
+        if (effectiveMode == OutputPcmMode.FLOAT_32 && directSupport.supportsFloat && delegateSupportsFloat) {
             return OutputDescriptor(
                 transport = TransportType.AUDIO_TRACK_DIRECT,
                 encoding = PcmEncoding.PCM_FLOAT,
@@ -308,7 +310,7 @@ object OutputNegotiator {
 
         // 4. External Route Advertised Capabilities (Normal AudioTrack with framework mixing)
         // Check Float32 advertised:
-        val canUseFloat = AudioOutputPolicy.shouldUseFloatOutput(requestedMode, routeKind, advertisesFloat) &&
+        val canUseFloat = AudioOutputPolicy.shouldUseFloatOutput(effectiveMode, routeKind, advertisesFloat) &&
             delegateSupportsFloat
         if (canUseFloat) {
             return OutputDescriptor(
