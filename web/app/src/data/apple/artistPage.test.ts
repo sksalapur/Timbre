@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseArtistPage } from './artistArt';
+import { parseArtistPage } from './artistPage';
 
 /** The shape AppleArtistArt.kt reads: the header sits somewhere in the page's hydration JSON. */
 function page(header: object): string {
