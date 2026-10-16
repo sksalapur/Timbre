@@ -11,6 +11,7 @@
     "dev:ext": "pnpm --filter @bitchord/extension dev",
     "dev:ext:firefox": "pnpm --filter @bitchord/extension dev:firefox",
     "build": "pnpm -r build",
+    "build:site": "pnpm --filter @bitchord/extension package && pnpm --filter @bitchord/app build",
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r test",
     "fixtures": "node scripts/capture-fixtures.mjs"
