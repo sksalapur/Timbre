@@ -13,7 +13,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/sksalapur/Timbre/releases"><img src="https://img.shields.io/badge/Download-Timbre%20v1.8--1%20APK-00D2FF?style=for-the-badge&logo=android&logoColor=white" /></a>
+  <a href="https://github.com/sksalapur/Timbre/releases"><img src="https://img.shields.io/badge/Download-Timbre%20v1.8--3%20APK-00D2FF?style=for-the-badge&logo=android&logoColor=white" /></a>
   <img src="https://img.shields.io/badge/Audio-24--bit%20%2F%20192kHz%20FLAC-gold?style=for-the-badge&logo=audacity&logoColor=white" />
   <a href="https://t.me/Timbre_Community"><img src="https://img.shields.io/badge/Telegram-Community-26A5E4?style=for-the-badge&logo=telegram&logoColor=white" /></a>
   <a href="https://sksalapur.github.io/Timbre/"><img src="https://img.shields.io/badge/Website-Documentation-blueviolet?style=for-the-badge&logo=firefox&logoColor=white" /></a>
