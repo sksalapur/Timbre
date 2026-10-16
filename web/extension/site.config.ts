@@ -1,12 +1,23 @@
+/** The web player's production origin. */
+export const PRODUCTION_ORIGIN = 'https://bitchord.in';
+
+/** The Vite dev server (web/app/vite.config.ts pins the port). */
+const DEV_ORIGIN = 'http://localhost:5173';
+
 /**
  * The web app origins this extension serves. Every message is checked against
- * this list, and it becomes externally_connectable (Chromium) and the relay's
- * content-script matches (Firefox).
+ * this list, and it becomes externally_connectable (Chromium), the relay's
+ * content-script matches (Firefox) and the DNR rules' initiatorDomains.
  *
- * Set BITCHORD_SITE_ORIGINS (comma-separated) for a production build. The
- * production domain hasn't been chosen yet, so the default is development only.
+ * bitchord.in always, and the dev server too except in a store build
+ * (BITCHORD_STORE_BUILD=1), so a published extension never answers a page on
+ * localhost. BITCHORD_SITE_ORIGINS (comma-separated) replaces the list. The
+ * first origin is the one the popup and homepage_url link to.
  */
-export const SITE_ORIGINS: string[] = (process.env.BITCHORD_SITE_ORIGINS ?? 'http://localhost:5173')
+export const SITE_ORIGINS: string[] = (
+  process.env.BITCHORD_SITE_ORIGINS ??
+  [PRODUCTION_ORIGIN, ...(process.env.BITCHORD_STORE_BUILD === '1' ? [] : [DEV_ORIGIN])].join(',')
+)
   .split(',')
   .map((o) => o.trim().replace(/\/+$/, ''))
   .filter(Boolean);

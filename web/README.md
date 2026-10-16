@@ -59,7 +59,7 @@ Then open `http://localhost:5173/extension`. It shows "Installed", with the vers
 
 | Variable | Where | Default |
 |---|---|---|
-| `BITCHORD_SITE_ORIGINS` | extension build | `http://localhost:5173`. Comma-separated origins the extension serves. The production domain isn't chosen yet |
+| `BITCHORD_SITE_ORIGINS` | extension build | `https://bitchord.in,http://localhost:5173` (store builds: `https://bitchord.in` only). Comma-separated origins the extension serves; replaces the default |
 | `BITCHORD_STORE_BUILD=1` | extension build | Leaves out the dev `key` for a Chrome Web Store upload |
 | `VITE_EXTENSION_ID_CHROMIUM` | app (`app/.env.local`) | The pinned dev id. Set it for a store-built extension |
 | `VITE_ANDROID_APP_URL` | app | The GitHub releases page |
