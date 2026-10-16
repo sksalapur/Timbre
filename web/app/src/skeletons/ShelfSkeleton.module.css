@@ -6,7 +6,7 @@
 }
 
 .caption {
-  margin-top: 4px;
+  margin-top: 8px;
   display: flex;
   flex-direction: column;
   gap: 1px;
@@ -14,7 +14,7 @@
 
 .circle .caption {
   align-items: center;
-  margin-top: 8px;
+  margin-top: 10px;
 }
 
 .track {

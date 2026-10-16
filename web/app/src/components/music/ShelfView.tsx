@@ -27,8 +27,11 @@ function renderItem(shelf: Shelf, item: MusicItem): ReactNode {
   }
 }
 
-/** A titled horizontal shelf (report §2): grid columns per breakpoint, scroll-snap, hover arrows. */
-export function ShelfView({ shelf }: { shelf: Shelf }) {
+/**
+ * A shelf's scrolling row with Apple's hover arrows (report §2), around any
+ * list items: the shelves below, and the artist page's Top Songs.
+ */
+export function ShelfScroller({ layoutClass, children }: { layoutClass: string | undefined; children: ReactNode }) {
   const list = useRef<HTMLUListElement>(null);
   const [edges, setEdges] = useState({ start: true, end: true });
 
@@ -45,7 +48,7 @@ export function ShelfView({ shelf }: { shelf: Shelf }) {
     const observer = new ResizeObserver(measure);
     observer.observe(el);
     return () => observer.disconnect();
-  }, [measure, shelf.items.length]);
+  }, [measure]);
 
   /** Pages by one viewport of columns, as Apple's arrows do. */
   const page = (direction: 1 | -1) => {
@@ -55,6 +58,33 @@ export function ShelfView({ shelf }: { shelf: Shelf }) {
     el.scrollBy({ left: direction * (el.clientWidth - gutter * 2), behavior: 'smooth' });
   };
 
+  return (
+    <div className={`${shelfStyles.body} ${styles.body}`}>
+      <button
+        className={`${styles.arrow} ${styles.arrowLeft}`}
+        aria-label="Previous Page"
+        disabled={edges.start}
+        onClick={() => page(-1)}
+      >
+        <ChevronLeft size={20} strokeWidth={2.4} />
+      </button>
+      <ul ref={list} className={`${shelfStyles.list} ${layoutClass}`} onScroll={measure}>
+        {children}
+      </ul>
+      <button
+        className={`${styles.arrow} ${styles.arrowRight}`}
+        aria-label="Next Page"
+        disabled={edges.end}
+        onClick={() => page(1)}
+      >
+        <ChevronRight size={20} strokeWidth={2.4} />
+      </button>
+    </div>
+  );
+}
+
+/** A titled horizontal shelf (report §2): grid columns per breakpoint, scroll-snap, hover arrows. */
+export function ShelfView({ shelf }: { shelf: Shelf }) {
   return (
     <section className={shelfStyles.section} aria-label={shelf.title}>
       <div className={shelfStyles.header}>
@@ -69,29 +99,11 @@ export function ShelfView({ shelf }: { shelf: Shelf }) {
           )}
         </h2>
       </div>
-      <div className={`${shelfStyles.body} ${styles.body}`}>
-        <button
-          className={`${styles.arrow} ${styles.arrowLeft}`}
-          aria-label="Previous Page"
-          disabled={edges.start}
-          onClick={() => page(-1)}
-        >
-          <ChevronLeft size={20} strokeWidth={2.4} />
-        </button>
-        <ul ref={list} className={`${shelfStyles.list} ${LAYOUT_CLASS[shelf.layout]}`} onScroll={measure}>
-          {shelf.items.map((item, i) => (
-            <li key={`${item.id}-${i}`}>{renderItem(shelf, item)}</li>
-          ))}
-        </ul>
-        <button
-          className={`${styles.arrow} ${styles.arrowRight}`}
-          aria-label="Next Page"
-          disabled={edges.end}
-          onClick={() => page(1)}
-        >
-          <ChevronRight size={20} strokeWidth={2.4} />
-        </button>
-      </div>
+      <ShelfScroller key={shelf.items.length} layoutClass={LAYOUT_CLASS[shelf.layout]}>
+        {shelf.items.map((item, i) => (
+          <li key={`${item.id}-${i}`}>{renderItem(shelf, item)}</li>
+        ))}
+      </ShelfScroller>
     </section>
   );
 }

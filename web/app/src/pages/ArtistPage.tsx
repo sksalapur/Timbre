@@ -6,7 +6,7 @@ import { Artwork } from '@/components/music/Artwork';
 import { browseHref } from '@/components/music/links';
 import { TrackLockup } from '@/components/music/Lockups';
 import { playList } from '@/components/music/play';
-import { Shelves } from '@/components/music/ShelfView';
+import { ShelfScroller, Shelves } from '@/components/music/ShelfView';
 import { LoadError, NeedsExtension } from '@/components/music/States';
 import { useArtist, useYouTubeReady } from '@/data/music/queries';
 import type { MusicItem, Track } from '@/data/music/types';
@@ -66,15 +66,13 @@ export default function ArtistPage() {
               {data.topSongsSeeAll ? <PrefetchLink to={browseHref(data.topSongsSeeAll)}>Top Songs ›</PrefetchLink> : 'Top Songs'}
             </h2>
           </div>
-          <div className={shelfStyles.body}>
-            <ul className={`${shelfStyles.list} ${shelfStyles.tracks}`}>
-              {data.topSongs.map((track, i) => (
-                <li key={track.videoId}>
-                  <TrackLockup item={asItem(track)} onPlay={() => playList(data.topSongs, i, { source: topSongs })} />
-                </li>
-              ))}
-            </ul>
-          </div>
+          <ShelfScroller layoutClass={shelfStyles.tracks}>
+            {data.topSongs.map((track, i) => (
+              <li key={track.videoId}>
+                <TrackLockup item={asItem(track)} onPlay={() => playList(data.topSongs, i, { source: topSongs })} />
+              </li>
+            ))}
+          </ShelfScroller>
         </section>
       )}
 
