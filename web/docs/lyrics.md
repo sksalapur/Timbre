@@ -41,6 +41,7 @@ How the extension route works:
 - Each host is an `optional_host_permissions` entry.
 - Chrome only prompts in answer to a click inside the extension. So `lyrics.requestPermissions` opens `grant.html`, which asks.
 - Until a host is granted, requests to it fail with `permission`. Lyric Settings offers "Allow"; the panel offers it too, but only when nothing was found.
+- The grant happens in the extension's tab, so when BitChord's tab comes back (focus or visibility) the app asks `lyrics.permissions` about the refused hosts. Any that are allowed now leave the notice, the lyric cache is dropped, and the lookup runs again.
 - Session rules give the extension's own requests:
   - Apple's Origin, for `amp-api`.
   - Musixmatch's `mxm_bab=AB` cookie.
@@ -56,7 +57,8 @@ How the extension route works:
   - `x-bg` for the answering vocal;
   - `v1`/`v2` voices for duets (`v2` typed `other`, so a song opening on the answering side starts on the right, by am-lyrics' own alternation rule);
   - untimed paragraphs for unsynced lyrics.
-- am-lyrics' footer offers to fetch from its own providers. A stylesheet added to its shadow root hides it; the library file isn't patched (MPL-2.0 stays clean). Our provider picker sits above.
+- am-lyrics' footer offers to fetch from its own providers. A stylesheet added to its shadow root hides it with `visibility: hidden`; the library file isn't patched (MPL-2.0 stays clean). Our provider picker sits above.
+  - Not `display: none`: am-lyrics measures its scroll range to the footer, so a collapsed footer made the range zero and the lyrics never followed the song.
 - Translate and Romanise are am-lyrics' own buttons (Google's endpoint, the same one `LyricsTranslation.kt` uses). They translate to English only.
 - The clock (`LyricClock`, verbatim) reads `audio.currentTime` each animation frame, stamped with `performance.now()` at that moment. Seeks and track changes are announced; `line-click` seeks the player. The frame loop stops while paused.
 - The panel's code (and am-lyrics, about 170 KB) loads the first time the panel opens.

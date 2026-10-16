@@ -1,7 +1,9 @@
 import { useQuery } from '@tanstack/react-query';
 import { create } from 'zustand';
 import { usePlayer } from '@/state/player';
-import { lookupLyrics, type LyricsResult, type SourceState } from './repository';
+import { queryClient } from '@/lib/queryClient';
+import { onGranted } from './http';
+import { forgetLyrics, lookupLyrics, type LyricsResult, type SourceState } from './repository';
 import { useLyricsSettings } from './settings';
 import type { LyricsSourceId } from './sources';
 
@@ -23,6 +25,12 @@ export const useLyricsUi = create<LyricsUi>()((set) => ({
       return { picked };
     }),
 }));
+
+// A host the extension was refused for has been allowed: ask again.
+onGranted(() => {
+  forgetLyrics();
+  void queryClient.invalidateQueries({ queryKey: ['lyrics'] });
+});
 
 function reportState(videoId: string, source: LyricsSourceId, state: SourceState) {
   useLyricsUi.setState((s) => ({ states: { ...s.states, [videoId]: { ...s.states[videoId], [source]: state } } }));

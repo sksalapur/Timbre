@@ -6,6 +6,7 @@ import { getBridge } from '@/extension/bridge';
 import { Menu, MenuHeader, MenuItem, MenuSeparator } from '@/components/Menu';
 import { LyricClock } from '@/lyrics/clock';
 import { onUngrantedChange, ungrantedOrigins } from '@/lyrics/http';
+import type { SourceState } from '@/lyrics/repository';
 import { enabledSources } from '@/lyrics/settings';
 import { sourceById, type LyricsSourceId } from '@/lyrics/sources';
 import { useLyrics, useLyricsUi } from '@/lyrics/useLyrics';
@@ -23,8 +24,13 @@ type AmLyricsElement = HTMLElement & {
   updateComplete?: Promise<unknown>;
 };
 
-/** am-lyrics' own footer offers to fetch from its own providers; ours decide (prompt §10.2). */
-const HIDE_FOOTER = '.lyrics-footer { display: none !important; }';
+/**
+ * am-lyrics' own footer offers to fetch from its own providers; ours decide
+ * (prompt §10.2). It stays in the layout, only unseen: am-lyrics measures its
+ * scroll range to the footer, and `display: none` collapsed that range to zero,
+ * so the lyrics never scrolled.
+ */
+const HIDE_FOOTER = '.lyrics-footer { visibility: hidden !important; pointer-events: none !important; }';
 
 /**
  * am-lyrics, exactly as it is, fed our TTML and a steered clock (prompt §10.2).
@@ -130,10 +136,12 @@ function useUngranted(): string[] {
     .filter(Boolean);
 }
 
+const NO_STATES: Partial<Record<LyricsSourceId, SourceState>> = {};
+
 /** The provider picker: which provider these lyrics are from, and the others' answers for this track. */
 function ProviderPicker({ current }: { current: LyricsSourceId | null }) {
   const videoId = usePlayer((s) => s.nowPlaying?.videoId ?? '');
-  const states = useLyricsUi((s) => s.states[videoId] ?? {});
+  const states = useLyricsUi((s) => s.states[videoId]) ?? NO_STATES;
   const picked = useLyricsUi((s) => s.picked[videoId]);
   const pick = useLyricsUi((s) => s.pick);
   const [anchor, setAnchor] = useState<HTMLElement | null>(null);
@@ -196,10 +204,8 @@ function PermissionNotice({ origins }: { origins: string[] }) {
         {names.length > 2 ? ` and ${names.length - 2} more` : ''} need the extension’s permission.
       </span>
       <button
-        onClick={() => {
-          void getBridge()?.call('lyrics.requestPermissions', { origins });
-          origins.forEach((o) => ungrantedOrigins.delete(o));
-        }}
+        // The notice stays until the extension confirms the grant (checked when this tab comes back).
+        onClick={() => void getBridge()?.call('lyrics.requestPermissions', { origins })}
       >
         Allow
       </button>

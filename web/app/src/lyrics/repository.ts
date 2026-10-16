@@ -56,6 +56,11 @@ function remember(videoId: string, isrc: string | null | undefined) {
 
 const cache = new Map<string, { at: number; result: LyricsResult | null }>();
 
+/** Drops every remembered answer: a newly allowed host may have what was missing. */
+export function forgetLyrics() {
+  cache.clear();
+}
+
 function toResult(source: LyricsSourceId, parsed: Parsed): LyricsResult {
   const lines = withBackgroundVocals(parsed.lines);
   return {

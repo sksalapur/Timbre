@@ -24,6 +24,33 @@ export function onUngrantedChange(listener: () => void): () => void {
   return () => listeners.delete(listener);
 }
 
+const grantListeners = new Set<() => void>();
+/** Called once a refused host has been allowed, so the lookups it failed can run again. */
+export function onGranted(listener: () => void): () => void {
+  grantListeners.add(listener);
+  return () => grantListeners.delete(listener);
+}
+
+/**
+ * Asks the extension which refused hosts it may reach now. The grant happens
+ * on the extension's own page in another tab, so this runs when BitChord's
+ * tab comes back.
+ */
+export async function recheckGrants(): Promise<void> {
+  const bridge = getBridge();
+  if (!bridge || !ungrantedOrigins.size) return;
+  const { granted } = await bridge.call('lyrics.permissions', { origins: [...ungrantedOrigins] }).catch(() => ({ granted: [] }));
+  if (!granted.length) return;
+  granted.forEach((o) => ungrantedOrigins.delete(o));
+  listeners.forEach((l) => l());
+  grantListeners.forEach((l) => l());
+}
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('focus', () => void recheckGrants());
+  document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && void recheckGrants());
+}
+
 export interface GetOptions {
   route?: 'direct' | 'extension';
   headers?: Record<string, string>;
