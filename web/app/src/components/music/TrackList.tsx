@@ -64,10 +64,18 @@ function Row({ track, variant, position, fallbackArtwork, onPlayRow }: RowProps)
   const current = usePlayer((s) => s.nowPlaying?.videoId === track.videoId);
   const playing = usePlayer((s) => s.nowPlaying?.videoId === track.videoId && (s.status === 'playing' || s.status === 'buffering'));
   const togglePlay = usePlayer((s) => s.togglePlay);
-  const onPlay = () => (current ? togglePlay() : onPlayRow());
+  const unavailable = track.unavailable;
+  const onPlay = () => (unavailable ? undefined : current ? togglePlay() : onPlayRow());
 
   return (
-    <div className={styles.row} data-variant={variant} data-current={current || undefined} onDoubleClick={onPlay}>
+    <div
+      className={styles.row}
+      data-variant={variant}
+      data-current={current || undefined}
+      data-unavailable={unavailable}
+      title={unavailable === 'matching' ? 'Looking for this on YouTube Music…' : unavailable === 'missing' ? 'Not found on YouTube Music' : undefined}
+      onDoubleClick={onPlay}
+    >
       <div className={`${styles.cell} ${styles.song}`}>
         <div className={styles.lead}>
           {variant === 'playlist' ? (
@@ -75,7 +83,12 @@ function Row({ track, variant, position, fallbackArtwork, onPlayRow }: RowProps)
           ) : (
             <span className={styles.index}>{current ? <span className={styles.bars} aria-label="Now playing" /> : (track.index ?? position)}</span>
           )}
-          <button className={styles.play} aria-label={playing ? `Pause ${track.title}` : `Play ${track.title}`} onClick={onPlay}>
+          <button
+            className={styles.play}
+            aria-label={playing ? `Pause ${track.title}` : `Play ${track.title}`}
+            onClick={onPlay}
+            disabled={!!unavailable}
+          >
             {playing ? <PauseIcon size={variant === 'playlist' ? 18 : 16} /> : <PlayIcon size={variant === 'playlist' ? 18 : 16} />}
           </button>
         </div>
@@ -113,8 +126,8 @@ function Row({ track, variant, position, fallbackArtwork, onPlayRow }: RowProps)
         </>
       )}
       <div className={`${styles.cell} ${styles.time}`}>
-        <span>{formatDuration(track.durationSec)}</span>
-        <TrackMenu track={track} className={styles.more} />
+        <span>{unavailable === 'missing' ? 'Not found' : formatDuration(track.durationSec)}</span>
+        {!unavailable && <TrackMenu track={track} className={styles.more} />}
       </div>
     </div>
   );
@@ -138,7 +151,11 @@ function Header() {
  */
 export function TrackList({ tracks, variant, fallbackArtwork, fallbackArtists, onNearEnd, source }: TrackListProps) {
   const playRow = (i: number) => {
-    if (source) return playList(tracks, i, { source, fallbackArtwork, fallbackArtists });
+    // Rows from another catalogue that found no YouTube Music song stay out of the queue.
+    if (source) {
+      const playable = tracks.filter((t) => !t.unavailable);
+      return playList(playable, Math.max(0, playable.indexOf(tracks[i]!)), { source, fallbackArtwork, fallbackArtists });
+    }
     const track = tracks[i]!;
     playTrack(track.artists.length || !fallbackArtists ? track : { ...track, artists: fallbackArtists }, fallbackArtwork);
   };

@@ -4,7 +4,7 @@
  * a YouTube.js node directly.
  */
 
-export type ItemKind = 'song' | 'video' | 'album' | 'playlist' | 'artist' | 'episode' | 'podcast' | 'unknown';
+export type ItemKind = 'song' | 'video' | 'album' | 'playlist' | 'spotify-playlist' | 'artist' | 'episode' | 'podcast' | 'unknown';
 
 export interface ArtistRef {
   name: string;
@@ -67,6 +67,11 @@ export interface Track {
   index: number | null;
   /** "19M plays", where YouTube shows it. */
   plays: string | null;
+  /**
+   * A row from another catalogue (a Spotify playlist) that has no YouTube
+   * Music version yet: still being looked for, or not found. Shown, never played.
+   */
+  unavailable?: 'matching' | 'missing';
 }
 
 export interface HeaderInfo {

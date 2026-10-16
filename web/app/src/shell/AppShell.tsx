@@ -1,3 +1,4 @@
+import { useDiscordPresence } from '@/playback/discordPresence';
 import { Outlet } from 'react-router';
 import { PrefetchLink } from '@/components/PrefetchLink';
 import { config } from '@/config';
@@ -20,6 +21,7 @@ const mobile = isMobileBrowser();
  */
 export function AppShell() {
   useKeyboardShortcuts();
+  useDiscordPresence();
   const extension = useExtension();
   const bannerDismissed = useUi((s) => s.installBannerDismissed);
   const dismissBanner = useUi((s) => s.dismissInstallBanner);

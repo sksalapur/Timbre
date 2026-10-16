@@ -2,6 +2,7 @@
 import '@uimaxbai/am-lyrics/am-lyrics.js';
 import { Check, ChevronDown, Loader2, Minus, Settings2 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { useCanvas } from '@/data/spotify/canvas';
 import { getBridge } from '@/extension/bridge';
 import { Menu, MenuHeader, MenuItem, MenuSeparator } from '@/components/Menu';
 import { LyricClock } from '@/lyrics/clock';
@@ -213,15 +214,50 @@ function PermissionNotice({ origins }: { origins: string[] }) {
   );
 }
 
+/**
+ * The track's Spotify Canvas behind the lyrics, dimmed so they stay legible.
+ * Muted and looping, it fades in once it can play and pauses with the music.
+ */
+function CanvasBackdrop({ url }: { url: string }) {
+  const video = useRef<HTMLVideoElement>(null);
+  const [ready, setReady] = useState(false);
+  const playing = usePlayer((s) => s.status === 'playing' || s.status === 'buffering');
+  useEffect(() => setReady(false), [url]);
+  useEffect(() => {
+    const el = video.current;
+    if (!el || !ready) return;
+    if (playing) void el.play().catch(() => undefined);
+    else el.pause();
+  }, [playing, ready]);
+  return (
+    <video
+      ref={video}
+      key={url}
+      className={styles.canvas}
+      data-ready={ready || undefined}
+      src={url}
+      muted
+      loop
+      playsInline
+      preload="auto"
+      aria-hidden="true"
+      onCanPlay={() => setReady(true)}
+      onError={() => setReady(false)}
+    />
+  );
+}
+
 /** The Lyrics side panel (report §7). */
 export function LyricsPanel() {
   const lyrics = useLyrics();
   const hasTrack = usePlayer((s) => s.nowPlaying !== null);
   const ungranted = useUngranted();
+  const canvas = useCanvas();
   const result = lyrics.data;
 
   return (
     <div className={styles.panel}>
+      {canvas && <CanvasBackdrop url={canvas} />}
       <ProviderPicker current={result?.source ?? null} />
       {/* Only worth raising when nothing was found: then the hosts behind the extension might have it. */}
       {ungranted.length > 0 && !result && !lyrics.isFetching && <PermissionNotice origins={ungranted} />}

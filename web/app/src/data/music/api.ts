@@ -82,6 +82,14 @@ export async function fetchSearch(query: string): Promise<SearchResults> {
   return mapSearch(await yt.music.search(query));
 }
 
+/** YouTube Music's Songs shelf for [query]: what an import or a match is chosen from. */
+export async function searchSongs(query: string): Promise<Track[]> {
+  const yt = await getMusicClient();
+  const search = await yt.music.search(query, { type: 'song' });
+  const shelf = search.songs ?? search.contents?.find((c) => c.type === 'MusicShelf');
+  return mapPlaylistTracks((shelf as { contents?: readonly unknown[] } | undefined)?.contents ?? []);
+}
+
 export async function fetchSuggestions(input: string): Promise<Suggestions> {
   const yt = await getInnertube();
   return mapSuggestions(await yt.music.getSearchSuggestions(input));
@@ -246,6 +254,24 @@ export async function addToPlaylist(playlistId: string, videoId: string): Promis
     actions: [{ action: 'ACTION_ADD_VIDEO', addedVideoId: videoId, dedupeOption: 'DEDUPE_OPTION_SKIP' }],
     client: 'YTMUSIC',
   });
+}
+
+/**
+ * A new private playlist holding [videoIds], as YtMusicRepository.createPlaylist
+ * makes one (InnerTube `playlist/create`). Returns its id, without the VL.
+ */
+export async function createPlaylist(title: string, videoIds: string[], description = ''): Promise<string> {
+  const yt = await getSignedInnertube();
+  const response = await yt.actions.execute('/playlist/create', {
+    title,
+    description,
+    privacyStatus: 'PRIVATE',
+    videoIds,
+    client: 'YTMUSIC',
+  });
+  const id = (response.data as { playlistId?: string } | undefined)?.playlistId;
+  if (!id) throw new Error('YouTube Music did not make the playlist');
+  return id;
 }
 
 // ---- AutoPlay (phase 6) -------------------------------------------------------------

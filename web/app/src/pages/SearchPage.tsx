@@ -18,6 +18,7 @@ const KIND_LABEL: Record<MusicItem['kind'], string> = {
   video: 'Video',
   album: 'Album',
   playlist: 'Playlist',
+  'spotify-playlist': 'Spotify Playlist',
   artist: 'Artist',
   episode: 'Episode',
   podcast: 'Podcast',

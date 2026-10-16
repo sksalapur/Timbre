@@ -294,7 +294,79 @@ async function lyrics() {
   }));
 }
 
-const groups = { innertube, lyrics };
+/**
+ * Spotify (prompt §7.1), with an anonymous web-player token: no sp_dc, so no
+ * library or liked songs here, only what any visitor can read. The token
+ * itself is never written to disk.
+ */
+async function spotify() {
+  const html = await fetch('https://open.spotify.com/', { headers: { 'User-Agent': UA } }).then((r) => r.text());
+  const bundle = html.match(/https:\/\/open\.spotifycdn\.com\/cdn\/build\/web-player\/web-player\.[0-9a-f]+\.js/)?.[0];
+  if (!bundle) return console.log('ERR spotify: no web-player bundle on open.spotify.com');
+  const js = await fetch(bundle, { headers: { 'User-Agent': UA } }).then((r) => r.text());
+  // The same declarations extension/lib/spotify reads at run time.
+  const secrets = [...js.matchAll(/\{secret:(['"])((?:\\.|(?!\1).)*)\1,version:(\d+)\}/g)]
+    .map((m) => ({ secret: Function(`return ${m[1]}${m[2]}${m[1]}`)(), version: Number(m[3]) }))
+    .sort((a, b) => b.version - a.version);
+  // searchTracks lives in the search route's chunk, loaded on demand: its file is named by chunk id.
+  const searchId = js.match(/(\d+):"xpui-routes-search"/)?.[1];
+  let searchJs = '';
+  for (const [, part] of js.matchAll(new RegExp(`\\b${searchId}:"([0-9a-f]{8})"`, 'g'))) {
+    const res = await fetch(`https://open.spotifycdn.com/cdn/build/web-player/xpui-routes-search.${part}.js`, { headers: { 'User-Agent': UA } });
+    if (res.ok) { searchJs = await res.text(); break; }
+  }
+  const hash = (op) => (js + searchJs).match(new RegExp(`"${op}","query","([0-9a-f]{64})"`))?.[1];
+  const hashes = Object.fromEntries(['libraryV3', 'fetchPlaylist', 'fetchLibraryTracks', 'canvas', 'searchTracks'].map((op) => [op, hash(op)]));
+  const config = JSON.parse(Buffer.from(html.match(/<script id="appServerConfig" type="text\/plain">([^<]+)</)[1], 'base64').toString());
+  await save('spotify/web-player.json', JSON.stringify({ bundle, clientVersion: config.clientVersion, secretVersions: secrets.map((s) => s.version), hashes }, null, 2));
+  console.log(`spotify: secrets v${secrets.map((s) => s.version).join(',')}; hashes`, hashes);
+
+  const { createHmac } = await import('node:crypto');
+  const key = Buffer.from(secrets[0].secret.split('').map((c, i) => c.charCodeAt(0) ^ ((i % 33) + 9)).join(''), 'utf8');
+  const counter = Buffer.alloc(8);
+  counter.writeBigUInt64BE(BigInt(Math.floor(Date.now() / 30_000)));
+  const mac = createHmac('sha1', key).update(counter).digest();
+  const o = mac[19] & 15;
+  const totp = String(((mac.readUInt32BE(o) & 0x7fffffff) % 1_000_000)).padStart(6, '0');
+  const token = await fetch(`https://open.spotify.com/api/token?${new URLSearchParams({ reason: 'init', productType: 'web-player', totp, totpServer: totp, totpVer: String(secrets[0].version) })}`, {
+    headers: { 'User-Agent': UA, Referer: 'https://open.spotify.com/', 'App-Platform': 'WebPlayer' },
+  }).then((r) => r.json());
+  if (!token.accessToken) return console.log('ERR spotify: /api/token minted nothing', Object.keys(token));
+  console.log(`spotify: anonymous token minted (isAnonymous=${token.isAnonymous})`);
+  const client = await fetch('https://clienttoken.spotify.com/v1/clienttoken', {
+    method: 'POST',
+    headers: { 'User-Agent': UA, 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify({ client_data: { client_version: config.clientVersion, client_id: token.clientId, js_sdk_data: {
+      device_brand: 'unknown', device_model: 'unknown', os: 'windows', os_version: 'NT 10.0', device_id: crypto.randomUUID().replaceAll('-', ''), device_type: 'computer',
+    } } }),
+  }).then((r) => r.json());
+  const headers = {
+    Authorization: `Bearer ${token.accessToken}`,
+    ...(client.granted_token?.token && { 'Client-Token': client.granted_token.token }),
+    'App-Platform': 'WebPlayer',
+    Accept: 'application/json',
+    'Content-Type': 'application/json;charset=UTF-8',
+    Origin: 'https://open.spotify.com',
+    Referer: 'https://open.spotify.com/',
+  };
+  const gql = (rel, operationName, variables) =>
+    capture(rel, 'https://api-partner.spotify.com/pathfinder/v2/query', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ variables, operationName, extensions: { persistedQuery: { version: 1, sha256Hash: hashes[operationName] } } }),
+    });
+  // "This Is Kanye West", an editorial playlist anyone can read.
+  await gql('spotify/fetch-playlist.json', 'fetchPlaylist', { uri: 'spotify:playlist:37i9dQZF1DZ06evO3nMr04', offset: 0, limit: 25, enableWatchFeedEntrypoint: false });
+  // api.spotify.com/v1/search answers the web player's token with 429 (signed in too); its own search is this.
+  await gql('spotify/search-tracks.json', 'searchTracks', {
+    searchTerm: `${TRACK.title} ${TRACK.artist}`, offset: 0, limit: 10, numberOfTopResults: 5,
+    includeAudiobooks: false, includePreReleases: false, includeAuthors: false,
+  });
+  // Sabrina Carpenter, "Espresso": has a canvas, but only a signed-in token is shown it.
+  await gql('spotify/canvas-anonymous.json', 'canvas', { trackUri: 'spotify:track:2qSkIjg1o9h3YT9RAgYN75' });
+}
+
+const groups = { innertube, lyrics, spotify };
 const only = process.argv[2];
 for (const [name, run] of Object.entries(groups)) {
   if (!only || only === name) await run();

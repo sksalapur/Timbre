@@ -19,7 +19,9 @@ import { hrefFor } from '@/components/music/links';
 import { config } from '@/config';
 import { LIBRARY_SECTIONS, type LibrarySection } from '@/data/music/library';
 import { useLibraryPlaylists, useSignedIn } from '@/data/music/queries';
+import { useSpotifyPlaylists } from '@/data/spotify/queries';
 import { useExtensionUpdate } from '@/extension/useExtensionUpdate';
+import { useSpotifySignedIn } from '@/extension/useSpotifyAuth';
 import { useUi } from '@/state/ui';
 import { AccountButton } from './AccountButton';
 import styles from './Sidebar.module.css';
@@ -96,12 +98,41 @@ function LibraryNav({ onNavigate }: { onNavigate: () => void }) {
   );
 }
 
+/** Spotify's playlists, once the extension can read them as the user (prompt §7.1). */
+function SpotifyNav({ onNavigate }: { onNavigate: () => void }) {
+  const playlists = useSpotifyPlaylists();
+  return (
+    <>
+      <h2 className={styles.sectionHeader}>Spotify</h2>
+      <ul className={styles.list}>
+        <li>
+          <PrefetchNavLink to="/spotify" end className={styles.item} onClick={onNavigate}>
+            <AllPlaylistsIcon size={24} className={styles.icon} />
+            <span className={styles.label}>All Spotify Playlists</span>
+          </PrefetchNavLink>
+        </li>
+        {playlists.data?.map((playlist) => (
+          <li key={playlist.id}>
+            <PrefetchNavLink to={`/spotify/playlist/${encodeURIComponent(playlist.id)}`} className={styles.item} onClick={onNavigate}>
+              <span className={styles.icon}>
+                <ListMusic size={17} strokeWidth={1.8} />
+              </span>
+              <span className={styles.label}>{playlist.name}</span>
+            </PrefetchNavLink>
+          </li>
+        ))}
+      </ul>
+    </>
+  );
+}
+
 /** The left glass sidebar (report §1). */
 export function Sidebar() {
   const drawerOpen = useUi((s) => s.drawerOpen);
   const setDrawerOpen = useUi((s) => s.setDrawerOpen);
   const update = useExtensionUpdate();
   const signedIn = useSignedIn();
+  const spotifySignedIn = useSpotifySignedIn();
   const close = () => setDrawerOpen(false);
 
   return (
@@ -116,6 +147,7 @@ export function Sidebar() {
         <div className={styles.scroll}>
           <NavList items={PRIMARY} onNavigate={close} />
           {signedIn && <LibraryNav onNavigate={close} />}
+          {spotifySignedIn && <SpotifyNav onNavigate={close} />}
         </div>
         <div className={styles.footer}>
           <PrefetchNavLink to="/extension" className={styles.item} onClick={close}>

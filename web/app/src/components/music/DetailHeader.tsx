@@ -14,13 +14,15 @@ interface DetailHeaderProps {
   onPlay: () => void;
   onShuffle: () => void;
   canPlay: boolean;
+  /** More actions after the library toggle (a Spotify playlist's Import). */
+  extra?: React.ReactNode;
 }
 
 /**
  * Album and playlist header (report §3, §14): artwork with its glow, title,
  * artist, metadata, a three-line description, then Shuffle · Play.
  */
-export function DetailHeader({ info, onPlay, onShuffle, canPlay }: DetailHeaderProps) {
+export function DetailHeader({ info, onPlay, onShuffle, canPlay, extra }: DetailHeaderProps) {
   const [expanded, setExpanded] = useState(false);
   const signedIn = useSignedIn();
   const setSaved = useSetListSaved();
@@ -93,6 +95,7 @@ export function DetailHeader({ info, onPlay, onShuffle, canPlay }: DetailHeaderP
             {library.saved ? <Check size={18} strokeWidth={2.4} /> : <Plus size={18} strokeWidth={2.4} />}
           </button>
         )}
+        {extra}
       </div>
     </div>
   );

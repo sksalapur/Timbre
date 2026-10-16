@@ -63,3 +63,16 @@ The table above describes **this** capture. Rerun the script before porting a pr
 
 - **A SABR exchange** (`application/vnd.yt-ump`). It needs a PO token from BotGuard and a playable `player` response. Both run in the browser (BotGuard has to run in a real browser), so the exchange is captured from the page in **phase 3**, with the extension's googlevideo rule in place.
 - **An addon manifest, search and stream.** Addons are user-supplied, and the maintainer's own addon URL is personal and token-bearing, so it must never be committed. Capture by running the addon capture with the base URL from an environment variable, then commit only the responses after checking they hold no token.
+
+## Spotify (`spotify/`)
+
+Captured with an anonymous web-player token (no `sp_dc`), minted the way `extension/lib/spotify.ts` mints one: the TOTP secret and the query hashes are read from the live web player bundle. The token is never saved.
+
+| File | Request |
+|---|---|
+| `web-player.json` | what the bundle declared: client version, secret versions, hashes for `libraryV3`, `fetchPlaylist`, `fetchLibraryTracks`, `canvas`, `searchTracks` |
+| `fetch-playlist.json` | `fetchPlaylist` for "This Is Kanye West" (25 tracks), an editorial playlist anyone can read |
+| `search-tracks.json` | `searchTracks` for "Let Down Radiohead" (the web player's own search; `api.spotify.com/v1/search` answers 429) |
+| `canvas-anonymous.json` | `canvas` for "Espresso": `null` anonymously. Signed in, the same query returns a `canvaz.scdn.co` mp4 |
+
+The library, Liked Songs and profile shapes were read from the user's own session in the browser and match `SpotifyLibrary.kt`'s parsers. They are not saved here, because they hold the user's data.

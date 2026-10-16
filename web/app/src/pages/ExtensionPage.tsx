@@ -9,6 +9,7 @@ import { useExtension, type ExtensionStatus } from '@/extension/useExtension';
 import { useExtensionUpdate } from '@/extension/useExtensionUpdate';
 import { useYtAuth, type YtAuthStatus } from '@/extension/useYtAuth';
 import styles from './ExtensionPage.module.css';
+import { DiscordIntegration, DiscordSettings, SpotifyIntegration, SpotifySettings } from './IntegrationSettings';
 
 type Browser = 'chrome' | 'firefox';
 
@@ -217,7 +218,13 @@ export default function ExtensionPage() {
                 <integration.Icon size={15} />
               </span>
               <span className={styles.integrationName}>{integration.name}</span>
-              <span className={styles.value}>{integrationStatus(status, integration, auth)}</span>
+              {status.state === 'present' && integration.capability === 'spotify' ? (
+                <SpotifyIntegration />
+              ) : status.state === 'present' && integration.capability === 'discord' ? (
+                <DiscordIntegration />
+              ) : (
+                <span className={styles.value}>{integrationStatus(status, integration, auth)}</span>
+              )}
             </div>
           ))}
         </section>
@@ -227,6 +234,8 @@ export default function ExtensionPage() {
         <p className={styles.footer}>
           Sign-ins stay inside the extension: this page only ever sees results, never your cookies or tokens.
         </p>
+        <SpotifySettings />
+        <DiscordSettings />
       </div>
     </>
   );

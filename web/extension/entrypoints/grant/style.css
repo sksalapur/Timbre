@@ -49,3 +49,23 @@ ul {
 .status:empty {
   display: none;
 }
+
+#connect {
+  padding: 8px 18px;
+  border: 0;
+  border-radius: 16px;
+  background: var(--key);
+  color: #fff;
+  font: 600 14px / 20px 'DM Sans', system-ui, sans-serif;
+  cursor: pointer;
+}
+
+#connect:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.warning {
+  color: var(--secondary);
+  font-style: italic;
+}

@@ -34,6 +34,8 @@ export const pages: PageRoute[] = [
   { path: '/playlist/:id', load: () => import('@/pages/PlaylistPage'), skeleton: <PlaylistSkeleton /> },
   { path: '/browse/:id', load: () => import('@/pages/BrowsePage'), skeleton: <PlainSkeleton /> },
   { path: '/library/:section', load: () => import('@/pages/LibraryPage'), skeleton: <PlainSkeleton /> },
+  { path: '/spotify', load: () => import('@/pages/SpotifyPage'), skeleton: <PlainSkeleton /> },
+  { path: '/spotify/playlist/:id', load: () => import('@/pages/SpotifyPlaylistPage'), skeleton: <PlaylistSkeleton /> },
   { path: '/extension', load: () => import('@/pages/ExtensionPage'), skeleton: <PlainSkeleton /> },
   { path: '/debug', load: () => import('@/pages/DebugPage'), skeleton: <PlainSkeleton /> },
 ];

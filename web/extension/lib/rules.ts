@@ -111,3 +111,40 @@ export async function installExtensionFetchRule(): Promise<void> {
     ],
   });
 }
+
+/**
+ * Spotify, as its own web player: the extension's requests to the token,
+ * client-token and Pathfinder hosts carry open.spotify.com's Origin and
+ * Referer, as the player's do. Non-tab requests only (tabId -1).
+ */
+const SPOTIFY_RULE_IDS = [300, 301, 302];
+
+export async function installSpotifyFetchRule(): Promise<void> {
+  const hosts = ['open.spotify.com', 'api-partner.spotify.com', 'clienttoken.spotify.com'];
+  await browser.declarativeNetRequest.updateSessionRules({
+    removeRuleIds: SPOTIFY_RULE_IDS,
+    addRules: hosts.map((host, i) => ({
+      id: SPOTIFY_RULE_IDS[i]!,
+      priority: 1,
+      condition: { urlFilter: `||${host}/`, tabIds: [-1], resourceTypes: ['xmlhttprequest'] },
+      action: { type: 'modifyHeaders', requestHeaders: impersonate('https://open.spotify.com').slice(0, 2) },
+    })),
+  });
+}
+
+/** Discord's REST API, as its own web client sees it (the extension's requests only). */
+const DISCORD_RULE_ID = 400;
+
+export async function installDiscordFetchRule(): Promise<void> {
+  await browser.declarativeNetRequest.updateSessionRules({
+    removeRuleIds: [DISCORD_RULE_ID],
+    addRules: [
+      {
+        id: DISCORD_RULE_ID,
+        priority: 1,
+        condition: { urlFilter: '||discord.com/api/', tabIds: [-1], resourceTypes: ['xmlhttprequest'] },
+        action: { type: 'modifyHeaders', requestHeaders: impersonate('https://discord.com').slice(0, 2) },
+      },
+    ],
+  });
+}

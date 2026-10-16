@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-10-15T11:11:33.025Z",
+  "capturedAt": "2026-10-16T05:57:47.279Z",
   "siteOrigin": "http://localhost:5173",
   "captures": [
     {
@@ -301,6 +301,66 @@
       "bytes": 1701,
       "acao": null,
       "ms": 143
+    },
+    {
+      "file": "spotify/canvas-anonymous.json",
+      "url": "https://api-partner.spotify.com/pathfinder/v2/query",
+      "method": "POST",
+      "status": 200,
+      "contentType": "application/json",
+      "bytes": 105,
+      "acao": "https://open.spotify.com",
+      "ms": 161
+    },
+    {
+      "file": "spotify/canvas-found.json",
+      "url": "https://api-partner.spotify.com/pathfinder/v2/query",
+      "method": "POST",
+      "status": 200,
+      "contentType": "application/json",
+      "bytes": 105,
+      "acao": "https://open.spotify.com",
+      "ms": 196
+    },
+    {
+      "file": "spotify/canvas.json",
+      "url": "https://api-partner.spotify.com/pathfinder/v2/query",
+      "method": "POST",
+      "status": 200,
+      "contentType": "application/json",
+      "bytes": 105,
+      "acao": "https://open.spotify.com",
+      "ms": 181
+    },
+    {
+      "file": "spotify/fetch-playlist.json",
+      "url": "https://api-partner.spotify.com/pathfinder/v2/query",
+      "method": "POST",
+      "status": 200,
+      "contentType": "application/json",
+      "bytes": 116852,
+      "acao": "https://open.spotify.com",
+      "ms": 451
+    },
+    {
+      "file": "spotify/search-track.json",
+      "url": "https://api.spotify.com/v1/search?q=Let+Down+Radiohead+OK+Computer&type=track&limit=5",
+      "method": "GET",
+      "status": 429,
+      "contentType": null,
+      "bytes": 80,
+      "acao": "https://open.spotify.com",
+      "ms": 4405
+    },
+    {
+      "file": "spotify/search-tracks.json",
+      "url": "https://api-partner.spotify.com/pathfinder/v2/query",
+      "method": "POST",
+      "status": 200,
+      "contentType": "application/json",
+      "bytes": 24462,
+      "acao": "https://open.spotify.com",
+      "ms": 405
     }
   ]
 }

@@ -148,5 +148,5 @@ export function SearchField({ initial, onSearch }: { initial: string; onSearch: 
 }
 
 function kindLabel(kind: MusicItem['kind']): string {
-  return { song: 'Song', video: 'Video', album: 'Album', playlist: 'Playlist', artist: 'Artist', episode: 'Episode', podcast: 'Podcast', unknown: '' }[kind];
+  return { song: 'Song', video: 'Video', album: 'Album', playlist: 'Playlist', 'spotify-playlist': 'Spotify Playlist', artist: 'Artist', episode: 'Episode', podcast: 'Podcast', unknown: '' }[kind];
 }

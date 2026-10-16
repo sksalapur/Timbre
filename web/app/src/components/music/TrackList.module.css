@@ -269,3 +269,35 @@
 .time > span:first-child:has(+ .more[data-open]) {
   visibility: hidden;
 }
+
+/* A row from another catalogue with no YouTube Music song (yet). */
+.row[data-unavailable] {
+  cursor: default;
+}
+
+.row[data-unavailable] .titleBlock,
+.row[data-unavailable] .secondary,
+.row[data-unavailable] .tertiary,
+.row[data-unavailable] .time {
+  opacity: 0.45;
+}
+
+.row[data-unavailable='matching'] .titleBlock {
+  animation: matching 1.4s ease-in-out infinite alternate;
+}
+
+.row[data-unavailable] .play {
+  display: none;
+}
+
+@keyframes matching {
+  to {
+    opacity: 0.7;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .row[data-unavailable='matching'] .titleBlock {
+    animation: none;
+  }
+}

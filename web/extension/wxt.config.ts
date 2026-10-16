@@ -6,6 +6,14 @@ import { matchPatternsFor, SITE_ORIGINS } from './site.config';
 /** BITCHORD_STORE_BUILD=1 for a Chrome Web Store upload. */
 const STORE_BUILD = process.env.BITCHORD_STORE_BUILD === '1';
 
+/**
+ * Discord presence is user-token automation (prompt §7.3), so it is a build
+ * flag: on for the site's own zips, off for a Web Store upload unless
+ * DISCORD_PRESENCE=1 says otherwise.
+ */
+const DISCORD_PRESENCE = process.env.DISCORD_PRESENCE ? process.env.DISCORD_PRESENCE === '1' : !STORE_BUILD;
+const DISCORD_ORIGINS = ['https://discord.com/*'];
+
 const devPublicKey = readFileSync(new URL('./dev-key/public-key.txt', import.meta.url), 'utf8').trim();
 
 export default defineConfig({
@@ -14,6 +22,7 @@ export default defineConfig({
     define: {
       // Checked against every sender at runtime (entrypoints/background.ts).
       __SITE_ORIGINS__: JSON.stringify(SITE_ORIGINS),
+      __DISCORD_PRESENCE__: JSON.stringify(DISCORD_PRESENCE),
     },
   }),
   manifest: ({ browser }) => ({
@@ -22,21 +31,29 @@ export default defineConfig({
     homepage_url: SITE_ORIGINS[0],
     // `cookies` reads the YouTube session for signed-in requests (phase 5);
     // the cookies themselves never leave the extension (lib/ytAuth.ts).
-    permissions: ['storage', 'declarativeNetRequest', 'cookies'],
-    // YouTube now (phases 3 and 5); Spotify and Discord arrive with the
-    // phases that use them, so the install prompt only asks for what the
-    // build does. The site's own origins are listed because header rules need
-    // host access to the initiator as well as the target.
+    // `scripting` reads the Discord token from a discord.com tab, and only on
+    // the user's "Connect Discord" (lib/discord.ts).
+    permissions: ['storage', 'declarativeNetRequest', 'cookies', ...(DISCORD_PRESENCE ? ['scripting'] : [])],
+    // YouTube (phases 3 and 5) and Spotify (phase 9; the sp_dc cookie is read
+    // and used here only, lib/spotify.ts). The site's own origins are listed
+    // because header rules need host access to the initiator as well as the
+    // target.
     host_permissions: [
       'https://music.youtube.com/*',
       'https://www.youtube.com/*',
       'https://*.youtube.com/*',
       'https://*.googlevideo.com/*',
+      'https://open.spotify.com/*',
+      'https://accounts.spotify.com/*',
+      'https://api-partner.spotify.com/*',
+      'https://clienttoken.spotify.com/*',
+      'https://open.spotifycdn.com/*',
       ...matchPatternsFor(SITE_ORIGINS),
     ],
-    // Lyric providers the page can't reach itself, each granted once by the
-    // user on the extension's own page (lib/lyricsFetch.ts, grant.html).
-    optional_host_permissions: LYRIC_ORIGINS.map(patternOf),
+    // Granted at use time, on the extension's own pages: lyric providers the
+    // page can't reach itself (grant.html), and discord.com when the user
+    // connects Discord (discord.html).
+    optional_host_permissions: [...LYRIC_ORIGINS.map(patternOf), ...(DISCORD_PRESENCE ? DISCORD_ORIGINS : [])],
     ...(browser === 'firefox'
       ? {
           browser_specific_settings: {
@@ -56,6 +73,8 @@ export default defineConfig({
           ...(!STORE_BUILD && { key: devPublicKey }),
         }),
   }),
+  // The connect page only exists in builds that include Discord.
+  filterEntrypoints: DISCORD_PRESENCE ? undefined : ['background', 'popup', 'grant', 'relay'],
   hooks: {
     // Firefox only: the relay content script runs on the site's origins.
     'build:manifestGenerated': (wxt, manifest) => {

@@ -10,9 +10,11 @@ import {
   type BridgeResponse,
   type Capability,
 } from '@bitchord/shared/bridge';
+import * as discord from '../lib/discord';
 import { grantedOrigins, lyricsFetch, requestOrigins } from '../lib/lyricsFetch';
 import { installRules } from '../lib/rules';
 import { authState, invalidateAccounts, isSessionCookie, selectChannel, setConnected } from '../lib/ytAuth';
+import * as spotify from '../lib/spotify';
 import { ytFetch } from '../lib/ytFetch';
 
 declare const __SITE_ORIGINS__: string[];
@@ -21,8 +23,8 @@ declare const __SITE_ORIGINS__: string[];
 const ALLOWED_ORIGINS = new Set(__SITE_ORIGINS__);
 const OWN_ORIGIN = new URL(browser.runtime.getURL('/')).origin;
 
-/** Grows as each phase lands its methods. */
-const CAPABILITIES: Capability[] = ['yt', 'yt.auth', 'lyrics'];
+/** Grows as each phase lands its methods; Discord only in builds that include it. */
+const CAPABILITIES: Capability[] = ['yt', 'yt.auth', 'lyrics', 'spotify', ...(discord.AVAILABLE ? (['discord'] as const) : [])];
 
 function originOf(sender: Browser.runtime.MessageSender): string | null {
   if (sender.origin) return sender.origin;
@@ -41,7 +43,9 @@ function allowed(sender: Browser.runtime.MessageSender): boolean {
 function failure(id: string, error: unknown): BridgeResponse {
   const known = (error as { code?: string }).code;
   const code: BridgeErrorCode =
-    known === 'forbidden' || known === 'unauthenticated' || known === 'permission'
+    error instanceof spotify.SpotifyAuthError
+      ? 'unauthenticated'
+      : known === 'forbidden' || known === 'unauthenticated' || known === 'permission'
       ? known
       : error instanceof TypeError
         ? 'network'
@@ -92,6 +96,58 @@ async function handle(request: BridgeRequest): Promise<BridgeResponse> {
       case 'lyrics.requestPermissions':
         await requestOrigins((request as BridgeRequest<'lyrics.requestPermissions'>).params.origins ?? []);
         return okResponse<'lyrics.requestPermissions'>(request.id, {});
+      case 'spotify.authState': {
+        if ((request as BridgeRequest<'spotify.authState'>).params.refresh) spotify.invalidateSession();
+        return okResponse<'spotify.authState'>(request.id, await spotify.authState());
+      }
+      case 'spotify.setConnected': {
+        const state = await spotify.setConnected((request as BridgeRequest<'spotify.setConnected'>).params.connected === true);
+        broadcast({ event: 'spotify.authState', data: state });
+        return okResponse<'spotify.setConnected'>(request.id, state);
+      }
+      case 'spotify.signIn':
+        await browser.tabs.create({ url: 'https://accounts.spotify.com/login?continue=https%3A%2F%2Fopen.spotify.com%2F' });
+        return okResponse<'spotify.signIn'>(request.id, {});
+      case 'spotify.playlists': {
+        const { offset } = (request as BridgeRequest<'spotify.playlists'>).params;
+        return okResponse<'spotify.playlists'>(request.id, await spotify.playlists(offset ?? 0));
+      }
+      case 'spotify.tracks': {
+        const { playlistId, offset } = (request as BridgeRequest<'spotify.tracks'>).params;
+        return okResponse<'spotify.tracks'>(request.id, await spotify.tracks(playlistId, offset ?? 0));
+      }
+      case 'spotify.playlist':
+        return okResponse<'spotify.playlist'>(
+          request.id,
+          await spotify.playlistInfo((request as BridgeRequest<'spotify.playlist'>).params.playlistId),
+        );
+      case 'spotify.searchTracks':
+        return okResponse<'spotify.searchTracks'>(
+          request.id,
+          await spotify.searchTracks((request as BridgeRequest<'spotify.searchTracks'>).params.query),
+        );
+      case 'spotify.canvas':
+        return okResponse<'spotify.canvas'>(request.id, {
+          url: await spotify.canvas((request as BridgeRequest<'spotify.canvas'>).params.trackId),
+        });
+      case 'discord.state':
+        return okResponse<'discord.state'>(request.id, await discord.discordState());
+      case 'discord.connect':
+        if (!discord.AVAILABLE) return errorResponse(request.id, 'unsupported', 'This build of the extension leaves Discord out.');
+        await discord.openConnectPage();
+        return okResponse<'discord.connect'>(request.id, {});
+      case 'discord.disconnect':
+        return okResponse<'discord.disconnect'>(request.id, await discord.disconnect());
+      case 'discord.setEnabled':
+        return okResponse<'discord.setEnabled'>(
+          request.id,
+          await discord.setEnabled((request as BridgeRequest<'discord.setEnabled'>).params.enabled === true),
+        );
+      case 'discord.presence': {
+        const { track, options } = (request as BridgeRequest<'discord.presence'>).params;
+        await discord.setPresence(track, options);
+        return okResponse<'discord.presence'>(request.id, {});
+      }
       default:
         return errorResponse(request.id, 'unsupported', `${request.method} isn't available in this version of the extension.`);
     }
@@ -140,12 +196,31 @@ function acceptPort(port: Browser.runtime.Port): void {
     return;
   }
   ports.add(port);
-  port.onDisconnect.addListener(() => ports.delete(port));
+  port.onDisconnect.addListener(() => {
+    ports.delete(port);
+    // A hidden tab's port can drop and come back; only a lasting silence means the player is gone.
+    clearTimeout(lastPortTimer);
+    if (!ports.size) lastPortTimer = setTimeout(() => !ports.size && discord.allPagesClosed(), 30_000);
+  });
 }
+
+let lastPortTimer: ReturnType<typeof setTimeout> | undefined;
 
 /** A sign-in or sign-out elsewhere in the browser: re-read the accounts and tell the open pages. */
 let cookieTimer: ReturnType<typeof setTimeout> | undefined;
+let spotifyCookieTimer: ReturnType<typeof setTimeout> | undefined;
 function onCookieChanged({ cookie }: Browser.cookies.CookieChangeInfo): void {
+  if (spotify.isSessionCookie(cookie)) {
+    spotify.invalidateSession();
+    clearTimeout(spotifyCookieTimer);
+    spotifyCookieTimer = setTimeout(() => {
+      spotify
+        .authState()
+        .then((data) => broadcast({ event: 'spotify.authState', data }))
+        .catch((error: unknown) => console.warn('BitChord: reading the Spotify session failed', error));
+    }, 1000);
+    return;
+  }
   if (!isSessionCookie(cookie)) return;
   invalidateAccounts();
   clearTimeout(cookieTimer);
@@ -182,4 +257,11 @@ export default defineBackground(() => {
   });
 
   browser.cookies.onChanged.addListener(onCookieChanged);
+
+  // Discord's account is written by the connect page as well as here.
+  discord.onDiscordState((data) => broadcast({ event: 'discord.state', data }));
+  browser.storage.onChanged.addListener((changes, area) => {
+    if (area !== 'local' || !Object.keys(changes).some((key) => key.startsWith('discord.'))) return;
+    void discord.discordState().then((data) => broadcast({ event: 'discord.state', data }));
+  });
 });

@@ -7,6 +7,8 @@ export function hrefFor(item: Pick<MusicItem, 'kind' | 'id'>): string | null {
       return `/album/${encodeURIComponent(item.id)}`;
     case 'playlist':
       return `/playlist/${encodeURIComponent(item.id)}`;
+    case 'spotify-playlist':
+      return `/spotify/playlist/${encodeURIComponent(item.id)}`;
     case 'artist':
       return `/artist/${encodeURIComponent(item.id)}`;
     case 'podcast':

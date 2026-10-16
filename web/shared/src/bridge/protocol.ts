@@ -79,8 +79,90 @@ export interface YtAuthState {
   problem: string | null;
 }
 
+/** The browser's open.spotify.com session, as BitChord may use it (prompt §7.1). Names only, never tokens. */
+export interface SpotifyAuthState {
+  /** The browser holds a Spotify session (an `sp_dc` cookie). */
+  browserSignedIn: boolean;
+  /** "Disconnect" turns this off without signing out of Spotify. */
+  connected: boolean;
+  /** A token was minted for the account: library, playlists and canvas will work. */
+  signedIn: boolean;
+  user: { name: string; avatarUrl: string | null } | null;
+  /** Signed in to the browser but no token came back: what went wrong, for display. */
+  problem: string | null;
+}
+
+/** A playlist in the Spotify library; `id` is `liked` for Liked Songs. */
+export interface SpotifyPlaylist {
+  id: string;
+  name: string;
+  owner: string | null;
+  imageUrl: string | null;
+}
+
+export interface SpotifyTrack {
+  /** The Spotify track id (base-62). */
+  id: string;
+  title: string;
+  /** Credited artists, comma-separated. */
+  artist: string;
+  album: string | null;
+  durationMs: number;
+  imageUrl: string | null;
+}
+
+/** One page of a Spotify list: `raw` counts the entries before filtering, which is what advances the offset. */
+export interface SpotifyPage<T> {
+  items: T[];
+  total: number;
+  raw: number;
+}
+
+/** Discord rich presence (prompt §7.2), when the build includes it. */
+export interface DiscordState {
+  /** This build can publish a presence at all (the DISCORD_PRESENCE flag). */
+  available: boolean;
+  /** An account is connected (its token is held by the extension). */
+  connected: boolean;
+  /** The user turned presence on. */
+  enabled: boolean;
+  user: { name: string; username: string; avatarUrl: string | null } | null;
+  gateway: 'off' | 'connecting' | 'ready' | 'error';
+  problem: string | null;
+}
+
+/** What the card shows, and how (DiscordRPC.updateSong's options). */
+export interface DiscordPresenceOptions {
+  activityType: 'listening' | 'playing' | 'watching' | 'competing';
+  /** Discord status while listening. */
+  status: 'online' | 'idle' | 'dnd' | 'invisible';
+  /** Lead with the song title rather than the artist in member lists. */
+  useDetails: boolean;
+  /** Replaces "BitChord" after "Listening to"; empty keeps it. */
+  activityName: string;
+  button1Text: string;
+  button1Visible: boolean;
+  button2Text: string;
+  button2Visible: boolean;
+}
+
+/** The track being played, as the page reports it. */
+export interface DiscordNowPlaying {
+  videoId: string;
+  title: string;
+  artist: string;
+  album: string | null;
+  artworkUrl: string | null;
+  positionMs: number;
+  durationMs: number;
+  playbackRate: number;
+}
+
 /** Pushed by the extension over the event channel (`Bridge.subscribe`). */
-export type BridgeEvent = { event: 'yt.authState'; data: YtAuthState };
+export type BridgeEvent =
+  | { event: 'yt.authState'; data: YtAuthState }
+  | { event: 'spotify.authState'; data: SpotifyAuthState }
+  | { event: 'discord.state'; data: DiscordState };
 
 /** A signed-in request is the same exchange with `auth` set; the extension adds the session. */
 export interface YtFetchParams extends HttpRequest {
@@ -116,6 +198,33 @@ export interface BridgeMethods {
   'lyrics.permissions': { params: { origins: string[] }; result: { granted: string[] } };
   /** Opens the extension's page that asks for them (a browser prompt needs a click there). */
   'lyrics.requestPermissions': { params: { origins: string[] }; result: Record<string, never> };
+  /** `refresh` drops the cached tokens and asks Spotify again. */
+  'spotify.authState': { params: { refresh?: boolean }; result: SpotifyAuthState };
+  'spotify.setConnected': { params: { connected: boolean }; result: SpotifyAuthState };
+  /** Opens Spotify's sign-in in a tab; the state event follows once `sp_dc` arrives. */
+  'spotify.signIn': { params: Record<string, never>; result: Record<string, never> };
+  /** The library's playlists, 50 at a time; Liked Songs leads the first page. */
+  'spotify.playlists': { params: { offset: number }; result: SpotifyPage<SpotifyPlaylist> };
+  /** A playlist's (or Liked Songs') tracks, 100 at a time. */
+  'spotify.tracks': { params: { playlistId: string; offset: number }; result: SpotifyPage<SpotifyTrack> };
+  'spotify.playlist': {
+    params: { playlistId: string };
+    result: { name: string; owner: string | null; imageUrl: string | null; total: number };
+  };
+  'spotify.searchTracks': { params: { query: string }; result: SpotifyTrack[] };
+  /** The track's looping canvas video, or null when it has none. */
+  'spotify.canvas': { params: { trackId: string }; result: { url: string | null } };
+  'discord.state': { params: Record<string, never>; result: DiscordState };
+  /** Opens the extension's page that connects an account (asks for discord.com, reads the token there). */
+  'discord.connect': { params: Record<string, never>; result: Record<string, never> };
+  /** Forgets the account and closes the gateway. */
+  'discord.disconnect': { params: Record<string, never>; result: DiscordState };
+  'discord.setEnabled': { params: { enabled: boolean }; result: DiscordState };
+  /** Publishes the playing track; null clears the card (a pause, or the player emptied). */
+  'discord.presence': {
+    params: { track: DiscordNowPlaying | null; options: DiscordPresenceOptions };
+    result: Record<string, never>;
+  };
 }
 
 export type BridgeMethod = keyof BridgeMethods;
