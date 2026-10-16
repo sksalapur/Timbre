@@ -33,6 +33,38 @@ type AmLyricsElement = HTMLElement & {
  */
 const HIDE_FOOTER = '.lyrics-footer { visibility: hidden !important; pointer-events: none !important; }';
 
+/** The phone's lyric typeface (@font-face in LyricsPanel.module.css), then the app's. */
+const LYRIC_FONT = "'BitChord SF Pro Display', 'DM Sans', system-ui, sans-serif";
+
+let lyricFont: Promise<void> | null = null;
+let lyricFontLoaded = false;
+
+/**
+ * Both weights, fetched once. am-lyrics measures its lines for the scroll and
+ * the wipe, so it's only built once the face is in: built earlier, it laid
+ * out in the fallback and then jumped when the font arrived. A slow network
+ * gives up after 1.5 s and lets the fallback show.
+ */
+function loadLyricFont(): Promise<void> {
+  lyricFont ??= Promise.race([
+    Promise.all([document.fonts.load(`700 28px ${LYRIC_FONT}`), document.fonts.load(`400 28px ${LYRIC_FONT}`)]),
+    new Promise((resolve) => setTimeout(resolve, 1500)),
+  ])
+    .catch(() => undefined)
+    .then(() => {
+      lyricFontLoaded = true;
+    });
+  return lyricFont;
+}
+
+function useLyricFont(): boolean {
+  const [ready, setReady] = useState(lyricFontLoaded);
+  useEffect(() => {
+    if (!ready) void loadLyricFont().then(() => setReady(true));
+  }, [ready]);
+  return ready;
+}
+
 /**
  * am-lyrics fades the four lines either side of the current one (0.7, 0.58,
  * 0.46) and leaves every line past them at its base 0.8, so the fifth line on
@@ -67,7 +99,7 @@ function LyricsView({ ttml }: { ttml: string }) {
     el.interpolate = true;
     el.autoScroll = true;
     el.highlightColor = '#ffffff';
-    el.fontFamily = "'DM Sans', system-ui, sans-serif";
+    el.fontFamily = LYRIC_FONT;
     el.className = styles.lyrics!;
     const onLineClick = (event: Event) => {
       const timestamp = (event as CustomEvent<{ timestamp: number }>).detail?.timestamp;
@@ -264,6 +296,7 @@ export function LyricsPanel() {
   const hasTrack = usePlayer((s) => s.nowPlaying !== null);
   const ungranted = useUngranted();
   const canvas = useCanvas();
+  const fontReady = useLyricFont();
   const result = lyrics.data;
 
   return (
@@ -277,7 +310,7 @@ export function LyricsPanel() {
           <p className={styles.emptyTitle}>No lyrics available</p>
           <p>Play a song to see its lyrics here.</p>
         </div>
-      ) : lyrics.isPending && lyrics.fetchStatus !== 'idle' ? (
+      ) : (lyrics.isPending && lyrics.fetchStatus !== 'idle') || (result && !fontReady) ? (
         <div className={styles.empty}>
           <Loader2 size={20} className={styles.spin} />
         </div>
