@@ -2,9 +2,11 @@ import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { PrefetchLink } from '@/components/PrefetchLink';
 import shelfStyles from '@/components/Shelf.module.css';
-import type { MusicItem, Shelf } from '@/data/music/types';
+import type { MusicItem, Shelf, Track } from '@/data/music/types';
+import type { QueueSource } from '@/playback/queue/timeline';
 import { browseHref } from './links';
 import { CircleLockup, SquareLockup, TrackLockup, VideoLockup } from './Lockups';
+import { playList } from './play';
 import styles from './ShelfView.module.css';
 
 const LAYOUT_CLASS = {
@@ -83,22 +85,61 @@ export function ShelfScroller({ layoutClass, children }: { layoutClass: string |
   );
 }
 
+/** A shelf's title, a link with a chevron when there's a page behind it. */
+function ShelfTitle({ title, to }: { title: string; to?: string | null }) {
+  return (
+    <div className={shelfStyles.header}>
+      <h2 className={styles.title}>
+        {to ? (
+          <PrefetchLink to={to} className={styles.titleLink}>
+            {title}
+            <ChevronRight size={18} strokeWidth={2.6} className={styles.chevron} />
+          </PrefetchLink>
+        ) : (
+          title
+        )}
+      </h2>
+    </div>
+  );
+}
+
+export const trackItem = (track: Track): MusicItem => ({
+  kind: 'song',
+  id: track.videoId,
+  title: track.title,
+  subtitle: track.album?.name ?? '',
+  artists: track.artists,
+  album: track.album,
+  thumbnail: track.thumbnail,
+  wide: false,
+  durationSec: track.durationSec,
+  explicit: track.explicit,
+});
+
+/**
+ * Songs in four rows, as the phone's Top Songs and Recently Played: any one
+ * plays the whole shelf from there.
+ */
+export function TrackShelf({ title, to, tracks, source }: { title: string; to?: string | null; tracks: Track[]; source: QueueSource }) {
+  return (
+    <section className={shelfStyles.section} aria-label={title}>
+      <ShelfTitle title={title} to={to} />
+      <ShelfScroller key={tracks.length} layoutClass={shelfStyles.tracks}>
+        {tracks.map((track, i) => (
+          <li key={track.videoId}>
+            <TrackLockup item={trackItem(track)} onPlay={() => playList(tracks, i, { source })} />
+          </li>
+        ))}
+      </ShelfScroller>
+    </section>
+  );
+}
+
 /** A titled horizontal shelf (report §2): grid columns per breakpoint, scroll-snap, hover arrows. */
 export function ShelfView({ shelf }: { shelf: Shelf }) {
   return (
     <section className={shelfStyles.section} aria-label={shelf.title}>
-      <div className={shelfStyles.header}>
-        <h2 className={styles.title}>
-          {shelf.seeAll ? (
-            <PrefetchLink to={browseHref(shelf.seeAll)} className={styles.titleLink}>
-              {shelf.title}
-              <ChevronRight size={18} strokeWidth={2.6} className={styles.chevron} />
-            </PrefetchLink>
-          ) : (
-            shelf.title
-          )}
-        </h2>
-      </div>
+      <ShelfTitle title={shelf.title} to={shelf.seeAll ? browseHref(shelf.seeAll) : null} />
       <ShelfScroller key={shelf.items.length} layoutClass={LAYOUT_CLASS[shelf.layout]}>
         {shelf.items.map((item, i) => (
           <li key={`${item.id}-${i}`}>{renderItem(shelf, item)}</li>

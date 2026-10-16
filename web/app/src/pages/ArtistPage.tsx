@@ -1,30 +1,13 @@
 import { useParams } from 'react-router';
-import { PrefetchLink } from '@/components/PrefetchLink';
 import { PlayIcon } from '@/components/icons/Transport';
-import shelfStyles from '@/components/Shelf.module.css';
 import { Artwork } from '@/components/music/Artwork';
 import { browseHref } from '@/components/music/links';
-import { TrackLockup } from '@/components/music/Lockups';
 import { playList } from '@/components/music/play';
-import { ShelfScroller, Shelves } from '@/components/music/ShelfView';
+import { Shelves, TrackShelf } from '@/components/music/ShelfView';
 import { LoadError, NeedsExtension } from '@/components/music/States';
 import { useArtist, useYouTubeReady } from '@/data/music/queries';
-import type { MusicItem, Track } from '@/data/music/types';
 import { ArtistSkeleton } from '@/skeletons/PageSkeletons';
 import styles from './ArtistPage.module.css';
-
-const asItem = (track: Track): MusicItem => ({
-  kind: 'song',
-  id: track.videoId,
-  title: track.title,
-  subtitle: track.album?.name ?? '',
-  artists: track.artists,
-  album: track.album,
-  thumbnail: track.thumbnail,
-  wide: false,
-  durationSec: track.durationSec,
-  explicit: track.explicit,
-});
 
 /** An artist (report §4): full-bleed hero with the name and Play, Top Songs, then shelves. */
 export default function ArtistPage() {
@@ -60,20 +43,12 @@ export default function ArtistPage() {
       </header>
 
       {data.topSongs.length > 0 && (
-        <section className={shelfStyles.section} aria-label="Top Songs">
-          <div className={shelfStyles.header}>
-            <h2 className={styles.sectionTitle}>
-              {data.topSongsSeeAll ? <PrefetchLink to={browseHref(data.topSongsSeeAll)}>Top Songs ›</PrefetchLink> : 'Top Songs'}
-            </h2>
-          </div>
-          <ShelfScroller layoutClass={shelfStyles.tracks}>
-            {data.topSongs.map((track, i) => (
-              <li key={track.videoId}>
-                <TrackLockup item={asItem(track)} onPlay={() => playList(data.topSongs, i, { source: topSongs })} />
-              </li>
-            ))}
-          </ShelfScroller>
-        </section>
+        <TrackShelf
+          title="Top Songs"
+          to={data.topSongsSeeAll ? browseHref(data.topSongsSeeAll) : null}
+          tracks={data.topSongs}
+          source={topSongs}
+        />
       )}
 
       <Shelves shelves={data.shelves} />
