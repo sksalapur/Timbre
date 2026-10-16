@@ -77,13 +77,24 @@ const FAR_LINES =
   ':not(.prev-2):not(.prev-3):not(.next-2):not(.next-3):not(.lyrics-gap) { opacity: 0.46; }';
 
 /**
+ * The full-screen player's sizing (report §7): its line size, set on the host
+ * by breakpoint, replaces all three of am-lyrics' container tiers, and the
+ * current line sits a third of the way down. Scoped to `data-full`, so the
+ * side panel keeps the library's own sizes.
+ */
+const FULL_SIZE =
+  ':host([data-full]) .lyrics-container { --lyplus-font-size-base: var(--bitchord-lyric-size, 34px);' +
+  ' --am-lyrics-line-height: 1.2; --am-lyrics-line-spacing: calc(var(--bitchord-lyric-size, 34px) * 0.7);' +
+  ' --lyrics-scroll-padding-top: 30%; --am-lyrics-inline-padding: 0px; }';
+
+/**
  * am-lyrics, exactly as it is, fed our TTML and a steered clock (prompt §10.2).
  * The clock reads the media time each frame, stamps the reading with when it
  * was taken, and is told about every seek and track change: the "lyric clock
  * dates readings by sample time" lesson. No React state per frame: the time is
  * written straight onto the element.
  */
-function LyricsView({ ttml }: { ttml: string }) {
+function LyricsView({ ttml, full }: { ttml: string; full: boolean }) {
   const host = useRef<HTMLDivElement>(null);
   const element = useRef<AmLyricsElement | null>(null);
   const deck = usePlayer((s) => s.deck);
@@ -101,6 +112,7 @@ function LyricsView({ ttml }: { ttml: string }) {
     el.highlightColor = '#ffffff';
     el.fontFamily = LYRIC_FONT;
     el.className = styles.lyrics!;
+    el.toggleAttribute('data-full', full);
     const onLineClick = (event: Event) => {
       const timestamp = (event as CustomEvent<{ timestamp: number }>).detail?.timestamp;
       if (typeof timestamp === 'number') usePlayer.getState().seek(timestamp / 1000);
@@ -112,7 +124,7 @@ function LyricsView({ ttml }: { ttml: string }) {
       const root = el.shadowRoot;
       if (!root) return;
       const sheet = new CSSStyleSheet();
-      sheet.replaceSync(HIDE_FOOTER + FAR_LINES);
+      sheet.replaceSync(HIDE_FOOTER + FAR_LINES + FULL_SIZE);
       root.adoptedStyleSheets = [...root.adoptedStyleSheets, sheet];
     });
     return () => {
@@ -290,8 +302,12 @@ function CanvasBackdrop({ url }: { url: string }) {
   );
 }
 
-/** The Lyrics side panel (report §7). */
-export function LyricsPanel() {
+/**
+ * The lyrics, with their provider picker and empty states: the side panel
+ * (report §7), and the right-hand column of the full-screen player, where the
+ * lines are larger and the player's mesh stands in for the Canvas.
+ */
+export function LyricsPanel({ variant = 'panel' }: { variant?: 'panel' | 'full' }) {
   const lyrics = useLyrics();
   const hasTrack = usePlayer((s) => s.nowPlaying !== null);
   const ungranted = useUngranted();
@@ -300,8 +316,8 @@ export function LyricsPanel() {
   const result = lyrics.data;
 
   return (
-    <div className={styles.panel}>
-      {canvas && <CanvasBackdrop url={canvas} />}
+    <div className={styles.panel} data-variant={variant}>
+      {canvas && variant === 'panel' && <CanvasBackdrop url={canvas} />}
       <ProviderPicker current={result?.source ?? null} />
       {/* Only worth raising when nothing was found: then the hosts behind the extension might have it. */}
       {ungranted.length > 0 && !result && !lyrics.isFetching && <PermissionNotice origins={ungranted} />}
@@ -315,7 +331,7 @@ export function LyricsPanel() {
           <Loader2 size={20} className={styles.spin} />
         </div>
       ) : result ? (
-        <LyricsView ttml={result.ttml} />
+        <LyricsView ttml={result.ttml} full={variant === 'full'} />
       ) : (
         <div className={styles.empty}>
           <p className={styles.emptyTitle}>No lyrics available</p>

@@ -153,3 +153,55 @@
 .canvas[data-ready] {
   opacity: 0.85;
 }
+
+/*
+ * The full-screen player's column (report §7): lines 28px, then 38px from
+ * 980px, 50px from 1320px and 72px from 1680px, faded out at the top and
+ * bottom. The picker sits quietly above them.
+ */
+.panel[data-variant='full'] {
+  --bitchord-lyric-size: 28px;
+}
+
+@media (min-width: 980px) {
+  .panel[data-variant='full'] {
+    --bitchord-lyric-size: 38px;
+  }
+}
+
+@media (min-width: 1320px) {
+  .panel[data-variant='full'] {
+    --bitchord-lyric-size: 50px;
+  }
+}
+
+@media (min-width: 1680px) {
+  .panel[data-variant='full'] {
+    --bitchord-lyric-size: 72px;
+  }
+}
+
+.panel[data-variant='full'] .bar {
+  padding: 0 0 4px;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.panel[data-variant='full']:hover .bar,
+.panel[data-variant='full'] .bar:focus-within {
+  opacity: 1;
+}
+
+.panel[data-variant='full'] .host {
+  mask-image: linear-gradient(180deg, transparent, #000 80px, #000 50%, transparent);
+}
+
+.panel[data-variant='full'] .empty {
+  padding-bottom: 0;
+  font: var(--title-3);
+}
+
+.panel[data-variant='full'] .emptyTitle {
+  font: var(--title-1-emphasized);
+  color: var(--systemPrimary);
+}

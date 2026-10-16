@@ -1,0 +1,354 @@
+/*
+ * The full-screen player (report §7): over everything but menus and dialogs,
+ * which portal above it. It always stands on a dark mesh, so it takes the
+ * on-dark colours whatever the page's appearance.
+ */
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: calc(var(--z-contextual-menus) - 2);
+  isolation: isolate;
+  overflow: hidden;
+  color-scheme: dark;
+  color: var(--systemPrimary);
+
+  --systemPrimary: var(--systemPrimary-onDark);
+  --systemSecondary: var(--systemSecondary-onDark);
+  --systemTertiary: var(--systemTertiary-onDark);
+  --systemQuaternary: #ffffff2e;
+  --systemQuinary: #ffffff1a;
+
+  /* The artwork's side: Apple's 461px at 1440px wide, and never taller than the screen leaves room for. */
+  --art: min(32vw, calc(100dvh - 330px), 720px);
+
+  animation: enter 0.3s var(--ease-out-panel);
+}
+
+@keyframes enter {
+  from {
+    opacity: 0;
+    transform: scale(1.02);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .overlay {
+    animation-name: fade-in;
+  }
+
+  .artwork {
+    transition: none;
+  }
+}
+
+/* ---- Chrome: close, browser full screen, lyrics ----------------------- */
+
+.chrome {
+  position: absolute;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  color: var(--systemSecondary);
+  transition:
+    background-color 0.1s ease-in,
+    color 0.1s ease-in;
+}
+
+.chrome:hover {
+  color: var(--systemPrimary);
+  background-color: var(--systemQuinary);
+}
+
+.close {
+  top: 16px;
+  left: 20px;
+}
+
+.expand {
+  top: 16px;
+  right: 20px;
+}
+
+.lyricsToggle {
+  right: 20px;
+  bottom: 20px;
+}
+
+.lyricsToggle[aria-pressed='true'] {
+  color: var(--systemPrimary);
+}
+
+/* ---- Layout ----------------------------------------------------------- */
+
+/* Apple's grid areas "controls lyrics": the artwork column, then the lyrics. */
+.layout {
+  height: 100%;
+  display: grid;
+  grid-template-columns: var(--art);
+  justify-content: center;
+  align-items: center;
+  column-gap: clamp(48px, 7vw, 144px);
+  padding: 64px clamp(24px, 9vw, 144px);
+}
+
+.layout[data-lyrics] {
+  grid-template-columns: var(--art) minmax(0, 38vw);
+}
+
+.player {
+  display: flex;
+  flex-direction: column;
+  width: var(--art);
+  min-width: 0;
+}
+
+.lyrics {
+  align-self: stretch;
+  min-height: 0;
+  display: flex;
+  animation: fade-in 0.4s ease;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+/* ---- Artwork ---------------------------------------------------------- */
+
+.artwork {
+  position: relative;
+  width: var(--art);
+  aspect-ratio: 1;
+  border-radius: 10px;
+  /* Shrinks a touch while paused, as Apple's does. */
+  transition: transform 0.45s cubic-bezier(0.34, 1.3, 0.64, 1);
+}
+
+.overlay[data-paused] .artwork {
+  transform: scale(0.92);
+}
+
+.cover,
+.glow {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: inherit;
+  opacity: 0;
+  transition: opacity 0.3s ease-in;
+}
+
+.cover {
+  box-shadow: 0 4px 10px #0000001a;
+  background-color: #ffffff12;
+}
+
+.cover[data-loaded] {
+  opacity: 1;
+}
+
+/* The radiosity glow: a small copy, blurred and saturated, behind the artwork. */
+.glow {
+  z-index: -1;
+  filter: blur(20px) saturate(2);
+  transform: translateY(8px) scale(0.96);
+}
+
+.glow[data-loaded] {
+  opacity: 0.4;
+}
+
+/* ---- Names ------------------------------------------------------------ */
+
+.info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: clamp(20px, 3.2vh, 32px);
+}
+
+.meta {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.title,
+.subtitle {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.title {
+  font: 600 17px / 22px var(--font-family);
+}
+
+.subtitle {
+  font: 400 15px / 20px var(--font-family);
+  color: var(--systemSecondary);
+}
+
+.favorite {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  color: var(--systemPrimary);
+  background-color: var(--systemQuinary);
+}
+
+.favorite:hover {
+  background-color: var(--systemQuaternary);
+}
+
+/* ---- Seek line -------------------------------------------------------- */
+
+.scrubber {
+  margin-top: 14px;
+}
+
+/* A taller hit area than the line it carries. */
+.hit {
+  display: flex;
+  align-items: center;
+  height: 16px;
+  cursor: pointer;
+  touch-action: none;
+}
+
+.line {
+  flex: 1;
+  height: 4px;
+  border-radius: 999px;
+  background-color: var(--systemQuaternary);
+  overflow: hidden;
+  transition: height 0.12s ease-in;
+}
+
+.fill {
+  --progress: 0;
+  height: 100%;
+  width: 100%;
+  transform-origin: left center;
+  transform: scaleX(var(--progress));
+  background-color: var(--systemSecondary);
+  transition: background-color 0.12s ease-in;
+}
+
+.hit:hover .line,
+.scrubber[data-dragging] .line {
+  height: 8px;
+}
+
+.hit:hover .fill,
+.scrubber[data-dragging] .fill {
+  background-color: var(--systemPrimary);
+}
+
+.times {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 2px;
+  font: 500 11px / 14px var(--font-family);
+  font-variant-numeric: tabular-nums;
+  color: var(--systemTertiary);
+}
+
+/* ---- Transport -------------------------------------------------------- */
+
+.transport {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: min(100%, 315px);
+  height: 52px;
+  margin: clamp(8px, 1.6vh, 16px) auto 0;
+}
+
+.transport button {
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: var(--systemPrimary);
+  transition:
+    background-color 0.1s ease-in,
+    transform 0.1s ease-in;
+}
+
+.transport button:hover:not(:disabled) {
+  background-color: var(--systemQuinary);
+}
+
+.transport button:active:not(:disabled) {
+  transform: scale(0.9);
+}
+
+.transport button:disabled {
+  opacity: 0.4;
+}
+
+.toggle {
+  width: 36px;
+  height: 36px;
+  color: var(--systemTertiary) !important;
+}
+
+/* Shuffle and repeat, when on: full white on the mesh, where red would clash. */
+.toggle[aria-pressed='true'] {
+  color: var(--systemPrimary) !important;
+}
+
+.skip {
+  width: 48px;
+  height: 48px;
+}
+
+.play {
+  width: 56px;
+  height: 56px;
+}
+
+/* ---- Narrow windows --------------------------------------------------- */
+
+@media (max-width: 767.98px) {
+  .overlay {
+    --art: min(84vw, calc(100dvh - 330px), 420px);
+  }
+
+  .layout {
+    padding: 64px 24px 72px;
+  }
+
+  /* With lyrics, the lyrics fill the screen and the controls sit under them, without the artwork. */
+  .layout[data-lyrics] {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) auto;
+    row-gap: 16px;
+    align-items: stretch;
+  }
+
+  .layout[data-lyrics] .player {
+    order: 2;
+    width: 100%;
+  }
+
+  .layout[data-lyrics] .artwork {
+    display: none;
+  }
+
+  .layout[data-lyrics] .info {
+    margin-top: 0;
+  }
+}

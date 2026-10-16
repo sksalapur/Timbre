@@ -63,6 +63,10 @@ How the extension route works:
 - The clock (`LyricClock`, verbatim) reads `audio.currentTime` each animation frame, stamped with `performance.now()` at that moment. Seeks and track changes are announced; `line-click` seeks the player. The frame loop stops while paused.
 - The panel's code (and am-lyrics, about 170 KB) loads the first time the panel opens.
 
+## Full-screen player
+
+The LCD's artwork opens it (`shell/FullScreenPlayer.tsx`). The lyrics column is the same `LyricsPanel`, with `variant="full"`: the element gets `data-full`, and a rule in the adopted stylesheet replaces am-lyrics' three container tiers with Apple's full-screen sizes (28 → 38 → 50 → 72px at 980 / 1320 / 1680px) and puts the current line 30% down. The side panel is hidden while it's open, so only one am-lyrics runs. The background is `MeshBackdrop`: the artwork averaged into a 4×4 grid (`lib/meshPalette.ts`), painted as drifting radial blobs on a 64×40 canvas at up to 30 fps and scaled up by the GPU; it stops while paused or with reduced motion.
+
 ## Verified
 
 Playwright Chromium and stock Firefox, with the extension:
@@ -75,6 +79,5 @@ Playwright Chromium and stock Firefox, with the extension:
 
 ## Not done or not verified
 
-- The **full-screen lyrics view** (report §7). Only the side panel exists.
 - The extension-only providers (KuGou, Musixmatch, Genius, PaxSenix's Apple search) end to end: granting needs a real click on the browser's permission prompt, which the headless harness can't give. Only the refusal path (`permission`, then the Allow offer) was seen.
 - Choosing a translation language other than English.
