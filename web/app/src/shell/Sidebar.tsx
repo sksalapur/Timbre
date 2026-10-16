@@ -1,4 +1,4 @@
-import { ArrowUpRight, ListMusic } from 'lucide-react';
+import { ArrowUpRight, ListMusic, Settings } from 'lucide-react';
 import { MdOutlineExtension } from 'react-icons/md';
 import { PrefetchLink, PrefetchNavLink } from '@/components/PrefetchLink';
 import { LogoMark } from '@/components/icons/LogoMark';
@@ -163,10 +163,15 @@ export function Sidebar() {
             )}
           </PrefetchNavLink>
           <AccountButton />
-          <a className={styles.footerLink} href={config.androidAppUrl} target="_blank" rel="noreferrer">
-            <span>Get the Android app</span>
-            <ArrowUpRight size={14} strokeWidth={2} />
-          </a>
+          <div className={styles.footerRow}>
+            <a className={styles.footerLink} href={config.androidAppUrl} target="_blank" rel="noreferrer">
+              <span>Get the Android app</span>
+              <ArrowUpRight size={14} strokeWidth={2} />
+            </a>
+            <PrefetchNavLink to="/settings" className={styles.settings} aria-label="Settings" title="Settings" onClick={close}>
+              <Settings size={17} strokeWidth={1.9} />
+            </PrefetchNavLink>
+          </div>
         </div>
       </nav>
       {drawerOpen && <div className={styles.scrim} onClick={close} aria-hidden="true" />}

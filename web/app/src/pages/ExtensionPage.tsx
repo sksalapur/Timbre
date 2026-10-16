@@ -9,7 +9,8 @@ import { useExtension, type ExtensionStatus } from '@/extension/useExtension';
 import { useExtensionUpdate } from '@/extension/useExtensionUpdate';
 import { useYtAuth, type YtAuthStatus } from '@/extension/useYtAuth';
 import styles from './ExtensionPage.module.css';
-import { DiscordIntegration, DiscordSettings, SpotifyIntegration, SpotifySettings } from './IntegrationSettings';
+import { PrefetchLink } from '@/components/PrefetchLink';
+import { DiscordIntegration, SpotifyIntegration } from './IntegrationSettings';
 
 type Browser = 'chrome' | 'firefox';
 
@@ -234,8 +235,13 @@ export default function ExtensionPage() {
         <p className={styles.footer}>
           Sign-ins stay inside the extension: this page only ever sees results, never your cookies or tokens.
         </p>
-        <SpotifySettings />
-        <DiscordSettings />
+        <p className={styles.footer}>
+          Spotify Canvas, Discord presence and Listen Together are in{' '}
+          <PrefetchLink to="/settings" className={styles.inlineLink}>
+            Settings
+          </PrefetchLink>
+          .
+        </p>
       </div>
     </>
   );

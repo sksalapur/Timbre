@@ -1,3 +1,4 @@
+import { party, useParty } from '@/party/listenTogether';
 import { Infinity as InfinityIcon, MoreHorizontal, X } from 'lucide-react';
 import { useCallback, useState } from 'react';
 import { Menu, MenuHeader, MenuItem, MenuSeparator } from '@/components/Menu';
@@ -96,7 +97,11 @@ function Row({
 export function UpNext() {
   const queue = usePlayer((s) => s.queue);
   const index = usePlayer((s) => s.index);
-  const autoplay = usePlayer((s) => s.autoplay);
+  const localAutoplay = usePlayer((s) => s.autoplay);
+  // In a party AutoPlay is the party's setting (Autoplay.autoplayEnabledFor).
+  const inParty = useParty((s) => !!s.code);
+  const partyAutoplay = useParty((s) => s.playback.autoplayEnabled);
+  const autoplay = inParty ? partyAutoplay : localAutoplay;
   const repeat = usePlayer((s) => s.repeat);
   const crossfadeSec = usePlayer((s) => s.crossfadeSec);
   const { clearUpNext, setAutoplay, setCrossfade, move } = usePlayer.getState();
@@ -141,7 +146,7 @@ export function UpNext() {
           aria-label="AutoPlay"
           title="AutoPlay: keep playing similar music when the queue ends"
           aria-pressed={autoplay}
-          onClick={() => setAutoplay(!autoplay)}
+          onClick={() => (inParty ? party.setAutoplay(!autoplay) : setAutoplay(!autoplay))}
         >
           <InfinityIcon size={16} strokeWidth={2.4} />
         </button>

@@ -154,3 +154,25 @@
   font: 600 12px / 15px var(--font-family);
   color: var(--systemSecondary);
 }
+
+/* The last line: the Android app link, and Settings at its end. */
+.footerRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.settings {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  color: var(--systemSecondary);
+}
+
+.settings:hover,
+.settings:global(.active) {
+  color: var(--systemPrimary);
+  background-color: var(--systemQuinary);
+}

@@ -234,3 +234,34 @@
   color: var(--systemPrimary);
   font: var(--body);
 }
+
+/* Settings: rows that open a page of their own. */
+.linkRow {
+  width: 100%;
+  text-align: start;
+  cursor: pointer;
+}
+
+.linkRow:hover {
+  background-color: var(--systemQuinary);
+}
+
+.spaced {
+  margin-top: 12px;
+}
+
+.spaced:empty {
+  display: none;
+}
+
+.inlineLink {
+  color: var(--keyColor);
+}
+
+.integration:not(:has(.integrationIcon)) {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.linkRow:hover {
+  background-color: var(--systemQuaternary);
+}

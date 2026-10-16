@@ -1,3 +1,6 @@
+import { useEffect } from 'react';
+import { resumeSession } from '@/party/listenTogether';
+import { startPartySync } from '@/party/partySync';
 import { useDiscordPresence } from '@/playback/discordPresence';
 import { Outlet } from 'react-router';
 import { PrefetchLink } from '@/components/PrefetchLink';
@@ -22,6 +25,11 @@ const mobile = isMobileBrowser();
 export function AppShell() {
   useKeyboardShortcuts();
   useDiscordPresence();
+  // Listen Together: pick a party back up after a reload, and keep the player in step with it.
+  useEffect(() => {
+    resumeSession();
+    return startPartySync();
+  }, []);
   const extension = useExtension();
   const bannerDismissed = useUi((s) => s.installBannerDismissed);
   const dismissBanner = useUi((s) => s.dismissInstallBanner);

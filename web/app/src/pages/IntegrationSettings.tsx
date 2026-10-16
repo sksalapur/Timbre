@@ -84,7 +84,7 @@ function discordText(status: DiscordStatus): string {
   return `${user.name} · on`;
 }
 
-function Toggle({ label, detail, checked, onChange }: { label: string; detail?: string; checked: boolean; onChange: (on: boolean) => void }) {
+export function Toggle({ label, detail, checked, onChange }: { label: string; detail?: string; checked: boolean; onChange: (on: boolean) => void }) {
   return (
     <label className={styles.row}>
       <span className={styles.rowText}>
@@ -96,25 +96,19 @@ function Toggle({ label, detail, checked, onChange }: { label: string; detail?: 
   );
 }
 
-/** Spotify's own options: Canvas behind the lyrics. */
-export function SpotifySettings() {
+/** Spotify Canvas behind the lyrics; only offered once signed in to Spotify. */
+export function CanvasToggle() {
   const auth = useSpotifyAuth();
   const canvas = useSpotifySettings((s) => s.canvas);
   const setCanvas = useSpotifySettings((s) => s.setCanvas);
   if (auth.state !== 'ready' || !auth.auth.signedIn) return null;
   return (
-    <>
-      <h2 className={styles.sectionHeader}>Spotify</h2>
-      <section className={styles.group}>
-        <Toggle
-          label="Canvas"
-          detail="Spotify’s looping clip behind the lyrics. Not on metered connections or with reduced motion."
-          checked={canvas}
-          onChange={setCanvas}
-        />
-      </section>
-      <p className={styles.footer}>Your Spotify playlists are in the sidebar. Songs play from YouTube Music.</p>
-    </>
+    <Toggle
+      label="Spotify Canvas"
+      detail="Spotify’s looping clip behind the lyrics. Not on metered connections or with reduced motion."
+      checked={canvas}
+      onChange={setCanvas}
+    />
   );
 }
 
@@ -142,7 +136,6 @@ export function DiscordSettings() {
   const on = status.discord.enabled;
   return (
     <>
-      <h2 className={styles.sectionHeader}>Discord</h2>
       <section className={styles.group}>
         <Toggle label="Show what you’re playing" checked={on} onChange={(v) => setEnabled.mutate(v)} />
         {on && (
