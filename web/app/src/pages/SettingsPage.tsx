@@ -101,7 +101,11 @@ export default function SettingsPage() {
         <section className={`${styles.group} ${styles.spaced}`}>
           <Toggle
             label="Share Listening Activity to YouTube"
-            detail="Songs you play here go to your YouTube Music history and shape its recommendations."
+            detail={
+              present && !extension.extension.info.capabilities.includes('yt.stats')
+                ? 'Update the BitChord extension to share: this version can’t send plays to YouTube.'
+                : 'Songs you play here go to your YouTube Music history and shape its recommendations.'
+            }
             checked={shareHistory}
             onChange={setShareHistory}
           />
