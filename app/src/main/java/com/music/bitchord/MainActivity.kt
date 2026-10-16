@@ -117,6 +117,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.music.bitchord.playback.audio.usb.UsbConnectionObserver
 import com.music.bitchord.auth.DiscordLoginScreen
 import com.music.bitchord.auth.WebSessionMode
 import com.music.bitchord.auth.YtMusicLoginScreen
@@ -332,6 +333,21 @@ internal fun shouldSkipAfterDislike(
 
 
 class MainActivity : AppCompatActivity() {
+    private var usbObserver: UsbConnectionObserver? = null
+
+    override fun onStart() {
+        super.onStart()
+        if (usbObserver == null) {
+            usbObserver = UsbConnectionObserver(this)
+        }
+        usbObserver?.start()
+    }
+
+    override fun onStop() {
+        super.onStop()
+        usbObserver?.stop()
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()

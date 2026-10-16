@@ -37,6 +37,7 @@ import androidx.media3.common.audio.AudioProcessor
 import androidx.media3.common.audio.SonicAudioProcessor
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.decoder.ffmpeg.FfmpegAudioRenderer
+import androidx.media3.decoder.ffmpeg.FfmpegLibrary
 import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.ResolvingDataSource
 import androidx.media3.datasource.okhttp.OkHttpDataSource
@@ -1207,7 +1208,16 @@ class PlaybackService : MediaLibraryService() {
         ?.mediaItem
         ?.mediaId
 
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (intent?.action == ACTION_RECONFIGURE_OUTPUT) {
+            requestOutputReconfiguration()
+            return START_NOT_STICKY
+        }
+        return super.onStartCommand(intent, flags, startId)
+    }
+
     override fun onCreate() {
+        activeInstance = this
         super.onCreate()
 
         if (com.music.bitchord.data.innertube.Innertube.cookie == null) {
@@ -5522,6 +5532,11 @@ class PlaybackService : MediaLibraryService() {
             eventListener: AudioRendererEventListener,
             out: ArrayList<Renderer>,
         ) {
+            // Add FFmpeg renderer first so 24-bit/32-bit FLAC/ALAC streams are decoded
+            // natively by libavcodec in pristine 32-bit float without 16-bit truncation.
+            if (FfmpegLibrary.isAvailable()) {
+                out.add(FfmpegAudioRenderer(eventHandler, eventListener, audioSink))
+            }
             super.buildAudioRenderers(
                 context,
                 extensionRendererMode,
@@ -5532,7 +5547,6 @@ class PlaybackService : MediaLibraryService() {
                 eventListener,
                 out,
             )
-            out.add(FfmpegAudioRenderer(eventHandler, eventListener, audioSink))
         }
 
         override fun buildAudioSink(
@@ -5680,7 +5694,7 @@ class PlaybackService : MediaLibraryService() {
             directUsbProbe = directUsbProbe,
             directSupport = directSupport,
             bluetoothTelemetry = btTelemetry,
-            systemMixerRateHz = if (routeKind == AudioRouting.Kind.USB) 48000 else null,
+            systemMixerRateHz = if (routeKind == AudioRouting.Kind.USB && directUsbProbe?.isViable != true) 48000 else null,
         )
 
         if (format != null) {
@@ -5780,7 +5794,7 @@ class PlaybackService : MediaLibraryService() {
             // silently re-converted, costing an extra quantization and leaving
             // this readout naming a bit depth that was never written.
             delegateSupportsPcm24 = false,
-            knownSystemMixerRateHz = if (routeKind == AudioRouting.Kind.USB) 48000 else null,
+            knownSystemMixerRateHz = if (routeKind == AudioRouting.Kind.USB && directUsbProbe?.isViable != true) 48000 else null,
         )
 
         AudioOutputStatus.publishNegotiation(negotiation)
@@ -5788,7 +5802,7 @@ class PlaybackService : MediaLibraryService() {
         return negotiation.output.encoding
     }
 
-    private fun requestOutputReconfiguration() {
+    internal fun requestOutputReconfiguration() {
         outputReconfigureJob?.cancel()
         outputReconfigureJob = scope.launch {
             // Replacing two renderers during a blend would cut one half of it.
@@ -5903,21 +5917,19 @@ class PlaybackService : MediaLibraryService() {
     private fun shouldEnableFloatOutput(): Boolean {
         val activeDevice = resolveActiveOutputDevice()
         val routeKind = resolveActiveRouteKind(activeDevice)
+        if (routeKind == AudioRouting.Kind.PHONE) return false
+
+        val bitPerfectEnabled = AppSettings.directBitPerfectMode.value
+        val requestedFloat = AppSettings.outputPcmMode.value == OutputPcmMode.FLOAT_32 || bitPerfectEnabled
+
         val advertisesFloat = activeDevice?.encodings?.contains(AudioFormat.ENCODING_PCM_FLOAT) == true
         val directFloatSupported = audioManager?.let { mgr ->
             DirectAudioProbe.probeDirectSupport(mgr, 48000, 2, activeDevice).supportsFloat
         } ?: false
-        // Worth knowing which way this cuts for a hi-res stream: with float
-        // off, Media3 downconverts *every* input encoding to 16-bit, because
-        // float and 16-bit are the only two linear-PCM tracks its sink can
-        // open. Float is what carries a 24-bit sample to the hardware intact,
-        // so "32-bit float" in Output precision is the setting that preserves
-        // a hi-res source, not the one that embellishes it.
-        return AudioOutputPolicy.shouldUseFloatOutput(
-            requestedMode = AppSettings.outputPcmMode.value,
-            routeKind = routeKind,
-            advertisesPcmFloat = advertisesFloat || directFloatSupported,
-        )
+        val directUsbProbe = if (routeKind == AudioRouting.Kind.USB) UsbDirectManager.probe(this) else null
+        val directUsbFloat = directUsbProbe?.isViable == true
+
+        return requestedFloat && (advertisesFloat || directFloatSupported || directUsbFloat || routeKind == AudioRouting.Kind.USB)
     }
 
     /** Runs [body] against both players, in whichever roles they currently hold. */
@@ -5940,6 +5952,9 @@ class PlaybackService : MediaLibraryService() {
         }
         scope.launch {
             AppSettings.preferUsbDac.drop(1).collect { requestOutputReconfiguration() }
+        }
+        scope.launch {
+            AppSettings.directBitPerfectMode.drop(1).collect { requestOutputReconfiguration() }
         }
         scope.launch {
             AudioRouting.selectedId.drop(1).collect { requestOutputReconfiguration() }
@@ -6469,6 +6484,7 @@ class PlaybackService : MediaLibraryService() {
 
 
     override fun onDestroy() {
+        if (activeInstance === this) activeInstance = null
         // Let go of the receiver's player but leave its session alone: a
         // service that idles out while casting is not the listener choosing to
         // stop, and the next one picks the session up where it was.
@@ -7995,7 +8011,26 @@ class PlaybackService : MediaLibraryService() {
             )
             .build()
 
-    private companion object {
+    companion object {
+        const val ACTION_RECONFIGURE_OUTPUT = "com.music.bitchord.playback.ACTION_RECONFIGURE_OUTPUT"
+
+        @Volatile
+        private var activeInstance: PlaybackService? = null
+
+        fun requestOutputReconfiguration(context: Context? = null) {
+            val active = activeInstance
+            if (active != null) {
+                active.requestOutputReconfiguration()
+            } else if (context != null) {
+                runCatching {
+                    val intent = Intent(context, PlaybackService::class.java).apply {
+                        action = ACTION_RECONFIGURE_OUTPUT
+                    }
+                    context.startService(intent)
+                }
+            }
+        }
+
         const val MEDIA_ROOT_ID = "root"
         const val MEDIA_RECENTS_ID = "recents"
         const val MEDIA_QUICK_PICKS_ID = "quick_picks"
