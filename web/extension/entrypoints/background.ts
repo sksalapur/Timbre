@@ -10,6 +10,7 @@ import {
   type BridgeResponse,
   type Capability,
 } from '@bitchord/shared/bridge';
+import { grantedOrigins, lyricsFetch, requestOrigins } from '../lib/lyricsFetch';
 import { installRules } from '../lib/rules';
 import { authState, invalidateAccounts, isSessionCookie, selectChannel, setConnected } from '../lib/ytAuth';
 import { ytFetch } from '../lib/ytFetch';
@@ -21,7 +22,7 @@ const ALLOWED_ORIGINS = new Set(__SITE_ORIGINS__);
 const OWN_ORIGIN = new URL(browser.runtime.getURL('/')).origin;
 
 /** Grows as each phase lands its methods. */
-const CAPABILITIES: Capability[] = ['yt', 'yt.auth'];
+const CAPABILITIES: Capability[] = ['yt', 'yt.auth', 'lyrics'];
 
 function originOf(sender: Browser.runtime.MessageSender): string | null {
   if (sender.origin) return sender.origin;
@@ -40,7 +41,11 @@ function allowed(sender: Browser.runtime.MessageSender): boolean {
 function failure(id: string, error: unknown): BridgeResponse {
   const known = (error as { code?: string }).code;
   const code: BridgeErrorCode =
-    known === 'forbidden' || known === 'unauthenticated' ? known : error instanceof TypeError ? 'network' : 'internal';
+    known === 'forbidden' || known === 'unauthenticated' || known === 'permission'
+      ? known
+      : error instanceof TypeError
+        ? 'network'
+        : 'internal';
   return errorResponse(id, code, error instanceof Error ? error.message : String(error));
 }
 
@@ -78,6 +83,15 @@ async function handle(request: BridgeRequest): Promise<BridgeResponse> {
         broadcast({ event: 'yt.authState', data: state });
         return okResponse<'yt.setConnected'>(request.id, state);
       }
+      case 'lyrics.fetch':
+        return okResponse<'lyrics.fetch'>(request.id, await lyricsFetch((request as BridgeRequest<'lyrics.fetch'>).params));
+      case 'lyrics.permissions':
+        return okResponse<'lyrics.permissions'>(request.id, {
+          granted: await grantedOrigins((request as BridgeRequest<'lyrics.permissions'>).params.origins ?? []),
+        });
+      case 'lyrics.requestPermissions':
+        await requestOrigins((request as BridgeRequest<'lyrics.requestPermissions'>).params.origins ?? []);
+        return okResponse<'lyrics.requestPermissions'>(request.id, {});
       default:
         return errorResponse(request.id, 'unsupported', `${request.method} isn't available in this version of the extension.`);
     }

@@ -1,8 +1,12 @@
+import { lazy, Suspense } from 'react';
 import { useUi } from '@/state/ui';
 import styles from './SidePanel.module.css';
 import { UpNext } from './UpNext';
 
-/** Up Next / Lyrics glass panel (report §7). Lyrics arrive in phase 8. */
+// am-lyrics is large; it loads the first time the panel opens (prompt §3).
+const LyricsPanel = lazy(() => import('./LyricsPanel').then((m) => ({ default: m.LyricsPanel })));
+
+/** Up Next / Lyrics glass panel (report §7). */
 export function SidePanel() {
   const panel = useUi((s) => s.sidePanel);
   if (!panel) return null;
@@ -12,9 +16,9 @@ export function SidePanel() {
       {panel === 'up-next' ? (
         <UpNext />
       ) : (
-        <div className={styles.empty}>
-          <p className={styles.emptyTitle}>No lyrics available</p>
-        </div>
+        <Suspense fallback={null}>
+          <LyricsPanel />
+        </Suspense>
       )}
     </aside>
   );

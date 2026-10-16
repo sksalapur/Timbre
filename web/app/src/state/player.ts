@@ -143,7 +143,12 @@ function getDecks(): Promise<Deck[]> {
         usePlayer.setState({ status: 'error', error: message });
       };
       engine.onRecovered = (track) => {
-        if (decks?.[active] === deck) applyTrack(track);
+        if (decks?.[active] !== deck) return;
+        // Keep YouTube Music's title and artist: without the queue's track the
+        // video's own ("Doja Cat - Woman" by "dojacatVEVO") would replace them.
+        const { queue, index } = usePlayer.getState();
+        const entry = queue[index];
+        applyTrack(track, entry?.track.videoId === track.videoId ? entry.track : undefined);
       };
       bindElement(deck, n);
       return deck;

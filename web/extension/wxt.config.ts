@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { defineConfig } from 'wxt';
+import { LYRIC_ORIGINS, patternOf } from './lib/lyricHosts';
 import { matchPatternsFor, SITE_ORIGINS } from './site.config';
 
 /** BITCHORD_STORE_BUILD=1 for a Chrome Web Store upload. */
@@ -33,6 +34,9 @@ export default defineConfig({
       'https://*.googlevideo.com/*',
       ...matchPatternsFor(SITE_ORIGINS),
     ],
+    // Lyric providers the page can't reach itself, each granted once by the
+    // user on the extension's own page (lib/lyricsFetch.ts, grant.html).
+    optional_host_permissions: LYRIC_ORIGINS.map(patternOf),
     ...(browser === 'firefox'
       ? {
           browser_specific_settings: {

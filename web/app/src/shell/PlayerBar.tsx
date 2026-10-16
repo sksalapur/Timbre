@@ -2,6 +2,7 @@ import { ListMusic, MessageSquareQuote, Repeat, Repeat1, Shuffle, Volume, Volume
 import { useState } from 'react';
 import { BackwardIcon, ForwardIcon, PauseIcon, PlayIcon } from '@/components/icons/Transport';
 import { FavoriteButton } from '@/components/music/FavoriteButton';
+import { useLyrics } from '@/lyrics/useLyrics';
 import { usePlayer } from '@/state/player';
 import { useUi } from '@/state/ui';
 import { Lcd } from './Lcd';
@@ -51,7 +52,8 @@ function VolumeControl() {
 export function PlayerBar() {
   const sidePanel = useUi((s) => s.sidePanel);
   const toggleSidePanel = useUi((s) => s.toggleSidePanel);
-  const hasLyrics = false;
+  const lyrics = useLyrics();
+  const hasLyrics = !!lyrics.data || sidePanel === 'lyrics';
   const hasTrack = usePlayer((s) => s.nowPlaying !== null);
   const videoId = usePlayer((s) => s.nowPlaying?.videoId ?? null);
   const playing = usePlayer((s) => s.status === 'playing' || s.status === 'buffering');

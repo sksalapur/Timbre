@@ -1,0 +1,241 @@
+// Registers <am-lyrics>.
+import '@uimaxbai/am-lyrics/am-lyrics.js';
+import { Check, ChevronDown, Loader2, Minus, Settings2 } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { getBridge } from '@/extension/bridge';
+import { Menu, MenuHeader, MenuItem, MenuSeparator } from '@/components/Menu';
+import { LyricClock } from '@/lyrics/clock';
+import { onUngrantedChange, ungrantedOrigins } from '@/lyrics/http';
+import { enabledSources } from '@/lyrics/settings';
+import { sourceById, type LyricsSourceId } from '@/lyrics/sources';
+import { useLyrics, useLyricsUi } from '@/lyrics/useLyrics';
+import { getAudio, usePlayer } from '@/state/player';
+import { LyricsSettings } from './LyricsSettings';
+import styles from './LyricsPanel.module.css';
+
+type AmLyricsElement = HTMLElement & {
+  currentTime: number;
+  ttml?: string;
+  interpolate: boolean;
+  autoScroll: boolean;
+  highlightColor: string;
+  fontFamily?: string;
+  updateComplete?: Promise<unknown>;
+};
+
+/** am-lyrics' own footer offers to fetch from its own providers; ours decide (prompt §10.2). */
+const HIDE_FOOTER = '.lyrics-footer { display: none !important; }';
+
+/**
+ * am-lyrics, exactly as it is, fed our TTML and a steered clock (prompt §10.2).
+ * The clock reads the media time each frame, stamps the reading with when it
+ * was taken, and is told about every seek and track change: the "lyric clock
+ * dates readings by sample time" lesson. No React state per frame: the time is
+ * written straight onto the element.
+ */
+function LyricsView({ ttml }: { ttml: string }) {
+  const host = useRef<HTMLDivElement>(null);
+  const element = useRef<AmLyricsElement | null>(null);
+  const deck = usePlayer((s) => s.deck);
+  const videoId = usePlayer((s) => s.nowPlaying?.videoId);
+
+  // Created by hand, with its TTML set before it's attached: am-lyrics starts
+  // loading the moment it connects, and through React the properties arrive
+  // a beat later, so its first load went to its own providers with no title
+  // and finished after ours, wiping it.
+  useEffect(() => {
+    const el = document.createElement('am-lyrics') as AmLyricsElement;
+    el.ttml = ttml;
+    el.interpolate = true;
+    el.autoScroll = true;
+    el.highlightColor = '#ffffff';
+    el.fontFamily = "'DM Sans', system-ui, sans-serif";
+    el.className = styles.lyrics!;
+    const onLineClick = (event: Event) => {
+      const timestamp = (event as CustomEvent<{ timestamp: number }>).detail?.timestamp;
+      if (typeof timestamp === 'number') usePlayer.getState().seek(timestamp / 1000);
+    };
+    el.addEventListener('line-click', onLineClick);
+    host.current?.append(el);
+    element.current = el;
+    void Promise.resolve(el.updateComplete).then(() => {
+      const root = el.shadowRoot;
+      if (!root) return;
+      const sheet = new CSSStyleSheet();
+      sheet.replaceSync(HIDE_FOOTER);
+      root.adoptedStyleSheets = [...root.adoptedStyleSheets, sheet];
+    });
+    return () => {
+      el.removeEventListener('line-click', onLineClick);
+      el.remove();
+      element.current = null;
+    };
+    // Mounted once; a new provider's TTML is handed over below.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (element.current && element.current.ttml !== ttml) element.current.ttml = ttml;
+  }, [ttml]);
+
+  useEffect(() => {
+    const audio = getAudio();
+    const el = element.current;
+    if (!audio || !el) return;
+    const clock = new LyricClock(audio.currentTime * 1000);
+    let discontinuity = 0;
+    let frame = 0;
+    const tick = () => {
+      const now = performance.now();
+      // The reading and its stamp are taken together.
+      el.currentTime = clock.frame(now, Math.trunc(audio.currentTime * 1000), now, discontinuity);
+      frame = requestAnimationFrame(tick);
+    };
+    const hold = () => {
+      cancelAnimationFrame(frame);
+      const ms = audio.currentTime * 1000;
+      clock.hold(ms, performance.now());
+      el.currentTime = ms;
+    };
+    const resume = () => {
+      cancelAnimationFrame(frame);
+      clock.restart();
+      frame = requestAnimationFrame(tick);
+    };
+    const onSeeking = () => {
+      discontinuity++;
+      if (audio.paused) hold();
+    };
+    audio.addEventListener('seeking', onSeeking);
+    audio.addEventListener('seeked', onSeeking);
+    audio.addEventListener('pause', hold);
+    audio.addEventListener('play', resume);
+    if (audio.paused) hold();
+    else resume();
+    return () => {
+      cancelAnimationFrame(frame);
+      audio.removeEventListener('seeking', onSeeking);
+      audio.removeEventListener('seeked', onSeeking);
+      audio.removeEventListener('pause', hold);
+      audio.removeEventListener('play', resume);
+    };
+  }, [deck, videoId, ttml]);
+
+  return <div ref={host} className={styles.host} />;
+}
+
+function useUngranted(): string[] {
+  return useSyncExternalStore(onUngrantedChange, () => [...ungrantedOrigins].join(','), () => '')
+    .split(',')
+    .filter(Boolean);
+}
+
+/** The provider picker: which provider these lyrics are from, and the others' answers for this track. */
+function ProviderPicker({ current }: { current: LyricsSourceId | null }) {
+  const videoId = usePlayer((s) => s.nowPlaying?.videoId ?? '');
+  const states = useLyricsUi((s) => s.states[videoId] ?? {});
+  const picked = useLyricsUi((s) => s.picked[videoId]);
+  const pick = useLyricsUi((s) => s.pick);
+  const [anchor, setAnchor] = useState<HTMLElement | null>(null);
+  const [settings, setSettings] = useState(false);
+  const close = useCallback(() => setAnchor(null), []);
+  const label = current ? sourceById(current)?.label : 'Lyrics';
+
+  return (
+    <div className={styles.bar}>
+      <button className={styles.picker} aria-haspopup="menu" onClick={(e) => setAnchor(e.currentTarget)}>
+        <span>{label}</span>
+        <ChevronDown size={14} />
+      </button>
+      <button className={styles.icon} aria-label="Lyric settings" onClick={() => setSettings(true)}>
+        <Settings2 size={16} />
+      </button>
+      {anchor && (
+        <Menu anchor={anchor} placement="below-end" onClose={close} label="Lyrics provider">
+          <MenuItem checked={!picked} onSelect={() => (close(), pick(videoId, null))}>
+            Best available
+          </MenuItem>
+          <MenuSeparator />
+          <MenuHeader>Providers</MenuHeader>
+          {enabledSources().map((id) => {
+            const state = states[id];
+            return (
+              <MenuItem
+                key={id}
+                checked={picked === id}
+                trailing={
+                  state === 'pending' ? (
+                    <Loader2 size={13} className={styles.spin} />
+                  ) : state === 'found' ? (
+                    <Check size={13} />
+                  ) : state === 'missing' ? (
+                    <Minus size={13} />
+                  ) : undefined
+                }
+                onSelect={() => (close(), pick(videoId, id))}
+              >
+                {sourceById(id)?.label}
+              </MenuItem>
+            );
+          })}
+          <MenuSeparator />
+          <MenuItem onSelect={() => (close(), setSettings(true))}>Lyric Settings…</MenuItem>
+        </Menu>
+      )}
+      {settings && <LyricsSettings onClose={() => setSettings(false)} />}
+    </div>
+  );
+}
+
+function PermissionNotice({ origins }: { origins: string[] }) {
+  const names = origins.map((o) => new URL(o).host.replace(/^www\./, ''));
+  return (
+    <div className={styles.notice}>
+      <span>
+        {names.slice(0, 2).join(', ')}
+        {names.length > 2 ? ` and ${names.length - 2} more` : ''} need the extension’s permission.
+      </span>
+      <button
+        onClick={() => {
+          void getBridge()?.call('lyrics.requestPermissions', { origins });
+          origins.forEach((o) => ungrantedOrigins.delete(o));
+        }}
+      >
+        Allow
+      </button>
+    </div>
+  );
+}
+
+/** The Lyrics side panel (report §7). */
+export function LyricsPanel() {
+  const lyrics = useLyrics();
+  const hasTrack = usePlayer((s) => s.nowPlaying !== null);
+  const ungranted = useUngranted();
+  const result = lyrics.data;
+
+  return (
+    <div className={styles.panel}>
+      <ProviderPicker current={result?.source ?? null} />
+      {/* Only worth raising when nothing was found: then the hosts behind the extension might have it. */}
+      {ungranted.length > 0 && !result && !lyrics.isFetching && <PermissionNotice origins={ungranted} />}
+      {!hasTrack ? (
+        <div className={styles.empty}>
+          <p className={styles.emptyTitle}>No lyrics available</p>
+          <p>Play a song to see its lyrics here.</p>
+        </div>
+      ) : lyrics.isPending && lyrics.fetchStatus !== 'idle' ? (
+        <div className={styles.empty}>
+          <Loader2 size={20} className={styles.spin} />
+        </div>
+      ) : result ? (
+        <LyricsView ttml={result.ttml} />
+      ) : (
+        <div className={styles.empty}>
+          <p className={styles.emptyTitle}>No lyrics available</p>
+          <p>None of the lyric providers has this song. Try another in the list above.</p>
+        </div>
+      )}
+    </div>
+  );
+}

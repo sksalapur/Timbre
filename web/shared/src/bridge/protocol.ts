@@ -110,7 +110,12 @@ export interface BridgeMethods {
   'yt.selectChannel': { params: { channelId: string }; result: YtAuthState };
   'yt.setConnected': { params: { connected: boolean }; result: YtAuthState };
   'addon.fetch': { params: HttpRequest; result: HttpResponse };
+  /** A lyric provider the page can't reach itself; refused with `permission` until its host is granted. */
   'lyrics.fetch': { params: HttpRequest; result: HttpResponse };
+  /** Which of these lyric origins the user has granted. */
+  'lyrics.permissions': { params: { origins: string[] }; result: { granted: string[] } };
+  /** Opens the extension's page that asks for them (a browser prompt needs a click there). */
+  'lyrics.requestPermissions': { params: { origins: string[] }; result: Record<string, never> };
 }
 
 export type BridgeMethod = keyof BridgeMethods;
@@ -132,6 +137,7 @@ export type BridgeErrorCode =
   | 'protocol' // envelope version mismatch
   | 'network'
   | 'unauthenticated' // a signed-in call while not signed in (or disconnected)
+  | 'permission' // a lyric host the user hasn't granted yet
   | 'internal';
 
 export interface BridgeError {
