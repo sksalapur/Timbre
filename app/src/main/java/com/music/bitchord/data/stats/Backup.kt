@@ -70,6 +70,7 @@ object Backup {
                     PrefValue.of(value)?.let { key to it }
                 }.toMap(),
                 listening = buckets,
+                sources = com.music.bitchord.data.sources.SourceRegistry.exportSources(),
             )
             val text = json.encodeToString(BackupFile.serializer(), file)
             context.contentResolver.openOutputStream(target, "wt")
@@ -101,12 +102,16 @@ object Backup {
 
             ListeningStats.importAll(file.listening)
             AppSettings.importPrefs(file.settings.mapValues { it.value.decoded() })
+            if (file.sources.isNotEmpty()) {
+                com.music.bitchord.data.sources.SourceRegistry.importSources(file.sources)
+            }
             // Shares AppSettings' preference file, so it has already been
             // overwritten by the line above — it just doesn't know yet.
             SearchHistory.reload()
             Summary(
                 months = file.listening.size,
                 settings = file.settings.size,
+                sources = file.sources.count { it.kind.isUserAdded },
                 from = file.versionName,
                 at = file.exportedAt,
             )
@@ -119,6 +124,7 @@ object Backup {
         val settings: Int,
         val from: String,
         val at: String,
+        val sources: Int = 0,
     )
 
     private const val APP_TAG = "timbre"
@@ -139,6 +145,7 @@ object Backup {
         val exportedAt: String = "",
         val settings: Map<String, PrefValue> = emptyMap(),
         val listening: List<StoredBucket> = emptyList(),
+        val sources: List<com.music.bitchord.data.sources.SourceConfig> = emptyList(),
     )
 
     /** One preference, with the type it has to be restored as. */
