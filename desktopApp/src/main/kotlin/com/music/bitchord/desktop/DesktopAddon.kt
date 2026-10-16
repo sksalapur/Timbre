@@ -108,7 +108,13 @@ internal data class DesktopAddonTrack(
         get() = atmos == true || ATMOS_HINT.containsMatchIn(
             "$audioQuality ${audioMode.orEmpty()} ${audioModes.joinToString(" ")} $format",
         )
+
+    /** Whether the row names the hi-res tier — Tidal's `HI_RES_LOSSLESS`, `hires-96`, `24-bit`. */
+    val isHiRes: Boolean get() = HI_RES_HINT.containsMatchIn("$audioQuality $format")
 }
+
+/** How a row spells the hi-res lossless tier in its quality label. */
+private val HI_RES_HINT = Regex("""hi[-_ ]?res|24[-_ ]?bit""", RegexOption.IGNORE_CASE)
 
 @Serializable
 internal data class DesktopAddonStream(
@@ -302,8 +308,9 @@ internal class DesktopAddonClient(rawBaseUrl: String) {
     }
 
     /** A playable URL for one of this addon's own track ids. */
-    suspend fun stream(trackId: String, tier: String): Result<DesktopAddonStream> {
-        val params = settingsFor(tier)
+    /** [stereoOnly] withholds the `?atmos=` hint; see [DesktopAddonSource.stream]. */
+    suspend fun stream(trackId: String, tier: String, stereoOnly: Boolean = false): Result<DesktopAddonStream> {
+        val params = settingsFor(tier, stereoOnly)
         return streams.get(keyOf(trackId, params.toString())) {
             fetch<DesktopAddonStream>(endpoint(listOf("stream", trackId), params))
         }
@@ -324,7 +331,7 @@ internal class DesktopAddonClient(rawBaseUrl: String) {
     }
 
     /** The query parameters that travel with every request. */
-    private suspend fun settingsFor(tier: String): Map<String, String> {
+    private suspend fun settingsFor(tier: String, stereoOnly: Boolean = false): Map<String, String> {
         val declared = manifest().getOrNull()?.settings.orEmpty()
         val params = LinkedHashMap<String, String>()
         declared.forEach { setting ->
@@ -339,6 +346,20 @@ internal class DesktopAddonClient(rawBaseUrl: String) {
         }
         // `auto` asks for Atmos when available and stereo otherwise. A declared addon default is
         // authoritative, exactly as on Android, so this never overwrites one.
+        // A stereo row picked by hand is asked for as stereo: no hint, and a declared `atmos`
+        // setting pinned to its "off" value — `auto` there swaps in the row's Atmos sibling.
+        if (stereoOnly) {
+            val atmosSetting = declared.firstOrNull { it.key == ATMOS_KEY }
+            if (atmosSetting == null) {
+                params.remove(ATMOS_KEY)
+            } else {
+                params[ATMOS_KEY] = atmosSetting.options
+                    .mapNotNull { it.stringValue }
+                    .firstOrNull { ATMOS_OFF.matches(it) }
+                    ?: ATMOS_NEVER
+            }
+            return params
+        }
         val atmosWanted = DesktopCodecs.supportsDolbyAtmos && DesktopAddonSettings.dolbyAtmosEnabled
         if (atmosWanted) params.putIfAbsent(ATMOS_KEY, ATMOS_AUTO)
         return params
@@ -428,6 +449,8 @@ internal class DesktopAddonClient(rawBaseUrl: String) {
         private const val QUALITY_KEY = "quality"
         private const val ATMOS_KEY = "atmos"
         private const val ATMOS_AUTO = "auto"
+        private const val ATMOS_NEVER = "0"
+        private val ATMOS_OFF = Regex("0|false|off|no|none|never|stereo", RegexOption.IGNORE_CASE)
         private const val MANIFEST_SUFFIX = "/manifest.json"
         private const val MAX_RETRIES = 2
         private const val BACKOFF_BASE_MS = 500L
@@ -603,6 +626,7 @@ internal object DesktopAddonSource {
                         } else {
                             DesktopModuleSource.qualityTier("${track.audioQuality} ${track.format}")
                         },
+                        sourceHiRes = !track.isDolbyAtmos && track.isHiRes,
                     ),
                 )
             }
@@ -624,16 +648,23 @@ internal object DesktopAddonSource {
         return emptyList()
     }
 
+    /**
+     * @param picked [song] is the queue's own row from this addon — chosen from the Addons search —
+     *   not a match found for another track. A stereo row is then asked for as stereo, with no
+     *   `?atmos=auto` to turn it into its Atmos sibling. Matches and upgrades leave it false.
+     */
     suspend fun stream(
         config: DesktopSourceConfig,
         song: Song,
         quality: String?,
+        picked: Boolean = false,
     ): Result<DesktopStream?> = runCatching {
         val reference = parseTrack(song.videoId)
             ?: return@runCatching null
         refreshPolicy(config)
         val tier = tierFor(quality)
-        val outcome = client(config).stream(reference.trackId, tier)
+        val stereoOnly = picked && song.sourceQuality != null && song.sourceQuality != DesktopModuleSource.DOLBY
+        val outcome = client(config).stream(reference.trackId, tier, stereoOnly)
         val answer = outcome.getOrNull()
         if (answer == null) {
             // A 404 is the addon saying it does not hold this one, which is a miss, not a fault.

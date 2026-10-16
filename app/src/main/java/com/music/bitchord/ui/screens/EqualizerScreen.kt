@@ -324,6 +324,7 @@ private fun TonePad(
     // from where it was the first time this screen composed.
     val latestX by rememberUpdatedState(x)
     val latestY by rememberUpdatedState(y)
+    val currentOnChange by rememberUpdatedState(onChange)
 
     // Spring, not tween: the puck has to keep up with a fast drag and still
     // settle rather than arrive and stop dead.
@@ -360,7 +361,7 @@ private fun TonePad(
                             lastX = newX
                             lastY = newY
                             haptics.play(Haptic.Tick)
-                            onChange(newX, newY)
+                            currentOnChange(newX, newY)
                         }
                     }
                     report(down.position)
@@ -586,7 +587,11 @@ private fun BandFader(
     val knobColor = MaterialTheme.colorScheme.background
     val range = EqLayout.MANUAL_RANGE_DB
     // See [TonePad]: the gesture block outlives the composition that made it.
+    // [onChange] too, and that one matters most: the caller's lambda closes
+    // over the whole band list, so a stale copy writes every *other* band
+    // back to whatever it was when this fader first composed.
     val latest by rememberUpdatedState(value)
+    val currentOnChange by rememberUpdatedState(onChange)
 
     Canvas(
         modifier = Modifier
@@ -609,7 +614,7 @@ private fun BandFader(
                             // people are aiming for when they undo a band.
                             haptics.play(Haptic.Tick)
                             last = snapped
-                            onChange(snapped)
+                            currentOnChange(snapped)
                         }
                     }
                     report(down.position)
@@ -717,6 +722,7 @@ private fun BalanceControl(
     val knobColor = MaterialTheme.colorScheme.background
     // See [TonePad]: the gesture block outlives the composition that made it.
     val latest by rememberUpdatedState(balance)
+    val currentOnChange by rememberUpdatedState(onChange)
 
     Column(Modifier.padding(horizontal = ROW_INSET, vertical = 14.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -758,7 +764,7 @@ private fun BalanceControl(
                             if (abs(snapped - last) > 0.004f) {
                                 if (snapped == 0f && last != 0f) haptics.play(Haptic.Tick)
                                 last = snapped
-                                onChange(snapped)
+                                currentOnChange(snapped)
                             }
                         }
                         report(down.position)

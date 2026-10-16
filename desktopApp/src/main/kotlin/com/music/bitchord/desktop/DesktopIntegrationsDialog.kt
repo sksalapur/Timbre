@@ -37,6 +37,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.music.bitchord.data.NerdStats
 import com.music.bitchord.data.model.Song
 import com.music.bitchord.ui.icons.BitChordIcons
 import java.util.Locale
@@ -186,6 +187,8 @@ private fun DiscordSection(
     val button1Visible by DesktopDiscordSettings.button1Visible.collectAsState()
     val button2Text by DesktopDiscordSettings.button2Text.collectAsState()
     val button2Visible by DesktopDiscordSettings.button2Visible.collectAsState()
+    val showAudioQuality by DesktopDiscordSettings.showAudioQuality.collectAsState()
+    val nerdStats by NerdStats.current.collectAsState()
     LaunchedEffect(Unit) { DesktopDiscordRpc.refreshLocalClient() }
 
     val connected = local || token.isNotBlank()
@@ -222,6 +225,14 @@ private fun DiscordSection(
             checked = advanced,
             enabled = connected && rpcEnabled,
             onCheckedChange = DesktopDiscordSettings::setAdvancedMode,
+        )
+        DesktopCardRule()
+        PanelSwitchRow(
+            title = DesktopStrings["show_audio_quality", "Show audio quality"],
+            subtitle = DesktopStrings["show_audio_quality_subtitle", "Hi-Res, lossless and Dolby specs on the presence card"],
+            checked = showAudioQuality,
+            enabled = connected && rpcEnabled,
+            onCheckedChange = DesktopDiscordSettings::setShowAudioQuality,
         )
     }
 
@@ -322,6 +333,7 @@ private fun DiscordSection(
             heading = activityName.ifEmpty { DesktopDiscordSettings.APP_NAME },
             verb = DesktopDiscordSettings.activityVerb(activityType),
             useDetails = useDetails,
+            audioQuality = desktopAudioQualityLine(nerdStats).takeIf { showAudioQuality },
             button1Text = button1Text,
             button1Visible = button1Visible,
             button2Text = button2Text,
@@ -386,13 +398,13 @@ private fun ScrobblingSection(onOpenLastfm: () -> Unit, onOpenListenBrainz: () -
         DesktopCardRule()
         PanelSwitchRow(
             title = "Last.fm",
+            // No API-key gate: a build without baked-in credentials asks for the
+            // listener's own key and secret in the sign-in dialog instead.
             subtitle = when {
-                !DesktopScrobbling.canSignInToLastFm -> "This build has no Last.fm API key"
                 signedIn -> "Signed in as $lastfmUser"
                 else -> "Tap to sign in"
             },
             checked = lastfmEnabled,
-            enabled = DesktopScrobbling.canSignInToLastFm,
             onCheckedChange = { checked ->
                 if (checked && !signedIn) onOpenLastfm() else DesktopScrobbleSettings.setLastfmEnabled(checked)
             },
@@ -468,6 +480,7 @@ private fun RichPresencePreview(
     heading: String,
     verb: String,
     useDetails: Boolean,
+    audioQuality: String?,
     button1Text: String,
     button1Visible: Boolean,
     button2Text: String,
@@ -510,7 +523,7 @@ private fun RichPresencePreview(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-                song?.albumName?.let {
+                audioQuality?.let {
                     Text(
                         it,
                         style = MaterialTheme.typography.bodySmall,

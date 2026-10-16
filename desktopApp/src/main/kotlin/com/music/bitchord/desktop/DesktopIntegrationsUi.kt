@@ -53,16 +53,22 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
 /**
- * Signing in to Last.fm with a username and password.
+ * Signing in to Last.fm — the whole setup in one dialog.
  *
- * Android's `LastfmLoginAlert`: two fields, and the error takes the
- * description's place rather than appearing beside it, because a wrong password
- * is the only thing anybody needs told at that moment. The password is sent to
- * `auth.getMobileSession` and never stored — only the session key it returns.
+ * Last.fm signs every request with the *app's* API key and shared secret, so a
+ * build that shipped without them baked in (no `local.properties`) still needs
+ * them before the account password means anything. Android lets the listener
+ * enter those two under AppSettings; here they join the username and password on
+ * one screen so there is a single, obvious way in rather than a switch that is
+ * greyed out until a key turns up from somewhere. The key and secret are kept so
+ * later scrobbles can sign themselves; the password is sent to
+ * `auth.getMobileSession` once and only the returned session key is stored.
  */
 @Composable
 internal fun DesktopLastfmLoginDialog(onDismiss: () -> Unit) {
-    var username by remember { mutableStateOf("") }
+    var apiKey by remember { mutableStateOf(DesktopScrobbleSettings.lastfmApiKey.value) }
+    var apiSecret by remember { mutableStateOf(DesktopScrobbleSettings.lastfmApiSecret.value) }
+    var username by remember { mutableStateOf(DesktopScrobbleSettings.lastfmUsername.value) }
     var password by remember { mutableStateOf("") }
     var error by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
@@ -70,10 +76,22 @@ internal fun DesktopLastfmLoginDialog(onDismiss: () -> Unit) {
     val focus = remember { FocusRequester() }
     LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
 
+    // A release build signs in with BitChord's own app key, so only a build
+    // without one asks for the listener's — the two fields are not shown otherwise.
+    val needsAppKey = !DesktopScrobbling.hasBuiltInLastFmKey
+    val ready = username.isNotBlank() && password.isNotBlank() &&
+        (!needsAppKey || (apiKey.isNotBlank() && apiSecret.isNotBlank()))
+
     fun submit() {
-        if (busy || username.isBlank() || password.isBlank()) return
+        if (busy || !ready) return
         busy = true
         error = null
+        // Save the app credentials first: the sign-in request is signed with them,
+        // and every scrobble afterwards reads them back from here.
+        if (needsAppKey) {
+            DesktopScrobbleSettings.setLastfmApiKey(apiKey.trim())
+            DesktopScrobbleSettings.setLastfmApiSecret(apiSecret.trim())
+        }
         scope.launch {
             DesktopScrobbling.signInToLastFm(username.trim(), password)
                 .onSuccess { onDismiss() }
@@ -82,19 +100,45 @@ internal fun DesktopLastfmLoginDialog(onDismiss: () -> Unit) {
         }
     }
 
-    DesktopDialogPanel(onDismiss = onDismiss, maxWidth = 380) {
+    DesktopDialogPanel(onDismiss = onDismiss, maxWidth = 400) {
         DialogHeading(
             title = DesktopStrings["d_sign_in_to_last_fm", "Sign in to Last.fm"],
-            message = error ?: "Your password is sent to Last.fm once and never stored.",
+            message = error
+                ?: if (needsAppKey) {
+                    "Your password is sent to Last.fm once and never stored. The API key " +
+                        "and shared secret are your app's, from last.fm/api."
+                } else {
+                    "Your password is sent to Last.fm once and never stored."
+                },
             isError = error != null,
         )
+        if (needsAppKey) {
+            DialogField(
+                value = apiKey,
+                onValueChange = { apiKey = it },
+                placeholder = DesktopStrings["lastfm_api_key", "API key"],
+                enabled = !busy,
+                imeAction = ImeAction.Next,
+                modifier = Modifier.focusRequester(focus),
+            )
+            Spacer(Modifier.height(8.dp))
+            DialogField(
+                value = apiSecret,
+                onValueChange = { apiSecret = it },
+                placeholder = DesktopStrings["lastfm_shared_secret", "Shared secret"],
+                enabled = !busy,
+                isPassword = true,
+                imeAction = ImeAction.Next,
+            )
+            Spacer(Modifier.height(8.dp))
+        }
         DialogField(
             value = username,
             onValueChange = { username = it },
             placeholder = DesktopStrings["username", "Username"],
             enabled = !busy,
             imeAction = ImeAction.Next,
-            modifier = Modifier.focusRequester(focus),
+            modifier = if (needsAppKey) Modifier else Modifier.focusRequester(focus),
         )
         Spacer(Modifier.height(8.dp))
         DialogField(
@@ -105,9 +149,23 @@ internal fun DesktopLastfmLoginDialog(onDismiss: () -> Unit) {
             isPassword = true,
             onSubmit = ::submit,
         )
+        if (needsAppKey) {
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = panelInset(22.dp)),
+                horizontalArrangement = Arrangement.Start,
+            ) {
+                TextButton(onClick = { DesktopExternalLinks.open("https://www.last.fm/api/account/create") }) {
+                    Text(
+                        DesktopStrings["d_get_an_api_key", "Get an API key"],
+                        color = DesktopSecondary,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+            }
+        }
         DialogActions(
             confirm = if (busy) "Signing in…" else "Sign in",
-            confirmEnabled = !busy && username.isNotBlank() && password.isNotBlank(),
+            confirmEnabled = !busy && ready,
             busy = busy,
             onConfirm = ::submit,
             onDismiss = onDismiss,

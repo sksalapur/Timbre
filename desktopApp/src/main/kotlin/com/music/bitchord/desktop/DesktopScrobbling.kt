@@ -58,6 +58,15 @@ object DesktopScrobbling {
     val canSignInToLastFm: Boolean
         get() = apiKey != null && apiSecret != null
 
+    /**
+     * Whether this build carries BitChord's own Last.fm app credentials (a release
+     * build does). Then signing in needs only the account; a build without them
+     * asks the listener for their own key and secret as well.
+     */
+    val hasBuiltInLastFmKey: Boolean
+        get() = (property("bitchord.lastfm.key") ?: env("BITCHORD_LASTFM_API_KEY")) != null &&
+            (property("bitchord.lastfm.secret") ?: env("BITCHORD_LASTFM_API_SECRET")) != null
+
     val lastFmConfigured: Boolean
         get() = apiKey != null && apiSecret != null && sessionKey() != null &&
             DesktopScrobbleSettings.lastfmEnabled.value
@@ -65,11 +74,16 @@ object DesktopScrobbling {
     val listenBrainzConfigured: Boolean
         get() = listenBrainzToken() != null && DesktopScrobbleSettings.listenBrainzEnabled.value
 
+    // A key the listener entered in Settings wins; a build that baked one in
+    // (or ran with one in the environment) is the fallback, exactly as on
+    // Android where AppSettings.lastfmApiKey falls back to BuildConfig.
     private val apiKey: String?
-        get() = property("bitchord.lastfm.key") ?: env("BITCHORD_LASTFM_API_KEY")
+        get() = DesktopScrobbleSettings.lastfmApiKey.value.takeIf(String::isNotBlank)
+            ?: property("bitchord.lastfm.key") ?: env("BITCHORD_LASTFM_API_KEY")
 
     private val apiSecret: String?
-        get() = property("bitchord.lastfm.secret") ?: env("BITCHORD_LASTFM_API_SECRET")
+        get() = DesktopScrobbleSettings.lastfmApiSecret.value.takeIf(String::isNotBlank)
+            ?: property("bitchord.lastfm.secret") ?: env("BITCHORD_LASTFM_API_SECRET")
 
     private fun sessionKey(): String? =
         DesktopScrobbleSettings.lastfmSessionKey.value.takeIf(String::isNotBlank)

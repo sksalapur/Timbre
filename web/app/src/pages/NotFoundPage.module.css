@@ -1,0 +1,13 @@
+.body {
+  margin: 8px var(--body-gutter);
+  font: var(--title-3);
+  color: var(--systemSecondary);
+}
+
+.link {
+  color: var(--keyColor);
+}
+
+.link:hover {
+  text-decoration: underline;
+}
