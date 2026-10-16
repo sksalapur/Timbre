@@ -79,9 +79,24 @@ function Row({ track, variant, position, fallbackArtwork, onPlayRow }: RowProps)
       <div className={`${styles.cell} ${styles.song}`}>
         <div className={styles.lead}>
           {variant === 'playlist' ? (
-            <Artwork src={track.thumbnail ?? fallbackArtwork ?? null} displayWidth={40} radius="var(--radius-artwork-small)" />
+            <>
+              <Artwork src={track.thumbnail ?? fallbackArtwork ?? null} displayWidth={40} radius="var(--radius-artwork-small)" />
+              {current && (
+                <span className={`${styles.nowPlaying} ${styles.overArtwork}`} aria-label="Now playing">
+                  <PlayIcon size={18} />
+                </span>
+              )}
+            </>
           ) : (
-            <span className={styles.index}>{current ? <span className={styles.bars} aria-label="Now playing" /> : (track.index ?? position)}</span>
+            <span className={styles.index}>
+              {current ? (
+                <span className={styles.nowPlaying} aria-label="Now playing">
+                  <PlayIcon size={14} />
+                </span>
+              ) : (
+                (track.index ?? position)
+              )}
+            </span>
           )}
           <button
             className={styles.play}

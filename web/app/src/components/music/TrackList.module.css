@@ -77,13 +77,12 @@
 }
 
 .row[data-current] {
-  background-color: var(--selectionColor);
-  color: #ffffffd9;
+  background-color: color-mix(in srgb, var(--systemPrimary) 12%, transparent);
 }
 
 .row[data-current] .title,
 .row[data-current] .link {
-  color: #fff;
+  color: var(--systemPrimary);
 }
 
 .song {
@@ -132,12 +131,8 @@
 }
 
 .row:hover .index,
-.row:hover .bars {
+.row:hover .nowPlaying {
   visibility: hidden;
-}
-
-.row[data-current] .play {
-  color: #fff;
 }
 
 .titleBlock {
@@ -201,26 +196,19 @@
   text-decoration: underline;
 }
 
-/* Now-playing bars: three bars rising and falling, still under reduced motion. */
-.bars {
-  display: inline-block;
-  width: 12px;
-  height: 12px;
-  background:
-    linear-gradient(currentColor, currentColor) 0 100% / 3px 60% no-repeat,
-    linear-gradient(currentColor, currentColor) 50% 100% / 3px 100% no-repeat,
-    linear-gradient(currentColor, currentColor) 100% 100% / 3px 40% no-repeat;
-  color: #fff;
-  animation: bars 0.9s ease-in-out infinite alternate;
+/* The playing row's marker: a still play glyph where the number (or over the artwork) was. */
+.nowPlaying {
+  display: grid;
+  place-items: center;
+  color: var(--systemPrimary);
 }
 
-@keyframes bars {
-  to {
-    background-size:
-      3px 30%,
-      3px 55%,
-      3px 90%;
-  }
+.overArtwork {
+  position: absolute;
+  inset: 0;
+  border-radius: var(--radius-artwork-small);
+  background-color: rgb(0 0 0 / 0.45);
+  color: #fff;
 }
 
 @media (max-width: 767.98px) {
