@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { resumeSession } from '@/party/listenTogether';
 import { startPartySync } from '@/party/partySync';
 import { useDiscordPresence } from '@/playback/discordPresence';
+import { startHistoryReporting } from '@/playback/historyReporting';
 import { Outlet } from 'react-router';
 import { PrefetchLink } from '@/components/PrefetchLink';
 import { config } from '@/config';
@@ -30,6 +31,8 @@ export function AppShell() {
     resumeSession();
     return startPartySync();
   }, []);
+  // Plays into the account's YouTube Music history (Settings › Share Listening Activity).
+  useEffect(() => startHistoryReporting(), []);
   const extension = useExtension();
   const bannerDismissed = useUi((s) => s.installBannerDismissed);
   const dismissBanner = useUi((s) => s.dismissInstallBanner);

@@ -8,6 +8,7 @@ import { useDiscord } from '@/extension/useDiscord';
 import { useExtension } from '@/extension/useExtension';
 import { useYtAuth } from '@/extension/useYtAuth';
 import { useParty } from '@/party/useParty';
+import { useHistorySettings } from '@/playback/historyReporting';
 import { CROSSFADE_CHOICES, usePlayer } from '@/state/player';
 import { CanvasToggle, DiscordIntegration, SpotifyIntegration, Toggle } from './IntegrationSettings';
 import styles from './ExtensionPage.module.css';
@@ -57,6 +58,8 @@ export default function SettingsPage() {
   const party = useParty();
   const autoplay = usePlayer((s) => s.autoplay);
   const crossfadeSec = usePlayer((s) => s.crossfadeSec);
+  const shareHistory = useHistorySettings((s) => s.share);
+  const setShareHistory = useHistorySettings((s) => s.setShare);
   const { setAutoplay, setCrossfade } = usePlayer.getState();
   const [lyrics, setLyrics] = useState(false);
   const present = extension.state === 'present';
@@ -96,6 +99,12 @@ export default function SettingsPage() {
           />
         </section>
         <section className={`${styles.group} ${styles.spaced}`}>
+          <Toggle
+            label="Share Listening Activity to YouTube"
+            detail="Songs you play here go to your YouTube Music history and shape its recommendations."
+            checked={shareHistory}
+            onChange={setShareHistory}
+          />
           <CanvasToggle />
         </section>
 
