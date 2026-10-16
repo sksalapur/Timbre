@@ -1,20 +1,23 @@
-import { ListMusic, MessageSquareQuote, Repeat, Repeat1, Shuffle, Volume, Volume1, Volume2, VolumeX } from 'lucide-react';
 import { useState } from 'react';
-import { BackwardIcon, ForwardIcon, PauseIcon, PlayIcon } from '@/components/icons/Transport';
+import {
+  BackwardIcon,
+  ForwardIcon,
+  LyricsActiveIcon,
+  LyricsIcon,
+  PauseIcon,
+  PlayIcon,
+  RepeatIcon,
+  RepeatOneIcon,
+  ShuffleIcon,
+  UpNextIcon,
+  VolumeIcon,
+} from '@/components/icons/Transport';
 import { FavoriteButton } from '@/components/music/FavoriteButton';
 import { useLyrics } from '@/lyrics/useLyrics';
 import { usePlayer } from '@/state/player';
 import { useUi } from '@/state/ui';
 import { Lcd } from './Lcd';
 import styles from './PlayerBar.module.css';
-
-/** Speaker glyph for the level, as the system volume indicator draws it. */
-function VolumeGlyph({ volume, muted }: { volume: number; muted: boolean }) {
-  if (muted || volume === 0) return <VolumeX size={18} strokeWidth={2} />;
-  if (volume < 0.34) return <Volume size={18} strokeWidth={2} />;
-  if (volume < 0.67) return <Volume1 size={18} strokeWidth={2} />;
-  return <Volume2 size={18} strokeWidth={2} />;
-}
 
 /** Apple's volume control: the speaker mutes; hovering it shows the slider. */
 function VolumeControl() {
@@ -27,7 +30,7 @@ function VolumeControl() {
   return (
     <div className={styles.volume} onPointerEnter={() => setOpen(true)} onPointerLeave={() => setOpen(false)}>
       <button className={styles.action} aria-label={muted ? 'Unmute' : 'Mute'} aria-pressed={muted} onClick={toggleMute}>
-        <VolumeGlyph volume={volume} muted={muted} />
+        <VolumeIcon level={level} size={20} />
       </button>
       {open && (
         <div className={styles.volumePopover}>
@@ -67,17 +70,17 @@ export function PlayerBar() {
       <div className={styles.pill} role="region" aria-label="Player">
         <div className={styles.controls}>
           <button className={styles.small} aria-label="Shuffle" aria-pressed={shuffle} onClick={toggleShuffle}>
-            <Shuffle size={16} strokeWidth={2.2} />
+            <ShuffleIcon size={28} />
           </button>
           <div className={styles.main}>
             <button className={styles.skip} disabled={!hasTrack} aria-label="Previous" onClick={previous}>
-              <BackwardIcon size={22} />
+              <BackwardIcon size={26} />
             </button>
             <button className={styles.play} disabled={!hasTrack} aria-label={playing ? 'Pause' : 'Play'} onClick={togglePlay}>
-              {playing ? <PauseIcon size={24} /> : <PlayIcon size={24} />}
+              {playing ? <PauseIcon size={28} /> : <PlayIcon size={28} />}
             </button>
             <button className={styles.skip} disabled={!hasTrack || !hasNext} aria-label="Next" onClick={next}>
-              <ForwardIcon size={22} />
+              <ForwardIcon size={26} />
             </button>
           </div>
           <button
@@ -86,7 +89,7 @@ export function PlayerBar() {
             aria-pressed={repeat !== 'off'}
             onClick={cycleRepeat}
           >
-            {repeat === 'one' ? <Repeat1 size={16} strokeWidth={2.2} /> : <Repeat size={16} strokeWidth={2.2} />}
+            {repeat === 'one' ? <RepeatOneIcon size={28} /> : <RepeatIcon size={28} />}
           </button>
         </div>
 
@@ -103,7 +106,7 @@ export function PlayerBar() {
               aria-pressed={sidePanel === 'lyrics'}
               onClick={() => toggleSidePanel('lyrics')}
             >
-              <MessageSquareQuote size={18} strokeWidth={2} />
+              {sidePanel === 'lyrics' ? <LyricsActiveIcon size={18} /> : <LyricsIcon size={18} />}
             </button>
           )}
           <button
@@ -112,7 +115,7 @@ export function PlayerBar() {
             aria-pressed={sidePanel === 'up-next'}
             onClick={() => toggleSidePanel('up-next')}
           >
-            <ListMusic size={18} strokeWidth={2} />
+            <UpNextIcon size={18} />
           </button>
           <VolumeControl />
         </div>

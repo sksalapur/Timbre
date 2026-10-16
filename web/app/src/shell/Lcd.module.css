@@ -16,6 +16,9 @@
 }
 
 .artwork {
+  transition:
+    filter 0.15s ease,
+    opacity 0.15s ease;
   width: 34px;
   height: 34px;
   border-radius: 6px;
@@ -36,6 +39,9 @@
 }
 
 .meta {
+  transition:
+    filter 0.15s ease,
+    opacity 0.15s ease;
   display: flex;
   flex-direction: column;
   min-width: 0;
@@ -102,33 +108,36 @@
   bottom: 5px;
 }
 
-/* Elapsed and remaining, shown on hover at the line's ends; the line shortens to make room. */
-.lcd:hover .progress,
-.scrubber[data-dragging] .progress {
-  left: 34px;
-  right: 34px;
+/*
+ * On hover the track's artwork and names soften into the background, and the
+ * elapsed and remaining times sit above the line's two ends, which keeps its
+ * full width.
+ */
+.lcd:hover .artwork,
+.lcd:hover .meta,
+.lcd:has(.scrubber[data-dragging]) .artwork,
+.lcd:has(.scrubber[data-dragging]) .meta {
+  filter: blur(3px);
+  opacity: 0.3;
 }
 
 .time {
   position: absolute;
-  bottom: 2px;
-  width: 30px;
-  font: 500 10px / 12px var(--font-family);
+  bottom: 11px;
+  font: 600 11px / 13px var(--font-family);
   font-variant-numeric: tabular-nums;
-  color: var(--systemSecondary);
+  color: var(--systemPrimary);
   opacity: 0;
-  transition: opacity 0.1s ease-in;
+  transition: opacity 0.15s ease;
   pointer-events: none;
 }
 
 .elapsed {
   left: 0;
-  text-align: start;
 }
 
 .remaining {
   right: 0;
-  text-align: end;
 }
 
 .lcd:hover .time,
