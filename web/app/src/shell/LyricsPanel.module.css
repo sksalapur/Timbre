@@ -1,0 +1,155 @@
+/* The Lyrics side panel (report §7): am-lyrics fills it; a slim provider bar sits on top. */
+
+/*
+ * The phone's lyric typeface (SF Pro Display, app/src/main/res/font), cut to
+ * Latin, Greek and Cyrillic. Other scripts fall through to DM Sans and the
+ * system fonts. Its own family name, so a copy installed on a Mac can't stand in.
+ */
+@font-face {
+  font-family: 'BitChord SF Pro Display';
+  src: url('../assets/fonts/sf-pro-display-regular.woff2') format('woff2');
+  font-weight: 400;
+  font-display: block;
+  unicode-range: U+0000-024F, U+0259, U+02B0-036F, U+0370-03FF, U+0400-052F, U+1E00-1EFF, U+2000-206F, U+20A0-20CF,
+    U+2100-214F, U+2190-21FF, U+2212, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: 'BitChord SF Pro Display';
+  src: url('../assets/fonts/sf-pro-display-bold.woff2') format('woff2');
+  font-weight: 700;
+  font-display: block;
+  unicode-range: U+0000-024F, U+0259, U+02B0-036F, U+0370-03FF, U+0400-052F, U+1E00-1EFF, U+2000-206F, U+20A0-20CF,
+    U+2100-214F, U+2190-21FF, U+2212, U+FEFF, U+FFFD;
+}
+
+.panel {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 16px 4px;
+}
+
+.picker {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border-radius: 8px;
+  font: var(--callout-emphasized);
+  color: var(--systemSecondary);
+}
+
+.picker:hover,
+.icon:hover {
+  background-color: var(--systemQuinary);
+}
+
+.icon {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  color: var(--systemSecondary);
+}
+
+.notice {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 6px 16px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background-color: var(--systemQuinary);
+  font: var(--callout);
+  color: var(--systemSecondary);
+}
+
+.notice button {
+  flex: none;
+  font: var(--callout-emphasized);
+  color: var(--keyColor);
+}
+
+/* am-lyrics renders and scrolls itself; it only needs the space. */
+.host {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+
+.lyrics {
+  display: block;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  --am-lyrics-highlight-color: #fff;
+}
+
+.empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 24px 80px;
+  text-align: center;
+  font: 400 12px / 16px var(--font-family);
+  color: var(--systemSecondary);
+}
+
+.emptyTitle {
+  font: 600 12px / 16px var(--font-family);
+}
+
+.spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Spotify Canvas (prompt §7.1): behind everything, blurred and dimmed, faded in once it plays. */
+.panel {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+}
+
+/*
+ * The blur runs on a quarter-size video that is then scaled up 4×: a 3px blur
+ * there reads as about 12px on screen for a sixteenth of the pixels, which is
+ * what keeps a blurred, playing video cheap. The 5% overscan on each side
+ * keeps the soft edges out of view.
+ */
+.canvas {
+  position: absolute;
+  top: -5%;
+  left: -5%;
+  z-index: -1;
+  width: 27.5%;
+  height: 27.5%;
+  transform: scale(4);
+  transform-origin: 0 0;
+  filter: blur(3px);
+  object-fit: cover;
+  opacity: 0;
+  transition: opacity 0.6s ease;
+  mask-image: linear-gradient(to bottom, rgb(0 0 0 / 1), rgb(0 0 0 / 0.85));
+}
+
+.canvas[data-ready] {
+  opacity: 0.85;
+}
