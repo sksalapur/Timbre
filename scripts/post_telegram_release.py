@@ -7,10 +7,11 @@ import re
 import html
 
 DEFAULT_BOT_TOKEN = "8851295493:AAGc1sLYeu23iS43OL5dF6fXkkeQXGAxF1c"
+DEFAULT_CHAT_ID = "@Timbre_Community"
 
 def post_telegram_release(tag, repo, notes_file, banner_image):
     bot_token = os.environ.get("TELEGRAM_BOT_TOKEN", "").strip() or DEFAULT_BOT_TOKEN
-    chat_id = os.environ.get("TELEGRAM_CHAT_ID", "@Timbre_Community").strip()
+    chat_id = os.environ.get("TELEGRAM_CHAT_ID", "").strip() or DEFAULT_CHAT_ID
 
     if not bot_token:
         print("[WARNING] TELEGRAM_BOT_TOKEN not provided in environment. Skipping Telegram broadcast.")
@@ -25,7 +26,11 @@ def post_telegram_release(tag, repo, notes_file, banner_image):
 
     # Extract highlights or changelog if available
     changelog_section = ""
-    if "Timbre Studio:" in body_text:
+    if "Major Breakthroughs" in body_text:
+        parts = re.split(r"[#\s]*Major Breakthroughs[^\n]*", body_text, maxsplit=1)
+        if len(parts) > 1:
+            changelog_section = parts[1].split("---")[0].strip()
+    elif "Timbre Studio:" in body_text:
         parts = re.split(r"Timbre Studio:[^\n]*", body_text, maxsplit=1)
         if len(parts) > 1:
             changelog_section = parts[1].split("---")[0].strip()
@@ -41,25 +46,39 @@ def post_telegram_release(tag, repo, notes_file, banner_image):
 
     clean_lines = []
     if changelog_section:
-        for line in changelog_section.splitlines()[:15]:
+        for line in changelog_section.splitlines():
             line = line.strip()
             if not line or line.startswith("![") or line.startswith("#"):
+                if line.startswith("####"):
+                    title = re.sub(r"^####\s*(\d+\.?\s*)?", "", line).strip()
+                    title = title.split("(")[0].strip()
+                    clean_lines.append(f"• <b>{html.escape(title)}</b>")
                 continue
-            if ":" in line and len(line) > 100:
-                line = line[:97] + "..."
-            clean_lines.append(html.escape(line))
+            if line.startswith("*") or line.startswith("-"):
+                sub_line = line.lstrip("*- ").strip()
+                m = re.match(r"^\*\*(.*?)\*\*:\s*(.*)", sub_line)
+                if m:
+                    label = m.group(1).strip()
+                    desc = m.group(2).strip()
+                    if len(desc) > 65:
+                        desc = desc[:62] + "..."
+                    clean_lines.append(f"  - <i>{html.escape(label)}</i>: {html.escape(desc)}")
+                else:
+                    sub_line = re.sub(r"\*\*(.*?)\*\*", r"<b>\1</b>", sub_line)
+                    if len(sub_line) > 75:
+                        sub_line = sub_line[:72] + "..."
+                    clean_lines.append(f"  - {html.escape(sub_line)}")
+            if len(clean_lines) >= 6:
+                break
 
-    changelog_snippet = "\n".join(clean_lines[:10])
-    if not changelog_snippet:
-        changelog_snippet = (
-            "• 💎 <b>Bit-Exact Certification</b> & direct hardware DAC routing\n"
-            "• 📡 <b>Bluetooth Telemetry</b>: Real-time LDAC 990k / aptX / AAC readout\n"
-            "• 🛡️ <b>Purist Mode</b>: 'Lossless or Nothing' gatekeeper with auto-skip\n"
-            "• ⏱️ <b>Priority Window</b>: 0.5s–8.0s slider with instant fallback race\n"
-            "• 🧠 <b>Buffer Sizing</b> & bit-perfect rate switching (44.1–192kHz)\n"
-            "• ⏩ <b>Concurrent Lookahead</b>: 3–20 track parallel pre-warming\n"
-            "• 💾 <b>True FLAC Disk Cache</b>: #alt-noatmos alignment & retention"
-        )
+    changelog_snippet = "\n".join(clean_lines) if clean_lines else (
+        "• 💎 <b>Bit-Exact Direct USB DAC Access</b>: AudioFlinger OS mixer bypass\n"
+        "• ⚡ <b>Full 24-bit librempeg Decoder</b>: Eliminates 16-bit truncation\n"
+        "• 🔌 <b>Smart Gated USB Permission</b>: Foreground lifecycle & auto-rebuild\n"
+        "• 🎵 <b>Seamless Track Transitions</b>: Continuous bit-exact telemetry\n"
+        "• 🛡️ <b>Truthful Color-Coding</b>: Dynamic yellow mixer & speaker warnings\n"
+        "• 💾 <b>Timbre Studio Cloud Backup</b>: Custom sources & options portability"
+    )
 
     arm64_url = f"https://github.com/{repo}/releases/download/{tag}/Timbre-{tag}-arm64.apk"
     universal_url = f"https://github.com/{repo}/releases/download/{tag}/Timbre-{tag}.apk"
@@ -68,13 +87,17 @@ def post_telegram_release(tag, repo, notes_file, banner_image):
 
     caption_text = (
         f"🚀 <b>Timbre {tag} Released!</b>\n"
-        f"<i>Introducing the Timbre Studio Audiophile Suite</i>\n\n"
+        f"<i>True Bit-Perfect & Exclusive USB DAC Milestone</i>\n\n"
         f"✨ <b>Release Highlights:</b>\n"
         f"{changelog_snippet}\n\n"
         f"📲 <b>Direct Downloads:</b>\n"
         f"• <b>ARM64</b> (Recommended): <a href=\"{arm64_url}\">Timbre-{tag}-arm64.apk</a>\n"
         f"• <b>Universal</b> (All devices): <a href=\"{universal_url}\">Timbre-{tag}.apk</a>"
     )
+
+    # Strictly guarantee caption under 950 chars (Telegram hard cap 1024)
+    if len(caption_text) > 950:
+        caption_text = caption_text[:920] + "...\n\n<i>Full changelog on GitHub.</i>"
 
     inline_keyboard = {
         "inline_keyboard": [
@@ -89,38 +112,41 @@ def post_telegram_release(tag, repo, notes_file, banner_image):
         ]
     }
 
-    send_url = f"https://api.telegram.org/bot{bot_token}/sendPhoto"
+    posted_successfully = False
     if os.path.exists(banner_image):
         print(f"Posting Telegram photo announcement with banner: {banner_image}...")
         boundary = "----WebKitFormBoundary7MA4YWxkTrZu0gW"
-        with open(banner_image, "rb") as bf:
-            img_data = bf.read()
-
-        body = bytearray()
-        body.extend(f"--{boundary}\r\nContent-Disposition: form-data; name=\"chat_id\"\r\n\r\n{chat_id}\r\n".encode("utf-8"))
-        body.extend(f"--{boundary}\r\nContent-Disposition: form-data; name=\"caption\"\r\n\r\n{caption_text}\r\n".encode("utf-8"))
-        body.extend(f"--{boundary}\r\nContent-Disposition: form-data; name=\"parse_mode\"\r\n\r\nHTML\r\n".encode("utf-8"))
-        body.extend(f"--{boundary}\r\nContent-Disposition: form-data; name=\"reply_markup\"\r\n\r\n{json.dumps(inline_keyboard)}\r\n".encode("utf-8"))
-        body.extend(f"--{boundary}\r\nContent-Disposition: form-data; name=\"photo\"; filename=\"Banner.png\"\r\nContent-Type: image/png\r\n\r\n".encode("utf-8"))
-        body.extend(img_data)
-        body.extend(f"\r\n--{boundary}--\r\n".encode("utf-8"))
-
-        req = urllib.request.Request(
-            send_url,
-            data=body,
-            headers={"Content-Type": f"multipart/form-data; boundary={boundary}", "User-Agent": "Timbre-Automation"}
-        )
         try:
-            with urllib.request.urlopen(req) as resp:
+            with open(banner_image, "rb") as bf:
+                img_data = bf.read()
+
+            body = bytearray()
+            body.extend(f"--{boundary}\r\nContent-Disposition: form-data; name=\"chat_id\"\r\n\r\n{chat_id}\r\n".encode("utf-8"))
+            body.extend(f"--{boundary}\r\nContent-Disposition: form-data; name=\"caption\"\r\n\r\n{caption_text}\r\n".encode("utf-8"))
+            body.extend(f"--{boundary}\r\nContent-Disposition: form-data; name=\"parse_mode\"\r\n\r\nHTML\r\n".encode("utf-8"))
+            body.extend(f"--{boundary}\r\nContent-Disposition: form-data; name=\"reply_markup\"\r\n\r\n{json.dumps(inline_keyboard)}\r\n".encode("utf-8"))
+            body.extend(f"--{boundary}\r\nContent-Disposition: form-data; name=\"photo\"; filename=\"Banner.png\"\r\nContent-Type: image/png\r\n\r\n".encode("utf-8"))
+            body.extend(img_data)
+            body.extend(f"\r\n--{boundary}--\r\n".encode("utf-8"))
+
+            send_url = f"https://api.telegram.org/bot{bot_token}/sendPhoto"
+            req = urllib.request.Request(
+                send_url,
+                data=body,
+                headers={"Content-Type": f"multipart/form-data; boundary={boundary}", "User-Agent": "Timbre-Automation"}
+            )
+            with urllib.request.urlopen(req, timeout=30) as resp:
                 res_data = json.loads(resp.read().decode("utf-8"))
                 if res_data.get("ok"):
-                    print("✅ Successfully broadcast release update to Telegram!")
+                    print("✅ Successfully broadcast photo release update to Telegram!")
+                    posted_successfully = True
                 else:
-                    print(f"❌ Telegram API returned error: {res_data}")
+                    print(f"⚠️ Telegram sendPhoto returned: {res_data}")
         except Exception as e:
-            print(f"❌ Failed to send photo update to Telegram: {e}")
-    else:
-        print("Banner image not found, falling back to sendMessage...")
+            print(f"⚠️ Failed to send photo update to Telegram ({e}), attempting sendMessage fallback...")
+
+    if not posted_successfully:
+        print("Falling back to sendMessage...")
         msg_url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
         payload = {
             "chat_id": chat_id,
@@ -135,12 +161,13 @@ def post_telegram_release(tag, repo, notes_file, banner_image):
             headers={"Content-Type": "application/json", "User-Agent": "Timbre-Automation"}
         )
         try:
-            with urllib.request.urlopen(req) as resp:
+            with urllib.request.urlopen(req, timeout=30) as resp:
                 res_data = json.loads(resp.read().decode("utf-8"))
                 if res_data.get("ok"):
                     print("✅ Successfully broadcast text release update to Telegram!")
+                    posted_successfully = True
                 else:
-                    print(f"❌ Telegram API returned error: {res_data}")
+                    print(f"❌ Telegram sendMessage returned: {res_data}")
         except Exception as e:
             print(f"❌ Failed to send message to Telegram: {e}")
 
