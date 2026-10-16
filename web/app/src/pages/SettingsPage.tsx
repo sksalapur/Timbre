@@ -15,9 +15,9 @@ import styles from './ExtensionPage.module.css';
 const LyricsSettings = lazy(() => import('@/shell/LyricsSettings').then((m) => ({ default: m.LyricsSettings })));
 
 /** An integration's coloured glyph, as on the Extension page. */
-function Glyph({ Icon, color }: { Icon: ComponentType<{ size?: number }>; color: string }) {
+function Glyph({ Icon, color, ink }: { Icon: ComponentType<{ size?: number }>; color: string; ink?: string }) {
   return (
-    <span className={styles.integrationIcon} style={{ backgroundColor: color }}>
+    <span className={styles.integrationIcon} style={{ backgroundColor: color, ...(ink && { color: ink }) }}>
       <Icon size={15} />
     </span>
   );
@@ -70,13 +70,13 @@ export default function SettingsPage() {
         : null;
 
   return (
-    <>
+    <div className={styles.centered}>
       <PageHeader title="Settings" />
       <div className={styles.body}>
         <h2 className={styles.sectionHeader}>Account & Integrations</h2>
         <section className={styles.group}>
           <div className={styles.integration}>
-            <Glyph Icon={SiYoutubemusic} color="#ff0033" />
+            <Glyph Icon={SiYoutubemusic} color="#636366" ink="#ff0033" />
             <span className={styles.integrationName}>YouTube Music</span>
             <span className={styles.value}>{youtubeText(yt)}</span>
           </div>
@@ -145,6 +145,6 @@ export default function SettingsPage() {
           <LyricsSettings onClose={() => setLyrics(false)} />
         </Suspense>
       )}
-    </>
+    </div>
   );
 }

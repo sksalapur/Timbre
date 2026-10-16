@@ -1,5 +1,11 @@
 /* Grouped inset rows, the settings idiom the app uses elsewhere. */
 
+/* The page title and its rows as one column, centred in the page. */
+.centered {
+  max-width: calc(640px + 2 * var(--body-gutter));
+  margin-inline: auto;
+}
+
 .body {
   max-width: 640px;
   margin: 20px var(--body-gutter) 120px;

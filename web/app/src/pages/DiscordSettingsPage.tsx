@@ -7,7 +7,7 @@ import styles from './ExtensionPage.module.css';
 export default function DiscordSettingsPage() {
   const status = useDiscord();
   return (
-    <>
+    <div className={styles.centered}>
       <PageHeader title="Discord" />
       <div className={styles.body}>
         <section className={styles.group}>
@@ -29,6 +29,6 @@ export default function DiscordSettingsPage() {
           </>
         )}
       </div>
-    </>
+    </div>
   );
 }

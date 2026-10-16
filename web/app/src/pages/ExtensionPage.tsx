@@ -111,7 +111,7 @@ export default function ExtensionPage() {
   const steps = DOWNLOADS.find((d) => d.browser === chosen)?.steps;
 
   return (
-    <>
+    <div className={styles.centered}>
       <PageHeader title="BitChord Extension" />
       <div className={styles.body}>
         <section className={styles.group} aria-live="polite">
@@ -243,6 +243,6 @@ export default function ExtensionPage() {
           .
         </p>
       </div>
-    </>
+    </div>
   );
 }

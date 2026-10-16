@@ -100,9 +100,27 @@ export async function fetchAlbum(id: string): Promise<AlbumPage> {
   return mapAlbum(id, await yt.music.getAlbum(id));
 }
 
+/** How many top songs an artist page lists, as on the phone. */
+const ARTIST_TOP_SONGS = 20;
+
+/**
+ * An artist. The landing page only lists five songs, so its linked "Top
+ * songs" playlist fills the list out (YtMusicRepository.artistPage); if that
+ * fails, the five stand.
+ */
 export async function fetchArtist(id: string): Promise<ArtistPage> {
   const yt = await getMusicClient();
-  return mapArtist(id, await yt.music.getArtist(id));
+  const page = mapArtist(id, await yt.music.getArtist(id));
+  const playlistId = page.topSongsSeeAll?.browseId;
+  if (playlistId?.startsWith('VL') && page.topSongs.length < ARTIST_TOP_SONGS) {
+    try {
+      const { page: playlist } = await fetchPlaylist(playlistId);
+      if (playlist.tracks.length > page.topSongs.length) page.topSongs = playlist.tracks.slice(0, ARTIST_TOP_SONGS);
+    } catch {
+      // The landing page's songs are still the right ones, just fewer.
+    }
+  }
+  return page;
 }
 
 function playlistTracks(page: YTMusic.Playlist): Paged<Track[]> {

@@ -40,7 +40,7 @@ export default function ListenTogetherPage() {
   const signedIn = useSignedIn();
 
   return (
-    <>
+    <div className={styles.centered}>
       <PageHeader title="Listen Together" />
       <div className={styles.body}>
         {state.code ? (
@@ -52,7 +52,7 @@ export default function ListenTogetherPage() {
         )}
         {state.error && <p className={own.error}>{state.error}</p>}
       </div>
-    </>
+    </div>
   );
 }
 

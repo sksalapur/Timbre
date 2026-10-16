@@ -379,13 +379,13 @@ export const usePlayer = create<PlayerState>()((set, get) => ({
     const repeat: RepeatMode = { off: 'all', all: 'one', one: 'off' }[get().repeat] as RepeatMode;
     set({ repeat });
     saveSettings(get());
-    if (repeat === 'off') void refillAutoplay();
+    if (repeat === 'off') void refillAutoplay(true);
   },
 
   setAutoplay(autoplay) {
     set({ autoplay });
     saveSettings(get());
-    if (autoplay) void refillAutoplay();
+    if (autoplay) void refillAutoplay(true);
     else {
       // Turning it off takes the radio out of what's to come.
       const { queue, index } = get();
@@ -536,10 +536,16 @@ function afterTrackStarted() {
 
 // ---- AutoPlay ---------------------------------------------------------------------
 
-/** Below this many tracks still to come, AutoPlay fetches more. */
-const AUTOPLAY_LOW_WATER = 3;
-const AUTOPLAY_BATCH = 10;
+/**
+ * How many AutoPlay tracks wait after the playing one (Autoplay.MAX_QUEUED_AUTOPLAY).
+ * Topped back up on every track change, as on the phone: a suggestion that
+ * starts playing is replaced by a new one at the end, rather than the whole
+ * station arriving in one burst once the queue has run dry.
+ */
+const MAX_QUEUED_AUTOPLAY = 10;
 let refilling: Promise<void> | null = null;
+/** The track the last top-up was seeded from, so one track isn't asked about twice. */
+let autoplaySeed: string | null = null;
 /** Seeds that gave nothing new, so the same empty radio isn't asked for again. */
 const exhaustedSeeds = new Set<string>();
 
@@ -548,9 +554,13 @@ function refillAutoplay(force = false): Promise<void> {
   if (!autoplay || repeat !== 'off' || index < 0) return Promise.resolve();
   // A party's AutoPlay goes through the server (party/partySync.ts), never straight onto this queue.
   if (partyHooks?.inParty()) return Promise.resolve();
-  if (!force && queue.length - index - 1 >= AUTOPLAY_LOW_WATER) return Promise.resolve();
-  const seed = queue.at(-1)?.track;
+  const needed = MAX_QUEUED_AUTOPLAY - queue.slice(index + 1).filter((e) => e.tier === 'autoplay').length;
+  if (needed <= 0) return Promise.resolve();
+  // Seeded from the playing track (loadAutoplayForCurrentTrack), not the queue's tail.
+  const seed = queue[index]?.track;
   if (!seed || exhaustedSeeds.has(seed.videoId)) return Promise.resolve();
+  if (!force && autoplaySeed === seed.videoId) return Promise.resolve();
+  autoplaySeed = seed.videoId;
   refilling ??= (async () => {
     try {
       const { fetchRadio } = await import('@/data/music/api');
@@ -559,19 +569,23 @@ function refillAutoplay(force = false): Promise<void> {
       const extra = extendStation(
         current.queue.map((e) => e.track),
         candidates,
-        AUTOPLAY_BATCH,
+        needed,
       );
       if (!extra.length) {
         exhaustedSeeds.add(seed.videoId);
         return;
       }
       const source: QueueSource = { title: `${seed.title} Radio`, type: 'radio', id: `RDAMVM${seed.videoId}` };
-      // Still the same queue tail? A new album started meanwhile shouldn't get the old radio.
-      if (current.queue.at(-1)?.track.videoId !== seed.videoId || !current.autoplay) return;
+      // Still on the same track? One that moved on gets its own top-up.
+      if (current.queue[current.index]?.track.videoId !== seed.videoId || !current.autoplay) {
+        autoplaySeed = null;
+        return;
+      }
       usePlayer.setState({ queue: [...current.queue, ...extra.map((t) => asEntry(t, 'autoplay', source))] });
       trackLog.i(`AutoPlay added ${extra.length} tracks from ${seed.title}'s radio`, seed.videoId);
     } catch (error) {
       trackLog.w(`AutoPlay couldn't load the radio: ${String(error)}`, seed.videoId);
+      autoplaySeed = null;
     } finally {
       refilling = null;
     }
