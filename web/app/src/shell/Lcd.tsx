@@ -1,10 +1,77 @@
 import { Maximize2 } from 'lucide-react';
+import { useState, type ReactNode } from 'react';
+import { useNavigate } from 'react-router';
 import { LogoMark } from '@/components/icons/LogoMark';
+import { albumHref, artistHref } from '@/components/music/links';
+import { PrefetchLink } from '@/components/PrefetchLink';
+import { artistCredits, creditSegments } from '@/lib/artistCredits';
 import { sizedArtwork } from '@/lib/artwork';
+import type { Track } from '@/data/music/types';
 import { usePlayer } from '@/state/player';
 import { useUi } from '@/state/ui';
 import styles from './Lcd.module.css';
+import { albumPageFor, artistPageFor } from './nowPlayingLinks';
 import { useScrubber } from './useScrubber';
+
+/**
+ * A name in the LCD that opens a page: a plain link when the page is known,
+ * else a button that works out where it goes (nowPlayingLinks.ts) and then goes.
+ */
+interface PageLinkProps {
+  href: string | null;
+  resolve: () => Promise<string>;
+  className: string;
+  children: ReactNode;
+}
+
+function PageLink({ href, resolve, className, children }: PageLinkProps) {
+  const navigate = useNavigate();
+  const [busy, setBusy] = useState(false);
+  if (href) {
+    return (
+      <PrefetchLink to={href} className={className}>
+        {children}
+      </PrefetchLink>
+    );
+  }
+  return (
+    <button
+      className={className}
+      aria-busy={busy || undefined}
+      onClick={() => {
+        if (busy) return;
+        setBusy(true);
+        void resolve()
+          .then((to) => navigate(to))
+          .finally(() => setBusy(false));
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+
+/**
+ * The artists, each its own link, as the phone draws its credit line: the
+ * byline as written, with every credited name in it opening that artist's page.
+ */
+function Credits({ videoId, line, artists }: { videoId: string; line: string; artists: Track['artists'] }) {
+  const segments = creditSegments(line, artistCredits(line, artists));
+  return segments.map((segment, i) =>
+    segment.credit ? (
+      <PageLink
+        key={i}
+        className={styles.link!}
+        href={artistHref(segment.credit.id)}
+        resolve={() => artistPageFor(videoId, segment.credit!)}
+      >
+        {segment.text}
+      </PageLink>
+    ) : (
+      segment.text
+    ),
+  );
+}
 
 /** The now-playing tile inside the pill (report §1, "LCD"). */
 export function Lcd() {
@@ -12,6 +79,11 @@ export function Lcd() {
   const status = usePlayer((s) => s.status);
   const error = usePlayer((s) => s.error);
   const openFullScreen = useUi((s) => s.setFullScreen);
+  // The queue's row for what's playing: it carries the album and each artist's channel.
+  const track = usePlayer((s) => {
+    const entry = s.queue[s.index]?.track;
+    return entry && entry.videoId === s.nowPlaying?.videoId ? entry : null;
+  });
 
   if (!nowPlaying) {
     return (
@@ -21,7 +93,8 @@ export function Lcd() {
     );
   }
 
-  const subtitle = status === 'error' ? error : nowPlaying.artist || (status === 'loading' ? 'Loading…' : '');
+  const { videoId, title, artist } = nowPlaying;
+  const album = track?.album ?? null;
   return (
     <div className={styles.lcd}>
       {/* As Apple's: the artwork opens the full-screen player, with an expand glyph on hover. */}
@@ -41,8 +114,25 @@ export function Lcd() {
         </span>
       </button>
       <div className={styles.meta}>
-        <span className={styles.title}>{nowPlaying.title || (status === 'loading' ? 'Loading…' : '')}</span>
-        <span className={status === 'error' ? `${styles.subtitle} ${styles.error}` : styles.subtitle}>{subtitle}</span>
+        {title ? (
+          // The song's name opens its album.
+          <PageLink
+            className={`${styles.title} ${styles.link}`}
+            href={albumHref(album?.id ?? null)}
+            resolve={() => albumPageFor(videoId, album, [title, artist].filter(Boolean).join(' '))}
+          >
+            {title}
+          </PageLink>
+        ) : (
+          <span className={styles.title}>{status === 'loading' ? 'Loading…' : ''}</span>
+        )}
+        {status === 'error' ? (
+          <span className={`${styles.subtitle} ${styles.error}`}>{error}</span>
+        ) : (
+          <span className={styles.subtitle}>
+            {artist ? <Credits videoId={videoId} line={artist} artists={track?.artists ?? []} /> : status === 'loading' ? 'Loading…' : ''}
+          </span>
+        )}
       </div>
       <Progress />
     </div>

@@ -81,7 +81,25 @@
 }
 
 .title {
+  /* As wide as the name, so only the name opens the album. */
+  align-self: flex-start;
+  max-width: 100%;
   font: 600 13px / 16px var(--font-family);
+}
+
+/* The title and each artist: plain until hovered, then underlined on their own. */
+.link {
+  cursor: pointer;
+  text-align: start;
+}
+
+.link:hover,
+.link:focus-visible {
+  text-decoration: underline;
+}
+
+.link[aria-busy] {
+  cursor: progress;
 }
 
 .subtitle {
@@ -128,18 +146,19 @@
   background-color: var(--systemSecondary);
 }
 
-.lcd:hover .progress,
+.scrubber:hover .progress,
 .scrubber[data-dragging] .progress {
   height: 4px;
   bottom: 5px;
 }
 
 /*
- * On hover the track's names soften into the background (the artwork shows
- * its expand glyph instead), and the elapsed and remaining times sit above
- * the line's two ends, which keeps its full width.
+ * Only over the seek line itself (its 14px strip along the bottom), the
+ * track's names soften into the background and the elapsed and remaining
+ * times sit above the line's two ends, which keeps its full width. Anywhere
+ * else the names stay sharp, so they can be clicked.
  */
-.lcd:hover .meta,
+.lcd:has(.scrubber:hover) .meta,
 .lcd:has(.scrubber[data-dragging]) .meta {
   filter: blur(3px);
   opacity: 0.3;
@@ -164,7 +183,7 @@
   right: 0;
 }
 
-.lcd:hover .time,
+.scrubber:hover .time,
 .scrubber[data-dragging] .time {
   opacity: 1;
 }
