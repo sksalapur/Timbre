@@ -6,6 +6,18 @@
   display: flex;
   justify-content: center;
   padding: 12px var(--body-gutter);
+}
+
+/*
+ * The bar's glass sits on a layer behind it, not on the bar: an element with
+ * a backdrop-filter is a backdrop root, so the suggestions inside it could
+ * only blur the bar itself and showed the page underneath unblurred.
+ */
+.scopeBar::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
   background-color: var(--systemHeaderMaterialSover);
   backdrop-filter: saturate(180%) blur(20px);
   -webkit-backdrop-filter: saturate(180%) blur(20px);

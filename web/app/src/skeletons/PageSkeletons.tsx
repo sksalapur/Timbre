@@ -31,17 +31,6 @@ export function NewSkeleton() {
   );
 }
 
-export function RadioSkeleton() {
-  return (
-    <div aria-busy="true">
-      <PageHeader title="Radio" />
-      <ShelfSkeleton kind="editorial" title={false} />
-      <ShelfSkeleton kind="square" />
-      <ShelfSkeleton kind="square" />
-    </div>
-  );
-}
-
 export function SearchSkeleton() {
   return (
     <div aria-busy="true">
