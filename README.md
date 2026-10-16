@@ -23,6 +23,16 @@
 > ### 💖 Foundation & Upstream Credit
 > **Timbre** is an audiophile-focused fork built upon the magnificent foundation of [**BitChord**](https://github.com/kushagrasinghx/BitChord). This project would **not be possible without BitChord** and its creator, [**Kushagra Singh**](https://github.com/kushagrasinghx). We extend our deepest heartfelt gratitude to Kushagra and the BitChord community for their brilliant open-source engineering, sleek player architecture, and beautiful modern UI.
 
+> ### 🧪 A Humble Note on Hardware Testing & An Open Call to Audiophiles
+> I am not an advanced or veteran audiophile by any means—I am simply an audio lover and developer passionate about pristine music reproduction. All physical testing and bit-perfect pipeline tuning for Timbre so far has been carried out on a modest, entry-level **Moondrop Chu II DSP**, which is currently the only IEM I own!
+> 
+> Because Android's audio ecosystem spans countless combinations of USB host controllers, DAC chipsets, and OTG implementations, **I warmly welcome and invite seasoned audiophiles and community members to put Timbre to the test**. Whether you use portable dongle DACs (Fiio, Qudelix, iFi, Moondrop, Questyle, Cayin), desktop stacks (Topping, SMSL, Schiit), or high-end IEMs/headphones:
+> - **Test your hardware**: Put the bit-exact switching, UAC1/UAC2 direct transport, and 24-bit librempeg path through its paces.
+> - **Report bugs & quirks**: Log unexpected sample rate drops, USB handshake issues, or player behavior quirks via [GitHub Issues](https://github.com/sksalapur/Timbre/issues) or our [Telegram Community](https://t.me/Timbre_Community).
+> - **Suggest features**: Share ideas for audiophile-focused options and pipeline improvements.
+> 
+> Every single report, logcat, and piece of constructive feedback is deeply appreciated and will directly shape future releases!
+
 ---
 
 ## 🚀 What's New in Timbre v1.8-3: The True Bit-Perfect Breakthrough
