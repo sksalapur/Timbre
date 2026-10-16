@@ -335,6 +335,33 @@ object SourceRegistry {
      * deleting the rest. Everything that is not an addon keeps its place, since
      * its rank is decided by its kind and is not the user's to set.
      */
+
+    /**
+     * Returns the full list of configured sources for backup export.
+     */
+    fun exportSources(): List<SourceConfig> {
+        return configs.value
+    }
+
+    /**
+     * Replaces the configured sources with [imported], preserving built-ins
+     * (YouTube and JioSaavn) if missing from the imported list.
+     */
+    fun importSources(imported: List<SourceConfig>) {
+        if (imported.isEmpty()) return
+        val currentBuiltIns = configs.value.filterNot { it.kind.isUserAdded }
+        val importedBuiltIns = imported.filterNot { it.kind.isUserAdded }
+        val importedUserAdded = imported.filter { it.kind.isUserAdded }
+
+        val finalBuiltIns = if (importedBuiltIns.isNotEmpty()) {
+            importedBuiltIns
+        } else {
+            currentBuiltIns
+        }
+        val merged = (importedUserAdded + finalBuiltIns).distinctBy { it.id }
+        publish(merged, persist = true)
+    }
+
     fun reorderAddons(orderedIds: List<String>) {
         val addons = configs.value.filter { it.kind.isUserAdded }
         if (addons.size < 2) return
