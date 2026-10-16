@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 import sys
 import os
 import urllib.request
@@ -6,23 +6,22 @@ import json
 import re
 
 def rebadge_release(tag, my_repo):
-    # 1. Check if a dedicated local release note file exists for this tag
-    # e.g., release_notes/v1.8.md or release_notes/1.8.md
     possible_files = [
         os.path.join("release_notes", f"{tag}.md"),
         os.path.join("release_notes", f"{tag.lstrip('v')}.md"),
         os.path.join("release_notes", f"v{tag.lstrip('v')}.md")
     ]
 
+    custom_notes_found = False
     body_content = ""
     for p in possible_files:
         if os.path.exists(p):
             print(f"[SUCCESS] Found custom release notes file: {p}")
             with open(p, "r", encoding="utf-8") as f:
                 body_content = f.read().strip()
+            custom_notes_found = True
             break
 
-    # 2. If no local file is provided, fall back to fetching upstream BitChord release notes
     if not body_content:
         print(f"No custom release notes file found in release_notes/. Fetching upstream BitChord notes for {tag}...")
         url = f"https://api.github.com/repos/kushagrasinghx/BitChord/releases/tags/{tag}"
@@ -35,7 +34,6 @@ def rebadge_release(tag, my_repo):
         except Exception as e:
             print(f"Could not fetch upstream release body: {e}")
 
-        # Clean upstream notes
         clean = re.sub(r'!\[.*?banner.*?\]\(.*?\)', '', upstream_body, flags=re.IGNORECASE)
         lines = clean.splitlines()
         filtered = []
@@ -69,29 +67,36 @@ def rebadge_release(tag, my_repo):
         clean_body = clean_body.replace('kushagrasinghx/BitChord', my_repo)
         body_content = clean_body
 
-    header = f"""![Timbre Banner](https://raw.githubusercontent.com/{my_repo}/main/Banner.png)
+    banner_md = f"![Timbre Banner](https://raw.githubusercontent.com/{my_repo}/main/Banner.png)\n\n"
 
-# Timbre {tag}
+    if custom_notes_found:
+        # Custom notes already have full titles and packaging details
+        if not body_content.startswith("![Timbre Banner"):
+            final_notes = banner_md + body_content
+        else:
+            final_notes = body_content
+    else:
+        header = f"""# Timbre {tag}
 > **Bit-Perfect High-Resolution Audio Streaming for Android**  
 > Streamlined audiophile player built upon the foundation of [BitChord {tag}](https://github.com/kushagrasinghx/BitChord/releases/tag/{tag}).
 
 ---
 """
-
-    footer = f"""
+        footer = f"""
 ---
 ### 💬 Community & Support
 Join our official **[Telegram Community](https://t.me/Timbre_Community)** for discussions, updates, and setup assistance.
 
 ---
 
-### 📲 Install & Update
+### 📦 Install & Update
 - **ARM64** *(Recommended for most phones)*: Download **`Timbre-{tag}-arm64.apk`**
 - **Universal** *(All devices)*: Download **`Timbre-{tag}.apk`**
 
 > 💡 **Desktop or TV user?** Timbre is engineered specifically for Android mobile devices. If you need Windows, Linux, macOS, or Android TV builds, please check upstream [BitChord {tag}](https://github.com/kushagrasinghx/BitChord/releases/tag/{tag}).
 """
-    final_notes = header + (body_content if body_content else "See upstream BitChord release for detailed changes.") + footer
+        final_notes = banner_md + header + (body_content if body_content else "See upstream BitChord release for detailed changes.") + footer
+
     with open("release_notes.md", "w", encoding="utf-8") as f:
         f.write(final_notes)
     print("Generated release_notes.md successfully!")
