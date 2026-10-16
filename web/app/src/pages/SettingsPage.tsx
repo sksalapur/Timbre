@@ -76,7 +76,7 @@ export default function SettingsPage() {
         <h2 className={styles.sectionHeader}>Account & Integrations</h2>
         <section className={styles.group}>
           <div className={styles.integration}>
-            <Glyph Icon={SiYoutubemusic} color="#636366" ink="#ff0033" />
+            <Glyph Icon={SiYoutubemusic} color="#ffffff" ink="#ff0033" />
             <span className={styles.integrationName}>YouTube Music</span>
             <span className={styles.value}>{youtubeText(yt)}</span>
           </div>
