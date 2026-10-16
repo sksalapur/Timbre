@@ -6,8 +6,10 @@ import json
 import re
 import html
 
+DEFAULT_BOT_TOKEN = "8851295493:AAGc1sLYeu23iS43OL5dF6fXkkeQXGAxF1c"
+
 def post_telegram_release(tag, repo, notes_file, banner_image):
-    bot_token = os.environ.get("TELEGRAM_BOT_TOKEN", "").strip()
+    bot_token = os.environ.get("TELEGRAM_BOT_TOKEN", "").strip() or DEFAULT_BOT_TOKEN
     chat_id = os.environ.get("TELEGRAM_CHAT_ID", "@Timbre_Community").strip()
 
     if not bot_token:
