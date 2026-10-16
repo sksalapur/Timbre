@@ -1366,7 +1366,6 @@
     <string name="song_info_likes">לייקים</string>
     <string name="song_info_comments">תגובות</string>
     <string name="song_info_unavailable">לא זמין</string>
-    <string name="song_info_counts_note">הנתונים מתייחסים להעלאה הזו ב-YouTube. מספר ההשמעות / הצפיות אינו מספר המאזינים הייחודיים.</string>
     <string name="song_info_error">לא ניתן לטעון חלק מהמידע.</string>
     <string name="song_info_retry">ניסיון חוזר</string>
 </resources>

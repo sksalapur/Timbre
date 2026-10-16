@@ -1300,7 +1300,6 @@
     <string name="song_info_likes">Mi piace</string>
     <string name="song_info_comments">Commenti</string>
     <string name="song_info_unavailable">Non disponibile</string>
-    <string name="song_info_counts_note">I conteggi si riferiscono a questo caricamento su YouTube. Le riproduzioni / visualizzazioni non rappresentano gli ascoltatori unici.</string>
     <string name="song_info_error">Impossibile caricare alcune informazioni.</string>
     <string name="song_info_retry">Riprova</string>
 </resources>

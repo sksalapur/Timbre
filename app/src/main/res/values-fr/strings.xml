@@ -1362,7 +1362,6 @@
     <string name="song_info_likes">Mentions J’aime</string>
     <string name="song_info_comments">Commentaires</string>
     <string name="song_info_unavailable">Non disponible</string>
-    <string name="song_info_counts_note">Ces chiffres concernent cette vidéo YouTube. Les écoutes / vues ne correspondent pas au nombre d’auditeurs uniques.</string>
     <string name="song_info_error">Certaines informations n’ont pas pu être chargées.</string>
     <string name="song_info_retry">Réessayer</string>
 </resources>

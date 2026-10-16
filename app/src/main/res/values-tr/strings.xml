@@ -1257,7 +1257,6 @@
     <string name="song_info_likes">Beğeniler</string>
     <string name="song_info_comments">Yorumlar</string>
     <string name="song_info_unavailable">Mevcut değil</string>
-    <string name="song_info_counts_note">Sayılar bu YouTube yüklemesine aittir. Dinlenme / görüntülenme sayısı benzersiz dinleyici sayısı değildir.</string>
     <string name="song_info_error">Bazı bilgiler yüklenemedi.</string>
     <string name="song_info_retry">Tekrar dene</string>
     <string name="artist_signatures">Sanatçı imzaları</string>

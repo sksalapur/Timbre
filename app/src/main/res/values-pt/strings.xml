@@ -1366,7 +1366,6 @@
     <string name="song_info_likes">Curtidas</string>
     <string name="song_info_comments">Comentários</string>
     <string name="song_info_unavailable">Não disponível</string>
-    <string name="song_info_counts_note">Os números são referentes a este vídeo do YouTube. Reproduções / visualizações não representam ouvintes únicos.</string>
     <string name="song_info_error">Não foi possível carregar algumas informações.</string>
     <string name="song_info_retry">Tentar novamente</string>
 </resources>

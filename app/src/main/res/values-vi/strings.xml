@@ -1278,7 +1278,6 @@
     <string name="song_info_likes">Lượt thích</string>
     <string name="song_info_comments">Bình luận</string>
     <string name="song_info_unavailable">Không có thông tin</string>
-    <string name="song_info_counts_note">Các số liệu thuộc về video YouTube này. Lượt phát / lượt xem không phải là số người nghe duy nhất.</string>
     <string name="song_info_error">Không thể tải một số thông tin.</string>
     <string name="song_info_retry">Thử lại</string>
 </resources>

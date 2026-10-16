@@ -1393,7 +1393,6 @@
     <string name="song_info_likes">Отметки «Нравится»</string>
     <string name="song_info_comments">Комментарии</string>
     <string name="song_info_unavailable">Недоступно</string>
-    <string name="song_info_counts_note">Показатели относятся к этой загрузке на YouTube. Прослушивания / просмотры не отражают число уникальных слушателей.</string>
     <string name="song_info_error">Не удалось загрузить часть информации.</string>
     <string name="song_info_retry">Повторить</string>
 </resources>

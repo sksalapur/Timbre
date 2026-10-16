@@ -1361,7 +1361,6 @@
     <string name="song_info_likes">Gefällt mir</string>
     <string name="song_info_comments">Kommentare</string>
     <string name="song_info_unavailable">Nicht verfügbar</string>
-    <string name="song_info_counts_note">Die Zahlen beziehen sich auf diesen YouTube-Upload. Wiedergaben / Aufrufe entsprechen nicht der Anzahl einzelner Hörer.</string>
     <string name="song_info_error">Einige Informationen konnten nicht geladen werden.</string>
     <string name="song_info_retry">Erneut versuchen</string>
 </resources>

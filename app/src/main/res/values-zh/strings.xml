@@ -1331,7 +1331,6 @@
     <string name="song_info_likes">点赞数</string>
     <string name="song_info_comments">评论数</string>
     <string name="song_info_unavailable">暂无信息</string>
-    <string name="song_info_counts_note">这些数据对应此 YouTube 上传内容。播放 / 观看次数不代表独立听众人数。</string>
     <string name="song_info_error">部分信息无法加载。</string>
     <string name="song_info_retry">重试</string>
     <string name="artist_signatures">艺人签名</string>

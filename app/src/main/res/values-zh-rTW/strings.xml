@@ -1331,7 +1331,6 @@
     <string name="song_info_likes">喜歡次數</string>
     <string name="song_info_comments">留言數</string>
     <string name="song_info_unavailable">暫無資訊</string>
-    <string name="song_info_counts_note">這些數據對應此 YouTube 上傳內容。播放 / 觀看次數不代表不重複聽眾人數。</string>
     <string name="song_info_error">部分資訊無法載入。</string>
     <string name="song_info_retry">重試</string>
     <string name="artist_signatures">藝人簽名</string>

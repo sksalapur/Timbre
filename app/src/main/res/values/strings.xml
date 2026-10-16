@@ -1176,7 +1176,6 @@
     <string name="song_info_likes">Likes</string>
     <string name="song_info_comments">Comments</string>
     <string name="song_info_unavailable">Not available</string>
-    <string name="song_info_counts_note">Counts are for this YouTube upload. Plays / views are not unique listeners.</string>
     <string name="song_info_error">Some information could not be loaded.</string>
     <string name="song_info_retry">Retry</string>
     <!-- Settings: BitChord for Wear OS -->

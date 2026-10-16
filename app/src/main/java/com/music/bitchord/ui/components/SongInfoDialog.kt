@@ -110,13 +110,6 @@ internal fun SongInfoDialog(song: Song, onDismiss: () -> Unit) {
                         value = value ?: unavailable.takeIf { info != null },
                     )
                 }
-                AlertRule()
-                Text(
-                    text = stringResource(R.string.song_info_counts_note),
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
-                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp, lineHeight = 15.sp),
-                    color = onSurface.copy(alpha = 0.55f),
-                )
                 if (info?.failed == true) {
                     Text(
                         text = stringResource(R.string.song_info_error),
@@ -228,12 +221,6 @@ internal fun SongInfoPage(song: Song, palette: ArtworkPalette, onBack: () -> Uni
             SongInfoPageRow(stringResource(label), value ?: unavailable.takeIf { info != null }, palette)
         }
 
-        Text(
-            text = stringResource(R.string.song_info_counts_note),
-            modifier = Modifier.padding(horizontal = 22.dp, vertical = 10.dp),
-            style = MaterialTheme.typography.bodySmall,
-            color = palette.onBackgroundVariant,
-        )
         if (info?.failed == true) {
             ActionRow(Icons.Rounded.Refresh, stringResource(R.string.song_info_retry), accent = palette.accent) {
                 retry++

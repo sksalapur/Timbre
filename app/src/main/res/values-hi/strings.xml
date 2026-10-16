@@ -1361,7 +1361,6 @@
     <string name="song_info_likes">पसंद</string>
     <string name="song_info_comments">टिप्पणियाँ</string>
     <string name="song_info_unavailable">उपलब्ध नहीं</string>
-    <string name="song_info_counts_note">ये आँकड़े इस YouTube अपलोड के हैं। प्ले / व्यू की संख्या अलग-अलग श्रोताओं की संख्या नहीं है।</string>
     <string name="song_info_error">कुछ जानकारी लोड नहीं हो सकी।</string>
     <string name="song_info_retry">फिर से कोशिश करें</string>
 </resources>

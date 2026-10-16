@@ -1344,7 +1344,6 @@
     <string name="song_info_likes">การกดชอบ</string>
     <string name="song_info_comments">ความคิดเห็น</string>
     <string name="song_info_unavailable">ไม่มีข้อมูล</string>
-    <string name="song_info_counts_note">ตัวเลขเป็นของวิดีโอที่อัปโหลดบน YouTube นี้ จำนวนการเล่น / การดูไม่ใช่จำนวนผู้ฟังที่ไม่ซ้ำกัน</string>
     <string name="song_info_error">ไม่สามารถโหลดข้อมูลบางส่วนได้</string>
     <string name="song_info_retry">ลองอีกครั้ง</string>
 </resources>

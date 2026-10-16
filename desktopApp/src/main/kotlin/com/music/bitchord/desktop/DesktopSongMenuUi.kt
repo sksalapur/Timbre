@@ -660,8 +660,6 @@ private fun DesktopSongInfo(song: Song) {
                 Text(value ?: if (info == null) "—" else DesktopStrings["song_info_unavailable", "Not available"])
             }
         }
-        Text(DesktopStrings["song_info_counts_note", "Counts are for this YouTube upload. Plays / views are not unique listeners."],
-            style = MaterialTheme.typography.bodySmall, color = DesktopSecondary)
         if (info?.failed == true) {
             Text(DesktopStrings["song_info_error", "Some information could not be loaded."], color = MaterialTheme.colorScheme.error)
             androidx.compose.material3.TextButton(onClick = { retry++ }) {

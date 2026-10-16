@@ -1401,7 +1401,6 @@
     <string name="song_info_likes">Polubienia</string>
     <string name="song_info_comments">Komentarze</string>
     <string name="song_info_unavailable">Niedostępne</string>
-    <string name="song_info_counts_note">Liczby dotyczą tego nagrania w YouTube. Odtworzenia / wyświetlenia nie oznaczają liczby unikalnych słuchaczy.</string>
     <string name="song_info_error">Nie udało się wczytać części informacji.</string>
     <string name="song_info_retry">Spróbuj ponownie</string>
 </resources>
