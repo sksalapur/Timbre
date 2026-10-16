@@ -752,11 +752,11 @@ fun SettingsScreen(
                 SettingsRow(
                     icon = Icons.Rounded.Bolt,
                     title = "Direct Bit-Perfect Mode",
-                    subtitle = "Exclusive USB DAC hardware access. Bypasses Android AudioFlinger OS mixer and DSP.",
+                    subtitle = "Exclusive USB DAC hardware access. Bypasses AudioFlinger and takes precedence over Output Precision.",
                     onInfoClick = {
                         activeInfoItem = TimbreInfoItem(
                             title = "Direct Bit-Perfect Mode",
-                            description = "Bypasses the Android AudioFlinger OS mixer by directly interfacing with your external USB DAC. Delivers untouched bitstreams up to 32-bit / 384 kHz and native DSD.\n\nAndroid will prompt for exclusive USB device access when a DAC is connected.",
+                            description = "Bypasses the Android AudioFlinger OS mixer by directly interfacing with your external USB DAC. Delivers untouched bitstreams up to 32-bit / 384 kHz and native DSD.\n\nAndroid will prompt for exclusive USB device access when a DAC is connected.\n\nNote: When enabled, Direct Bit-Perfect Mode takes precedence over the Output Precision setting in Playback settings to prevent 16-bit truncation.",
                             recommendation = "Enable if you connect a USB DAC / Dongle to avoid Android 48 kHz forced resampling."
                         )
                     },
@@ -997,21 +997,39 @@ fun SettingsScreen(
                     icon = Icons.Rounded.GraphicEq,
                     title = outputPrecisionTitle,
                     subtitle = buildString {
+                        if (directBitPerfect) {
+                            append("Managed by Bit-Perfect Mode ? ")
+                        }
                         append(outputStatus.sink)
-                        append(" · ")
+                        append(" ? ")
                         append(outputStatus.deviceName)
                         (outputStatus.actualSampleRateHz ?: outputStatus.sampleRatesHz.firstOrNull())
-                            ?.let { append(" · ${it / 1000.0} kHz") }
-                        append(" · ")
+                            ?.let { append(" ?  kHz") }
+                        append(" ? ")
                         append(AudioOutputStatus.encodingLabel(outputStatus))
+                    },
+                    onInfoClick = {
+                        activeInfoItem = TimbreInfoItem(
+                            title = outputPrecisionTitle,
+                            description = "Controls standard Android AudioTrack sink precision when Direct Bit-Perfect Mode is off.\n\nNote: Direct Bit-Perfect Mode takes precedence over this setting to deliver untouched 24-bit / 32-bit float streams directly to your DAC.",
+                            recommendation = "Managed automatically when Direct Bit-Perfect Mode is enabled."
+                        )
                     },
                 )
                 SegmentedControl(
                     options = OutputPcmMode.entries.map(OutputPcmMode::label),
                     selectedIndex = OutputPcmMode.entries.indexOf(outputPcmMode),
                     onSelect = { AppSettings.setOutputPcmMode(OutputPcmMode.entries[it]) },
-                    modifier = Modifier.padding(start = TEXT_INSET, end = ROW_INSET, bottom = 14.dp),
+                    modifier = Modifier.padding(start = TEXT_INSET, end = ROW_INSET, bottom = if (directBitPerfect) 6.dp else 14.dp),
                 )
+                if (directBitPerfect) {
+                    Text(
+                        text = "Direct Bit-Perfect Mode is active and takes precedence over this setting.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
+                        modifier = Modifier.padding(start = TEXT_INSET, end = ROW_INSET, bottom = 14.dp),
+                    )
+                }
             }
 
             val preferUsbDacTitle = stringResource(R.string.prefer_usb_dac)

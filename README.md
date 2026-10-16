@@ -143,10 +143,10 @@ Download signed release APKs directly from [**GitHub Releases**](https://github.
 
 | Build | Architecture | Description |
 | :--- | :--- | :--- |
-| **`Timbre-v1.8-2-arm64.apk`** | `arm64-v8a` | **Recommended for 99% of modern phones** (fastest, optimized native 64-bit binaries). |
-| **`Timbre-v1.8-2-universal.apk`** | Universal | Universal package compatible with all Android devices. |
-| **`Timbre-v1.8-2-armeabi-v7a.apk`** | `armeabi-v7a` | Legacy 32-bit ARM devices. |
-| **`Timbre-v1.8-2-x86_64.apk`** | `x86_64` | Android emulators, ChromeOS, and x86 devices. |
+| **`Timbre-v1.8-3-arm64.apk`** | `arm64-v8a` | **Recommended for 99% of modern phones** (fastest, optimized native 64-bit binaries). |
+| **`Timbre-v1.8-3-universal.apk`** | Universal | Universal package compatible with all Android devices. |
+| **`Timbre-v1.8-3-armeabi-v7a.apk`** | `armeabi-v7a` | Legacy 32-bit ARM devices. |
+| **`Timbre-v1.8-3-x86_64.apk`** | `x86_64` | Android emulators, ChromeOS, and x86 devices. |
 
 ---
 
