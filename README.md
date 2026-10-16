@@ -188,6 +188,6 @@ Download signed release APKs directly from [**GitHub Releases**](https://github.
 ## 💬 Community & Links
 
 - **Telegram Community**: [t.me/Timbre_Community](https://t.me/Timbre_Community)
-- **Token / Stream Bot**: [@TrueBitLosslessBot](https://t.me/TrueBitLosslessBot) (generate your personal authenticated FLAC stream URL)
+- **Token / Stream Bot**: [@Timbre_Lossless_Bot](https://t.me/Timbre_Lossless_Bot) (generate your personal authenticated FLAC stream URL)
 - **Documentation & Addon Directory**: [sksalapur.github.io/Timbre](https://sksalapur.github.io/Timbre/)
 - **Bug Reports & Feedback**: [GitHub Issues](https://github.com/sksalapur/Timbre/issues)
