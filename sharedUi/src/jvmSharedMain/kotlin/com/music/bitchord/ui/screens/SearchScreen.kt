@@ -295,6 +295,7 @@ fun SearchScreen(
                         currentSong = currentSong,
                         isPlaying = isPlaying,
                         onClick = onHistoryClick,
+                        onSongLongPress = onSongLongPress,
                         onRemove = onHistoryRemove,
                         onClear = onHistoryClear,
                     )
@@ -759,6 +760,7 @@ private fun LazyListScope.recentSearches(
     currentSong: Song?,
     isPlaying: Boolean,
     onClick: (SearchHistoryEntity) -> Unit,
+    onSongLongPress: (Song) -> Unit,
     onRemove: (String) -> Unit,
     onClear: () -> Unit,
 ) {
@@ -792,6 +794,23 @@ private fun LazyListScope.recentSearches(
             isCurrent = entity.entityType == EntityType.TRACK && entity.id == currentSong?.videoId,
             isPlaying = isPlaying,
             onClick = { onClick(entity) },
+            // A recent track gets the same menu as a result row, so it can be
+            // queued without interrupting what's playing. The ids an old
+            // build saved as raw queries ("q:…") have no track behind them.
+            onLongPress = if (entity.entityType == EntityType.TRACK && !entity.id.startsWith("q:")) {
+                {
+                    onSongLongPress(
+                        Song(
+                            videoId = entity.id,
+                            title = entity.title,
+                            artist = entity.subtitle,
+                            thumbnailUrl = entity.artworkUrl,
+                        ),
+                    )
+                }
+            } else {
+                null
+            },
             onRemove = { onRemove(entity.id) },
         )
     }
@@ -871,20 +890,24 @@ private fun LazyListScope.recentAddonSearches(
 
 /**
  * Spotify-style entity row: square thumbnail, bold title, subtitle with type,
- * and a removal button. Tapping navigates to the entity or plays it directly.
+ * and a removal button. Tapping navigates to the entity or plays it directly;
+ * holding a track opens its menu.
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun RecentSearchEntityRow(
     entity: SearchHistoryEntity,
     isCurrent: Boolean,
     isPlaying: Boolean,
     onClick: () -> Unit,
+    onLongPress: (() -> Unit)?,
     onRemove: () -> Unit,
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
+            .longPressMenuClickable(onClick = onClick, onLongClick = onLongPress)
+            .contextClick(onLongPress)
             .padding(start = PAGE_GUTTER, end = 8.dp, top = 6.dp, bottom = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {

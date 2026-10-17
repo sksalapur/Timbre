@@ -4215,11 +4215,34 @@ private fun BitChordApp(
         // One body for both presentations of the track menu: the sheet the ⋮
         // and the player open, and the popup a held row lifts into. Every
         // callback below is the same in either; only the frame differs.
-        val songMenuBody: @Composable (Song, SongActionsPresentation) -> Unit = { song, presentation ->
+        val songMenuBody: @Composable (Song, SongActionsPresentation) -> Unit = { heldSong, presentation ->
             // Set by whoever opened it — see [menuFromPlayer]. It cannot be
             // read off the player's own visibility any more, because on a
             // tablet the player is visible whatever the menu was opened from.
             val fromPlayer = menuFromPlayer
+            // A row from search results, recents or a feed rarely knows which
+            // album or artist page it belongs to, which left the menu with no
+            // way to get there. Ask as the menu opens, the way the player
+            // backfills its own track — the player's copy is already kept in
+            // sync above, so it is left alone here.
+            val needsLinks = !fromPlayer && heldSong.localUri == null &&
+                heldSong.videoId.isNotBlank() &&
+                (heldSong.albumId == null || heldSong.artistId == null)
+            var menuLinks by remember(heldSong.videoId) { mutableStateOf<Song?>(null) }
+            var menuLinksLoading by remember(heldSong.videoId) { mutableStateOf(needsLinks) }
+            LaunchedEffect(heldSong.videoId, needsLinks) {
+                if (!needsLinks) return@LaunchedEffect
+                menuLinksLoading = true
+                menuLinks = YtMusicRepository.trackLinks(heldSong.videoId).getOrNull()
+                menuLinksLoading = false
+            }
+            val song = menuLinks?.takeIf { needsLinks && it.videoId == heldSong.videoId }?.let { extra ->
+                heldSong.copy(
+                    artistId = heldSong.artistId ?: extra.artistId,
+                    albumId = heldSong.albumId ?: extra.albumId,
+                    albumName = heldSong.albumName ?: extra.albumName,
+                )
+            } ?: heldSong
             val share: () -> Unit = {
                 val sendIntent = Intent(Intent.ACTION_SEND).apply {
                     type = "text/plain"
@@ -4407,10 +4430,9 @@ private fun BitChordApp(
                 onOpenArtist = { id ->
                     openPage(id, song.artist, context.getString(R.string.artist), BrowseType.ARTIST)
                 },
-                // Only the player's copy of a track is ever missing these
-                // and backfilling — a row opened from a list already has
-                // whatever ids it's ever going to have.
-                resolvingLinks = fromPlayer && linksLoading,
+                // The player backfills its own track; any other row is
+                // looked up as the menu opens — see `needsLinks` above.
+                resolvingLinks = if (fromPlayer) linksLoading else needsLinks && menuLinksLoading,
                 showSleepTimer = fromPlayer,
                 // Offered for every playing track with a YouTube upload
                 // behind it, not only for one an upgrade visibly swapped:
