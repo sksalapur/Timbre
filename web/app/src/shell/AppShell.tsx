@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { lazy, Suspense, useEffect } from 'react';
 import { resumeSession } from '@/party/listenTogether';
 import { startPartySync } from '@/party/partySync';
 import { useDiscordPresence } from '@/playback/discordPresence';
@@ -19,6 +19,9 @@ import { Sidebar } from './Sidebar';
 
 const mobile = isMobileBrowser();
 
+// It carries am-lyrics; loaded the first time it opens, as the side panel's lyrics are.
+const FullScreenPlayer = lazy(() => import('./FullScreenPlayer').then((m) => ({ default: m.FullScreenPlayer })));
+
 /**
  * The app frame (report §1): glass sidebar, the scrolling page, the floating
  * player pill, the side panel, and the bottom band when there is one.
@@ -36,6 +39,7 @@ export function AppShell() {
   const extension = useExtension();
   const bannerDismissed = useUi((s) => s.installBannerDismissed);
   const dismissBanner = useUi((s) => s.dismissInstallBanner);
+  const fullScreen = useUi((s) => s.fullScreen);
 
   let banner = null;
   if (mobile) {
@@ -79,6 +83,11 @@ export function AppShell() {
         <SidePanel />
       </div>
       {banner}
+      {fullScreen && (
+        <Suspense fallback={null}>
+          <FullScreenPlayer />
+        </Suspense>
+      )}
     </div>
   );
 }

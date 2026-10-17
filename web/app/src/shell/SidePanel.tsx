@@ -9,7 +9,9 @@ const LyricsPanel = lazy(() => import('./LyricsPanel').then((m) => ({ default: m
 /** Up Next / Lyrics glass panel (report §7). */
 export function SidePanel() {
   const panel = useUi((s) => s.sidePanel);
-  if (!panel) return null;
+  // Hidden under the full-screen player, which has its own lyrics: one am-lyrics at a time.
+  const fullScreen = useUi((s) => s.fullScreen);
+  if (!panel || fullScreen) return null;
 
   return (
     <aside className={styles.panel} aria-label={panel === 'up-next' ? 'Up Next' : 'Lyrics'}>

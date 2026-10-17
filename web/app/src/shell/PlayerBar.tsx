@@ -75,7 +75,7 @@ export function PlayerBar() {
 
   return (
     <div className={styles.bar} data-panel-open={sidePanel !== null}>
-      <div className={styles.pill} role="region" aria-label="Player">
+      <div className={styles.pill} role="region" aria-label="Player" data-player-pill>
         <div className={styles.controls}>
           <button className={styles.small} aria-label="Shuffle" aria-pressed={shuffle} onClick={toggleShuffle}>
             <ShuffleIcon size={28} />

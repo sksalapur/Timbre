@@ -3,10 +3,12 @@ import { useState } from 'react';
 import { PrefetchLink } from '@/components/PrefetchLink';
 import { PlayIcon } from '@/components/icons/Transport';
 import { useSetListSaved, useSignedIn } from '@/data/music/queries';
+import type { AppleMotion } from '@/data/apple/motionArt';
 import type { HeaderInfo } from '@/data/music/types';
 import { Artwork } from './Artwork';
 import styles from './DetailHeader.module.css';
 import { ExplicitBadge } from './ExplicitBadge';
+import { MotionArtwork } from './MotionArtwork';
 import { artistHref } from './links';
 
 interface DetailHeaderProps {
@@ -16,13 +18,15 @@ interface DetailHeaderProps {
   canPlay: boolean;
   /** More actions after the library toggle (a Spotify playlist's Import). */
   extra?: React.ReactNode;
+  /** Apple's motion artwork for an album, over the cover once it plays. */
+  motion?: AppleMotion | null;
 }
 
 /**
  * Album and playlist header (report §3, §14): artwork with its glow, title,
  * artist, metadata, a three-line description, then Shuffle · Play.
  */
-export function DetailHeader({ info, onPlay, onShuffle, canPlay, extra }: DetailHeaderProps) {
+export function DetailHeader({ info, onPlay, onShuffle, canPlay, extra, motion }: DetailHeaderProps) {
   const [expanded, setExpanded] = useState(false);
   const signedIn = useSignedIn();
   const setSaved = useSetListSaved();
@@ -36,6 +40,7 @@ export function DetailHeader({ info, onPlay, onShuffle, canPlay, extra }: Detail
           </div>
         )}
         <Artwork src={info.thumbnail} displayWidth={270} radius="var(--radius-artwork-large)" eager />
+        {motion && <MotionArtwork key={motion.url} motion={motion} className={styles.motion} />}
       </div>
       <div className={styles.headings}>
         <h1 className={styles.title}>

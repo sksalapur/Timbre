@@ -2,23 +2,10 @@ import { ArrowDown, ArrowUp, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { getBridge } from '@/extension/bridge';
+import { LYRIC_EXTENSION_ORIGINS as EXTENSION_ORIGINS } from '@/lyrics/http';
 import { useLyricsSettings } from '@/lyrics/settings';
 import { sourceById } from '@/lyrics/sources';
 import styles from './LyricsSettings.module.css';
-
-/** Hosts the page can't reach itself: KuGou, Musixmatch, Genius and Apple's catalogue (for PaxSenix). */
-const EXTENSION_ORIGINS = [
-  'https://mobileservice.kugou.com',
-  'https://lyrics.kugou.com',
-  'https://apic.musixmatch.com',
-  'https://www.musixmatch.com',
-  'https://genius.com',
-  'https://music.apple.com',
-  'https://amp-api.music.apple.com',
-  'https://api.paxsenix.org',
-  'https://lyrics-api.boidu.dev',
-  'https://unison.boidu.dev',
-];
 
 /**
  * Lyric providers, as the desktop's settings have them: switch each on or

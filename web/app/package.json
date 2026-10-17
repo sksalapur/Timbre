@@ -16,6 +16,7 @@
     "@uimaxbai/am-lyrics": "^1.8.2",
     "bgutils-js": "^4.0.3",
     "googlevideo": "^4.1.1",
+    "hls.js": "~1.6.19",
     "lucide-react": "^1.57.0",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",

@@ -7,7 +7,22 @@
 }
 
 .heroImage {
+  position: relative;
   width: 100%;
+}
+
+.appleHero {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0;
+  transition: opacity 0.4s ease-in;
+}
+
+.appleHero[data-loaded] {
+  opacity: 1;
 }
 
 .heroImage > div {
@@ -18,7 +33,13 @@
 .heroFade {
   position: absolute;
   inset: 0;
-  background: linear-gradient(180deg, transparent 45%, color-mix(in srgb, var(--pageBG) 70%, transparent) 80%, var(--pageBG) 100%);
+  /* Into Apple's colour when the page is tinted with it. */
+  background: linear-gradient(
+    180deg,
+    transparent 45%,
+    color-mix(in srgb, var(--page-tint, var(--pageBG)) 70%, transparent) 80%,
+    var(--page-tint, var(--pageBG)) 100%
+  );
   pointer-events: none;
 }
 
@@ -42,6 +63,26 @@
   text-shadow: 0 2px 20px #00000059;
 }
 
+/*
+ * Apple's title logo in place of the name: at most 82% of the page's width
+ * and 30% of the photo's height (the photo is the column's width over 1.93,
+ * and never taller than 70vh).
+ */
+.logo {
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: min(82%, 640px);
+  max-height: min(calc((100vw - var(--web-navigation-width)) / 1.93 * 0.3), 21vh);
+  margin: 0 auto 6px;
+  filter: drop-shadow(0 2px 16px #00000040);
+}
+
+.name[data-logo] {
+  width: 100%;
+  text-shadow: none;
+}
+
 .audience {
   font: var(--callout-emphasized);
   color: var(--systemSecondary);
@@ -55,8 +96,8 @@
   width: 56px;
   height: 56px;
   border-radius: 50%;
-  color: #fff;
-  background-color: var(--keyColorBG);
+  color: var(--play-glyph, #fff);
+  background-color: var(--play-fill, var(--keyColorBG));
   box-shadow: 0 2px 6px -4px #0006, inset 0 0 2px #ffffff1a;
 }
 
@@ -66,6 +107,33 @@
 
 .play:not(:disabled):hover {
   transform: scale(1.04);
+}
+
+/* The lyrics panel's permission notice, as a pill over the photograph. */
+.appleNotice {
+  margin-top: 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px 6px 14px;
+  border-radius: 999px;
+  background-color: #0000004d;
+  backdrop-filter: blur(20px) saturate(1.6);
+  font: var(--callout);
+  color: #ffffffcc;
+}
+
+.appleNotice button {
+  flex: none;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font: var(--callout-emphasized);
+  color: #fff;
+  background-color: #ffffff26;
+}
+
+.appleNotice button:hover {
+  background-color: #ffffff40;
 }
 
 .sectionTitle {

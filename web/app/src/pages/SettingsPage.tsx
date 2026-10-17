@@ -1,7 +1,7 @@
 import { ChevronRight, Users } from 'lucide-react';
 import { lazy, Suspense, useState, type ComponentType, type ReactNode } from 'react';
 import { MdOutlineExtension } from 'react-icons/md';
-import { SiDiscord, SiSpotify, SiYoutubemusic } from 'react-icons/si';
+import { SiApplemusic, SiDiscord, SiSpotify, SiYoutubemusic } from 'react-icons/si';
 import { PageHeader } from '@/components/PageHeader';
 import { PrefetchLink } from '@/components/PrefetchLink';
 import { useDiscord } from '@/extension/useDiscord';
@@ -10,7 +10,7 @@ import { useYtAuth } from '@/extension/useYtAuth';
 import { useParty } from '@/party/useParty';
 import { useHistorySettings } from '@/playback/historyReporting';
 import { CROSSFADE_CHOICES, usePlayer } from '@/state/player';
-import { CanvasToggle, DiscordIntegration, SpotifyIntegration, Toggle } from './IntegrationSettings';
+import { AppleMusicIntegration, AppleMusicToggles, CanvasToggle, DiscordIntegration, LyricSourcesAccess, SpotifyIntegration, Toggle } from './IntegrationSettings';
 import styles from './ExtensionPage.module.css';
 
 const LyricsSettings = lazy(() => import('@/shell/LyricsSettings').then((m) => ({ default: m.LyricsSettings })));
@@ -112,6 +112,17 @@ export default function SettingsPage() {
           <CanvasToggle />
         </section>
 
+        <h2 className={styles.sectionHeader}>Apple Music</h2>
+        <section className={styles.group}>
+          <div className={styles.integration}>
+            <Glyph Icon={SiApplemusic} color="#fa2d48" />
+            <span className={styles.integrationName}>Extension Access</span>
+            {present ? <AppleMusicIntegration /> : <span className={styles.value}>Needs the extension</span>}
+          </div>
+          <AppleMusicToggles />
+        </section>
+        <p className={styles.footer}>From Apple Music’s public pages. No Apple Music account or sign-in needed.</p>
+
         <h2 className={styles.sectionHeader}>Listen Together</h2>
         <section className={styles.group}>
           <LinkRow
@@ -151,6 +162,10 @@ export default function SettingsPage() {
               <ChevronRight size={16} />
             </span>
           </button>
+          <div className={styles.integration}>
+            <span className={styles.integrationName}>Lyric Sources Access</span>
+            {present ? <LyricSourcesAccess /> : <span className={styles.value}>Needs the extension</span>}
+          </div>
         </section>
       </div>
       {lyrics && (

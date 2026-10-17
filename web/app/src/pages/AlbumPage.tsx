@@ -4,6 +4,7 @@ import { playList, shuffleList } from '@/components/music/play';
 import { Shelves } from '@/components/music/ShelfView';
 import { LoadError, NeedsExtension } from '@/components/music/States';
 import { TrackList } from '@/components/music/TrackList';
+import { useAlbumMotion } from '@/data/apple/motionArt';
 import { useAlbum, useYouTubeReady } from '@/data/music/queries';
 import { useArtworkColor } from '@/lib/artworkColor';
 import { usePageTint } from '@/lib/usePageTint';
@@ -16,6 +17,7 @@ export default function AlbumPage() {
   const { missing } = useYouTubeReady();
   const album = useAlbum(id);
   usePageTint(useArtworkColor(album.data?.thumbnail));
+  const motion = useAlbumMotion(album.data?.title, album.data?.artists.map((a) => a.name).join(', '));
 
   if (missing) return <NeedsExtension />;
   if (album.isError) return <LoadError error={album.error} onRetry={() => void album.refetch()} />;
@@ -35,6 +37,7 @@ export default function AlbumPage() {
       <DetailHeader
         info={data}
         canPlay={tracks.length > 0}
+        motion={motion}
         onPlay={() => playList(tracks, 0, context)}
         onShuffle={() => shuffleList(tracks, context)}
       />
