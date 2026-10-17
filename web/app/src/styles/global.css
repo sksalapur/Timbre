@@ -376,13 +376,9 @@
     background-color: rgba(var(--keyColor-rgb), 0.3);
   }
 
-  /* Focus ring: 4px key colour at 60%, only for keyboard focus (report §8). */
+  /* No focus ring, for the mouse or the keyboard: the user asked for the key-colour box to go. */
+  :focus,
   :focus-visible {
-    outline: 4px solid var(--keyColor-focus-color);
-    outline-offset: 1px;
-  }
-
-  :focus:not(:focus-visible) {
     outline: none;
   }
 

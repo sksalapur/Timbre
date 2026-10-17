@@ -97,7 +97,7 @@ interface MenuItemProps {
 export function MenuItem({ onSelect, icon, checked, destructive, disabled, trailing, children }: MenuItemProps) {
   return (
     <button
-      className="flex min-h-7 w-full items-center gap-2 rounded-[5px] px-2 py-1 text-start type-body text-primary enabled:hover:bg-quinary focus-visible:bg-quinary focus-visible:[outline:none] disabled:text-tertiary data-destructive:text-destructive"
+      className="flex min-h-7 w-full items-center gap-2 rounded-[5px] px-2 py-1 text-start type-body text-primary enabled:hover:bg-quinary focus-visible:bg-quinary disabled:text-tertiary data-destructive:text-destructive"
       role={checked === undefined ? 'menuitem' : 'menuitemradio'}
       aria-checked={checked === undefined ? undefined : !!checked}
       data-destructive={destructive || undefined}

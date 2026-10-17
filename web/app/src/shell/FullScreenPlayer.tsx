@@ -13,6 +13,7 @@ import {
   ShuffleIcon,
   UpNextIcon,
 } from '@/components/icons/Transport';
+import { ExplicitBadge } from '@/components/music/ExplicitBadge';
 import { FavoriteButton } from '@/components/music/FavoriteButton';
 import { albumHref } from '@/components/music/links';
 import { MotionArtwork } from '@/components/music/MotionArtwork';
@@ -257,13 +258,16 @@ export function FullScreenPlayer() {
           <div className={`mt-[clamp(20px,3.2vh,32px)] flex items-center gap-3${column ? ' max-md:mt-0' : ''}`}>
             {/* As the mini player's: the title opens the album, each credited name its artist. */}
             <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-              <PageLink
-                className={`max-w-full self-start truncate type-[600_17px/22px] ${pageLink}`}
-                href={albumHref(album?.id ?? null)}
-                resolve={() => albumPageFor(videoId, album, [title, artist].filter(Boolean).join(' '))}
-              >
-                {title}
-              </PageLink>
+              <div className="flex min-w-0 items-center">
+                <PageLink
+                  className={`min-w-0 max-w-full self-start truncate type-[600_17px/22px] ${pageLink}`}
+                  href={albumHref(album?.id ?? null)}
+                  resolve={() => albumPageFor(videoId, album, [title, artist].filter(Boolean).join(' '))}
+                >
+                  {title}
+                </PageLink>
+                {track?.explicit && <ExplicitBadge size={14} />}
+              </div>
               <span className="truncate type-title-3 text-secondary">
                 {artist && <Credits videoId={videoId} line={artist} artists={track?.artists ?? []} className={pageLink} />}
                 {artist && album?.name && ' — '}

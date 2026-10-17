@@ -77,7 +77,7 @@ export default function DebugPage() {
           }}
         >
           <input
-            className="h-9 flex-1 rounded-[10px] border-0 bg-quinary px-3.5 type-title-3 focus-visible:[outline:3px_solid_var(--keyColor-focus-color)]"
+            className="h-9 flex-1 rounded-[10px] border-0 bg-quinary px-3.5 type-title-3"
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder="Video id or YouTube link"

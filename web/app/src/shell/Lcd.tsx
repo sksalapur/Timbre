@@ -2,6 +2,7 @@ import { Maximize2 } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router';
 import { LogoMark } from '@/components/icons/LogoMark';
+import { ExplicitBadge } from '@/components/music/ExplicitBadge';
 import { albumHref, artistHref } from '@/components/music/links';
 import { PrefetchLink } from '@/components/PrefetchLink';
 import { artistCredits, creditSegments } from '@/lib/artistCredits';
@@ -86,7 +87,7 @@ export function Credits({
 }
 
 // As wide as the name, so only the name opens the album.
-const titleClass = 'max-w-full self-start truncate type-body-emphasized';
+const titleClass = 'min-w-0 max-w-full self-start truncate type-body-emphasized';
 
 /** The now-playing tile inside the pill (report §1, "LCD"). */
 export function Lcd() {
@@ -140,14 +141,17 @@ export function Lcd() {
       {/* Over the seek line, the names soften into the background so the times can sit over them. */}
       <div className="flex min-w-0 flex-col transition-[filter,opacity] group-has-[[data-scrubber]:hover]/lcd:opacity-30 group-has-[[data-scrubber]:hover]/lcd:blur-[3px] group-has-[[data-dragging]]/lcd:opacity-30 group-has-[[data-dragging]]/lcd:blur-[3px]">
         {title ? (
-          // The song's name opens its album.
-          <PageLink
-            className={`${titleClass} ${pageLink}`}
-            href={albumHref(album?.id ?? null)}
-            resolve={() => albumPageFor(videoId, album, [title, artist].filter(Boolean).join(' '))}
-          >
-            {title}
-          </PageLink>
+          // The song's name opens its album; an explicit song carries the E after it.
+          <div className="flex min-w-0 items-center">
+            <PageLink
+              className={`${titleClass} ${pageLink}`}
+              href={albumHref(album?.id ?? null)}
+              resolve={() => albumPageFor(videoId, album, [title, artist].filter(Boolean).join(' '))}
+            >
+              {title}
+            </PageLink>
+            {track?.explicit && <ExplicitBadge size={11} />}
+          </div>
         ) : (
           <span className={titleClass}>{status === 'loading' ? 'Loading…' : ''}</span>
         )}

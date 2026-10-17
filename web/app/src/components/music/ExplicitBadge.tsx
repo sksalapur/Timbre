@@ -1,12 +1,23 @@
-/** The boxed "E" (report §2: 10×16, 4px after the title). Drawn for BitChord. */
-export function ExplicitBadge() {
+/**
+ * The boxed "E" (report §2), 4px after the title. Drawn as one shape with the
+ * letter cut out of it, so the E sits exactly in the middle at any size and
+ * shows whatever is behind it (a tinted page, the full-screen mesh).
+ */
+export function ExplicitBadge({ size = 12 }: { size?: number }) {
   return (
-    <span
-      className="ms-1 inline-grid size-2.5 shrink-0 place-items-center rounded-[2px] bg-secondary align-[1px] type-[700_7.5px/1] text-page"
+    <svg
+      className="ms-1 inline-block shrink-0 align-[-1px] text-secondary"
+      width={size}
+      height={size}
+      viewBox="0 0 12 12"
       role="img"
       aria-label="Explicit"
     >
-      E
-    </span>
+      <path
+        fill="currentColor"
+        fillRule="evenodd"
+        d="M2.5 0h7A2.5 2.5 0 0 1 12 2.5v7A2.5 2.5 0 0 1 9.5 12h-7A2.5 2.5 0 0 1 0 9.5v-7A2.5 2.5 0 0 1 2.5 0ZM3.9 3v6h4.2V7.75H5.35v-1.15H7.8V5.4H5.35V4.25H8.1V3Z"
+      />
+    </svg>
   );
 }

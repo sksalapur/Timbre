@@ -60,7 +60,7 @@ export function DetailHeader({ info, onPlay, onShuffle, canPlay, extra, motion }
       <div className="flex flex-col pt-[37px] [grid-area:headings] max-md:items-center max-md:pt-5">
         <h1 className="flex items-center type-large-title-emphasized leading-[30px] max-md:justify-center">
           {info.title}
-          {info.explicit && <ExplicitBadge />}
+          {info.explicit && <ExplicitBadge size={16} />}
         </h1>
         {info.artists.length > 0 && (
           <div className="type-large-title leading-[30px] text-primary">
