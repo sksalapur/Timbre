@@ -1288,6 +1288,10 @@
     <string name="replay_songs_end_week">があなたの1週間を彩りました。</string>
     <string name="replay_summary_end_week">週</string>
     <string name="replay_this_week">今週</string>
+    <string name="replay_period_weekly">週間</string>
+    <string name="replay_period_monthly">月間</string>
+    <string name="replay_period_yearly">年間</string>
+    <string name="replay_period_lifetime">全期間</string>
     <string name="onboarding_title">数百万曲を BitChord でストリーミング</string>
     <string name="onboarding_name_prompt">どうお呼びしましょうか?</string>
     <string name="onboarding_name_hint">あなたの名前</string>

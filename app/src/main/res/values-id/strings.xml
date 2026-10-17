@@ -1287,6 +1287,10 @@
     <string name="replay_songs_end_week"> mengisi minggu Anda.</string>
     <string name="replay_summary_end_week">minggu</string>
     <string name="replay_this_week">Minggu ini</string>
+    <string name="replay_period_weekly">Mingguan</string>
+    <string name="replay_period_monthly">Bulanan</string>
+    <string name="replay_period_yearly">Tahunan</string>
+    <string name="replay_period_lifetime">Sepanjang masa</string>
     <string name="onboarding_title">Jutaan lagu, streaming di BitChord</string>
     <string name="onboarding_name_prompt">Anda ingin dipanggil apa?</string>
     <string name="onboarding_name_hint">Nama Anda</string>

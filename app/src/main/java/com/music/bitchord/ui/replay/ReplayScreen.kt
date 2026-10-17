@@ -299,8 +299,12 @@ private fun Heading(state: ReplayState, onPeriodChange: (ReplayPeriod) -> Unit, 
 private fun PeriodPicker(selected: ReplayPeriod, onSelect: (ReplayPeriod) -> Unit, dark: Boolean) {
     val context = LocalContext.current
     val textColor = if (dark) Color.White else Color.Black
+    // Four equal shares of the full width, each held to one line. Sized to
+    // their labels instead, the chips ran past the edge on a narrow phone and
+    // the last was squeezed into whatever was left, one letter to a line.
     Row(
         Modifier
+            .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
             .background(textColor.copy(alpha = 0.10f))
             .padding(3.dp),
@@ -314,15 +318,19 @@ private fun PeriodPicker(selected: ReplayPeriod, onSelect: (ReplayPeriod) -> Uni
                 label = "periodChip",
             )
             Text(
-                text = period.localizedChip(context),
+                text = period.localizedTab(context),
                 style = MaterialTheme.typography.labelMedium,
                 fontWeight = FontWeight.W700,
                 color = if (active) if (dark) Color.Black else Color.White else textColor.copy(alpha = 0.75f),
+                textAlign = TextAlign.Center,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
                 modifier = Modifier
+                    .weight(1f)
                     .clip(RoundedCornerShape(10.dp))
                     .background(background)
                     .clickable { onSelect(period) }
-                    .padding(horizontal = 14.dp, vertical = 8.dp),
+                    .padding(horizontal = 6.dp, vertical = 8.dp),
             )
         }
     }
