@@ -1261,6 +1261,10 @@
     <string name="cached_songs">שירים במטמון</string>
     <string name="cached_songs_subtitle">שירים מ-YouTube ומ-JioSaavn במטמון השירים</string>
     <string name="cached_songs_empty">אין עדיין שירים במטמון. שירים שתנגן מ-YouTube או מ-JioSaavn יופיעו כאן.</string>
+    <string name="cached_song_partial">חלקי</string>
+    <string name="remove_from_cache">הסרה מהמטמון</string>
+    <string name="cached_song_remove">הסרה</string>
+    <string name="removed_from_cache">הוסר ממטמון השירים</string>
     <string name="show_cache_folder">הצג תיקיית שירים במטמון</string>
     <string name="show_cache_folder_subtitle">מוסיף לספרייה תיקייה עם שירי YouTube ו-JioSaavn שנשמרו במטמון</string>
     <string name="song_cache_unlimited">ללא הגבלה</string>

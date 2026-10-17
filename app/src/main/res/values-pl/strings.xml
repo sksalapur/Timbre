@@ -1296,6 +1296,10 @@
     <string name="cached_songs">Utwory w pamięci podręcznej</string>
     <string name="cached_songs_subtitle">Utwory z YouTube i JioSaavn w pamięci podręcznej utworów</string>
     <string name="cached_songs_empty">Brak utworów w pamięci podręcznej. Utwory odtwarzane z YouTube lub JioSaavn pojawią się tutaj.</string>
+    <string name="cached_song_partial">Częściowo</string>
+    <string name="remove_from_cache">Usuń z pamięci podręcznej</string>
+    <string name="cached_song_remove">Usuń</string>
+    <string name="removed_from_cache">Usunięto z pamięci podręcznej utworów</string>
     <string name="show_cache_folder">Pokaż folder utworów w pamięci podręcznej</string>
     <string name="show_cache_folder_subtitle">Dodaje do Biblioteki folder z utworami z YouTube i JioSaavn przechowywanymi w pamięci podręcznej</string>
     <string name="song_cache_unlimited">Bez limitu</string>

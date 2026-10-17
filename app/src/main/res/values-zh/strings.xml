@@ -1233,6 +1233,10 @@
     <string name="cached_songs">已缓存的歌曲</string>
     <string name="cached_songs_subtitle">歌曲缓存中的 YouTube 和 JioSaavn 歌曲</string>
     <string name="cached_songs_empty">还没有已缓存的歌曲。你从 YouTube 或 JioSaavn 播放的歌曲会显示在这里。</string>
+    <string name="cached_song_partial">部分</string>
+    <string name="remove_from_cache">从缓存中移除</string>
+    <string name="cached_song_remove">移除</string>
+    <string name="removed_from_cache">已从歌曲缓存中移除</string>
     <string name="show_cache_folder">显示已缓存歌曲文件夹</string>
     <string name="show_cache_folder_subtitle">在资料库中添加一个文件夹，列出歌曲缓存中保存的 YouTube 和 JioSaavn 歌曲</string>
     <string name="song_cache_unlimited">无限制</string>

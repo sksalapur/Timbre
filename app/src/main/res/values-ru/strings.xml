@@ -1288,6 +1288,10 @@
     <string name="cached_songs">Кэшированные треки</string>
     <string name="cached_songs_subtitle">Треки из YouTube и JioSaavn в кэше треков</string>
     <string name="cached_songs_empty">Кэшированных треков пока нет. Здесь появятся треки, которые вы слушаете из YouTube или JioSaavn.</string>
+    <string name="cached_song_partial">Частично</string>
+    <string name="remove_from_cache">Удалить из кеша</string>
+    <string name="cached_song_remove">Удалить</string>
+    <string name="removed_from_cache">Удалено из кеша треков</string>
     <string name="show_cache_folder">Показывать папку кэшированных треков</string>
     <string name="show_cache_folder_subtitle">Добавляет в Библиотеку папку с треками из YouTube и JioSaavn, сохранёнными в кэше</string>
     <string name="song_cache_unlimited">Без ограничений</string>

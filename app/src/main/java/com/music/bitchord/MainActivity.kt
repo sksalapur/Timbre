@@ -101,6 +101,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.produceState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.Role
@@ -2066,7 +2067,11 @@ private fun BitChordApp(
         // after this check for the connection to have changed under it. This is
         // the one place that knows the tap was for forty tracks and can say so
         // once, rather than leaving forty identical failed rows to be read.
-        val blocked = songs.isNotEmpty() && !AppSettings.downloadsAllowedNow
+        // A copy out of the song cache spends no data, so Wi-Fi only does not
+        // refuse a batch that has one — [Downloads.enqueue] still refuses the
+        // tracks in it that would need the network.
+        val blocked = songs.isNotEmpty() && !AppSettings.downloadsAllowedNow &&
+            songs.none { Downloads.servableFromCache(it.videoId) }
         if (songs.isNotEmpty() && !blocked) {
             val needsStorage = AppSettings.exportDownloads.value && DownloadStore.needsLegacyPermission() &&
                 ContextCompat.checkSelfPermission(
@@ -2135,6 +2140,25 @@ private fun BitChordApp(
                 }
                 Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
             }
+        }
+    }
+    // The Cached songs folder's download buttons. The song cache already holds
+    // these tracks, so they are saved from its copy — no data spent, no
+    // connection needed — rather than fetched afresh at the Download quality
+    // setting. See [Downloads.preferCachedCopy]. The folder's own second line
+    // ("YouTube · 4.2 MB") is the cache's, not the file's, and stays behind.
+    val downloadFromCache: (List<Song>) -> Unit = { songs ->
+        val cleaned = songs.map { it.copy(downloadFormat = null, localDateAddedSeconds = null) }
+        Downloads.preferCachedCopy(cleaned.map { it.videoId })
+        startDownload(cleaned, null)
+    }
+    val removedFromCacheMessage = stringResource(R.string.removed_from_cache)
+    // Takes tracks out of the song cache — the folder's selection, or one
+    // song's menu. The open folder re-reads itself off [AudioCache.contentsChanged].
+    val removeFromCache: (List<Song>) -> Unit = { songs ->
+        scope.launch {
+            val removed = songs.sumOf { AudioCache.remove(it.videoId) }
+            if (removed > 0) showQueueNotice(removedFromCacheMessage)
         }
     }
     /**
@@ -2902,6 +2926,7 @@ private fun BitChordApp(
                         // picked there opens as a page of its own — see LocalGroups.
                         val folder = if (page.browseId.isDeviceFolder()) {
                             val isDownloads = page.browseId == "local:downloads"
+                            val isCache = page.browseId == CACHE_FOLDER_BROWSE_ID
                             val folderSongs = (page.songs as? UiState.Success)?.data.orEmpty()
                             // Only the Downloads folder has releases behind it: Local
                             // Music is files this app never asked for, so there is
@@ -2917,7 +2942,7 @@ private fun BitChordApp(
                                 sort = folderSortOf(page.browseId),
                                 viewType = folderViewTypeOf(page.browseId),
                                 collections = downloadCollections,
-                                selectable = isDownloads,
+                                selectable = isDownloads || isCache,
                                 onOpenGroup = viewModel::openLocalGroup,
                                 onGroupLongPress = { group ->
                                     openBrowseMenu(
@@ -2948,6 +2973,8 @@ private fun BitChordApp(
                                 } else {
                                     null
                                 },
+                                onDownload = if (isCache) downloadFromCache else null,
+                                onRemoveFromCache = if (isCache) removeFromCache else null,
                             )
                         } else {
                             null
@@ -4343,6 +4370,15 @@ private fun BitChordApp(
             // carries the per-entry id a removal is expressed in.
             val editable = viewModel.editablePlaylist(detail?.browseId)
                 ?.takeIf { !fromPlayer && song.setVideoId != null }
+            // Asked of the cache's index off the main thread as the menu opens,
+            // so "Remove from cache" is only offered for a track it holds.
+            // Re-asked when the cache changes, which is what drops the row
+            // once the track has gone.
+            val cacheVersion by AudioCache.contentsChanged.collectAsStateWithLifecycle()
+            val inCache by produceState(false, song.videoId, cacheVersion) {
+                value = song.localUri == null &&
+                    withContext(Dispatchers.IO) { AudioCache.holds(song.videoId) }
+            }
             SongActionsSheet(
                 song = song,
                 presentation = presentation,
@@ -4354,7 +4390,15 @@ private fun BitChordApp(
                 // Stays open: the row it replaces itself with is the
                 // progress, and closing the sheet would hide the only
                 // answer to "did that work?".
-                onDownload = { downloadSong(song) },
+                // From the Cached songs folder, the cache's own copy is the
+                // download — the same as the row's download button there.
+                onDownload = {
+                    if (!fromPlayer && detail?.browseId == CACHE_FOLDER_BROWSE_ID) {
+                        downloadFromCache(listOf(song))
+                    } else {
+                        downloadSong(song)
+                    }
+                },
                 // The other direction: a device file going up to the
                 // server. Closed first, unlike a download — progress and
                 // the summary notice live outside the sheet.
@@ -4395,6 +4439,14 @@ private fun BitChordApp(
                         songActions = null
                         viewModel.removeFromPlaylist(it.browseId, song)
                     }
+                },
+                onRemoveFromCache = if (inCache) {
+                    {
+                        songActions = null
+                        removeFromCache(listOf(song))
+                    }
+                } else {
+                    null
                 },
                 onOpenAlbum = { id ->
                     openPage(

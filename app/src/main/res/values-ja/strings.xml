@@ -1234,6 +1234,10 @@
     <string name="cached_songs">キャッシュ済みの曲</string>
     <string name="cached_songs_subtitle">曲キャッシュ内のYouTubeとJioSaavnの曲</string>
     <string name="cached_songs_empty">キャッシュ済みの曲はまだありません。YouTubeやJioSaavnで再生した曲がここに表示されます。</string>
+    <string name="cached_song_partial">一部のみ</string>
+    <string name="remove_from_cache">キャッシュから削除</string>
+    <string name="cached_song_remove">削除</string>
+    <string name="removed_from_cache">曲のキャッシュから削除しました</string>
     <string name="show_cache_folder">キャッシュ済みの曲フォルダを表示</string>
     <string name="show_cache_folder_subtitle">曲キャッシュに保存されたYouTubeとJioSaavnの曲のフォルダをライブラリに追加します</string>
     <string name="song_cache_unlimited">無制限</string>

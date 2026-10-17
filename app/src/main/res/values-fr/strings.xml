@@ -1257,6 +1257,10 @@
     <string name="cached_songs">Titres en cache</string>
     <string name="cached_songs_subtitle">Titres de YouTube et JioSaavn dans le cache audio</string>
     <string name="cached_songs_empty">Aucun titre en cache pour l’instant. Les titres lus depuis YouTube ou JioSaavn apparaîtront ici.</string>
+    <string name="cached_song_partial">Partiel</string>
+    <string name="remove_from_cache">Retirer du cache</string>
+    <string name="cached_song_remove">Retirer</string>
+    <string name="removed_from_cache">Retiré du cache des titres</string>
     <string name="show_cache_folder">Afficher le dossier des titres en cache</string>
     <string name="show_cache_folder_subtitle">Ajoute à la Bibliothèque un dossier avec les titres YouTube et JioSaavn conservés dans le cache</string>
     <string name="song_cache_unlimited">Illimité</string>
