@@ -34,6 +34,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -122,13 +125,21 @@ fun ReplayScreen(
     // corresponding chart rather than making the user find it again. Wait for
     // a loaded summary because the loading/empty layouts do not contain these
     // keyed sections yet.
+    //
+    // Once only per opening, though. Back from an artist or album opened off
+    // this page composes it again, and landing a second time threw away
+    // wherever it had been scrolled to. Saveable, so it outlives that trip —
+    // the page's state is kept while it is on the back stack.
+    var landed by rememberSaveable(landingPage, state.period) { mutableStateOf(false) }
     LaunchedEffect(landingPage, state.period, summary == null) {
+        if (landed) return@LaunchedEffect
         val target = when {
             landingPage == ReplayStoryPage.INTRO || landingPage == ReplayStoryPage.MINUTES -> 0
             summary == null || summary.isEmpty -> 0
             else -> replayChartIndex(summary, landingPage)
         }
         listState.scrollToItem(target)
+        if (summary != null) landed = true
     }
 
     Box(modifier.fillMaxSize()) {

@@ -2528,9 +2528,12 @@ private fun BitChordApp(
         // leaves the page. Only while that page is the one on screen.
         BackHandler(enabled = detail != null && detailActiveShelf != null) { detailActiveShelf = null }
         // Replay's stories and its share sheet are drawn over everything, and
-        // unwind in the order they were opened.
-        BackHandler(enabled = replayStory != null && !showReplayShare) { replayStory = null }
-        BackHandler(enabled = showReplayShare) { showReplayShare = false }
+        // unwind in the order they were opened. Only while there is a summary
+        // to draw them from — otherwise back would spend a step closing
+        // something that never appeared.
+        val replayDrawable = replay.summary?.isEmpty == false
+        BackHandler(enabled = replayDrawable && replayStory != null && !showReplayShare) { replayStory = null }
+        BackHandler(enabled = replayDrawable && showReplayShare) { showReplayShare = false }
         BackHandler(enabled = showUpdateDialog) { showUpdateDialog = false }
         BackHandler(enabled = showListenBrainzLogin) { showListenBrainzLogin = false }
         BackHandler(enabled = showLastfmLogin) { showLastfmLogin = false }
