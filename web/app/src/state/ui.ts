@@ -34,3 +34,6 @@ export const useUi = create<UiState>()((set) => ({
     set({ installBannerDismissed: true });
   },
 }));
+
+// For browser-driven tests, next to __bcPlayer.
+if (import.meta.env.DEV) Object.assign(window, { __bcUi: useUi });
