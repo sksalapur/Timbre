@@ -696,6 +696,14 @@ function applyTrack(track: LoadedTrack, from?: Track) {
   };
   usePlayer.setState({ nowPlaying, error: null });
   updateMediaSession(nowPlaying);
+  followVideo();
+}
+
+/** A music video's picture follows the deck in front (playback/youtube/videoDeck.ts, loaded with the engine). */
+function followVideo() {
+  const deck = decks?.[active];
+  if (!deck) return;
+  void import('@/playback/youtube/videoDeck').then((m) => m.followVideo(deck.engine, deck.audio));
 }
 
 /** The elements' own events are the source of truth for play state; only the deck in front speaks. */

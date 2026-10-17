@@ -17,11 +17,13 @@ import { ExplicitBadge } from '@/components/music/ExplicitBadge';
 import { FavoriteButton } from '@/components/music/FavoriteButton';
 import { albumHref } from '@/components/music/links';
 import { MotionArtwork } from '@/components/music/MotionArtwork';
+import { VideoSurface } from '@/components/music/VideoSurface';
 import { useTrackMotion } from '@/data/apple/motionArt';
 import { sizedArtwork } from '@/lib/artwork';
 import { useLyrics } from '@/lyrics/useLyrics';
 import { usePlayer } from '@/state/player';
 import { useUi } from '@/state/ui';
+import { useHasVideo, useVideo } from '@/state/video';
 import { Credits, PageLink, pageLink } from './Lcd';
 import { LyricsPanel } from './LyricsPanel';
 import { MeshBackdrop } from './MeshBackdrop';
@@ -110,12 +112,19 @@ const chrome =
   'absolute z-1 grid size-8 place-items-center rounded-full text-secondary transition-[background-color,color] duration-100 ease-in hover:bg-quinary hover:text-primary';
 const artworkLayer = 'absolute inset-0 size-full rounded-[inherit] object-cover opacity-0 transition-opacity duration-300 ease-in';
 
+/** How long the pointer can rest before a playing music video hides its controls. */
+const IDLE_MS = 3000;
+
 /**
  * The full-screen player (report §7): the artwork on the left with the
  * track's names, the seek line and the transport under it; the lyrics, the
  * same am-lyrics panel as the side panel's, on the right; all over a mesh
  * gradient of the artwork's colours. Without lyrics, the artwork column sits
  * in the middle on its own, as Apple's does.
+ *
+ * A music video plays as Apple's do: on its own, it fills the window with
+ * the names and transport over its foot, fading out while the pointer rests;
+ * beside the lyrics or Up Next, it takes the artwork's place at 16:9.
  */
 export function FullScreenPlayer() {
   const nowPlaying = usePlayer((s) => s.nowPlaying);
@@ -131,8 +140,16 @@ export function FullScreenPlayer() {
   const playing = usePlayer((s) => s.status === 'playing' || s.status === 'buffering');
   const setFullScreen = useUi((s) => s.setFullScreen);
   const lyrics = useLyrics();
+  const video = useHasVideo(nowPlaying?.videoId);
   // The right-hand column: the lyrics, Up Next, or nothing. Lyrics toggle bottom left, Up Next bottom right.
-  const [panel, setPanel] = useState<'lyrics' | 'queue' | null>('lyrics');
+  // A music video opens on its own, without the lyrics.
+  const [panel, setPanel] = useState<'lyrics' | 'queue' | null>(() =>
+    nowPlaying && useVideo.getState().videoId === nowPlaying.videoId ? null : 'lyrics',
+  );
+  // Once the listener picks a column, a video arriving late doesn't take it away.
+  const picked = useRef(false);
+  const [idle, setIdle] = useState(false);
+  const idleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const browserFullScreen = useBrowserFullScreen();
   const close = useRef<HTMLButtonElement>(null);
   // Whether this player put the page in the browser's full screen, so closing it leaves it again.
@@ -142,7 +159,26 @@ export function FullScreenPlayer() {
   const hasLyrics = !!lyrics.data || (lyrics.isPending && lyrics.fetchStatus !== 'idle');
   const showLyrics = panel === 'lyrics' && hasLyrics;
   const showQueue = panel === 'queue';
-  const togglePanel = (p: 'lyrics' | 'queue') => setPanel((on) => (on === p ? null : p));
+  const togglePanel = (p: 'lyrics' | 'queue') => {
+    picked.current = true;
+    setPanel((on) => (on === p ? null : p));
+  };
+
+  useEffect(() => {
+    if (video && !picked.current) setPanel(null);
+  }, [video]);
+
+  const wake = () => {
+    setIdle(false);
+    if (idleTimer.current) clearTimeout(idleTimer.current);
+    idleTimer.current = setTimeout(() => setIdle(true), IDLE_MS);
+  };
+  useEffect(() => {
+    wake();
+    return () => {
+      if (idleTimer.current) clearTimeout(idleTimer.current);
+    };
+  }, []);
 
   useEffect(() => {
     const opener = document.activeElement as HTMLElement | null;
@@ -180,6 +216,11 @@ export function FullScreenPlayer() {
   const album = track?.album ?? null;
   // With a right-hand column; on narrow windows that column fills the screen and the controls sit under it, without the artwork.
   const column = showLyrics || showQueue;
+  // A music video on its own fills the window.
+  const theater = video && !column;
+  // ...and hides the controls and the pointer while it plays undisturbed.
+  const hidden = theater && playing && idle ? ' pointer-events-none opacity-0' : '';
+  const corner = `${chrome} transition-[background-color,color,opacity] duration-300${hidden}`;
 
   return (
     <div
@@ -191,15 +232,24 @@ export function FullScreenPlayer() {
       aria-label="Now Playing"
       data-full-screen
       data-paused={!playing || undefined}
+      onPointerMove={wake}
+      onPointerDown={wake}
+      onKeyDown={wake}
+      style={theater && playing && idle ? { cursor: 'none' } : undefined}
     >
       <MeshBackdrop artworkUrl={nowPlaying.artworkUrl} playing={playing} />
+      {theater && (
+        <div className="absolute inset-0 animate-fade-in bg-black">
+          <VideoSurface fit="contain" className="size-full" />
+        </div>
+      )}
 
-      <button ref={close} className={`${chrome} top-4 left-5`} aria-label="Close" onClick={() => setFullScreen(false)}>
+      <button ref={close} className={`${corner} top-4 left-5`} aria-label="Close" onClick={() => setFullScreen(false)}>
         <X size={20} />
       </button>
       {document.fullscreenEnabled && (
         <button
-          className={`${chrome} top-4 right-5`}
+          className={`${corner} top-4 right-5`}
           aria-label={browserFullScreen ? 'Exit full screen' : 'Enter full screen'}
           onClick={toggleBrowserFullScreen}
         >
@@ -209,17 +259,28 @@ export function FullScreenPlayer() {
 
       {/* Apple's grid areas "controls lyrics": the artwork column, then the lyrics. */}
       <div
-        className={`grid h-full items-center justify-center gap-x-[clamp(48px,7vw,144px)] px-[clamp(24px,9vw,144px)] py-16 max-md:px-6 max-md:pb-18 ${
-          column
-            ? 'grid-cols-[var(--art)_minmax(0,38vw)] max-md:grid-cols-[minmax(0,1fr)] max-md:grid-rows-[minmax(0,1fr)_auto] max-md:items-stretch max-md:gap-y-4'
-            : 'grid-cols-[var(--art)]'
-        }`}
+        className={
+          theater
+            ? `absolute inset-x-0 bottom-0 flex justify-center bg-[linear-gradient(to_top,rgb(0_0_0/0.72),rgb(0_0_0/0.35)_55%,transparent)] px-6 pt-32 pb-16 transition-opacity duration-300${hidden}`
+            : `grid h-full items-center justify-center gap-x-[clamp(48px,7vw,144px)] px-[clamp(24px,9vw,144px)] py-16 max-md:px-6 max-md:pb-18 ${
+                column
+                  ? 'grid-cols-[var(--art)_minmax(0,38vw)] max-md:grid-cols-[minmax(0,1fr)] max-md:grid-rows-[minmax(0,1fr)_auto] max-md:items-stretch max-md:gap-y-4'
+                  : 'grid-cols-[var(--art)]'
+              }`
+        }
         data-lyrics={column || undefined}
       >
-        <section className={`flex w-(--art) min-w-0 flex-col${column ? ' max-md:order-2 max-md:w-full' : ''}`} aria-label="Player">
-          {/* Shrinks a touch while paused, as Apple's does. */}
+        <section
+          className={
+            theater ? 'flex w-[min(720px,100%)] min-w-0 flex-col' : `flex w-(--art) min-w-0 flex-col${column ? ' max-md:order-2 max-md:w-full' : ''}`
+          }
+          aria-label="Player"
+        >
+          {/* Shrinks a touch while paused, as Apple's does. Beside a column, a music video plays here at 16:9. */}
           <div
-            className={`relative aspect-square w-(--art) rounded-[10px] transition-[scale] duration-450 ease-[cubic-bezier(0.34,1.3,0.64,1)] motion-reduce:transition-none${playing ? '' : ' scale-92'}${column ? ' max-md:hidden' : ''}`}
+            className={`relative w-(--art) rounded-[10px] transition-[scale] duration-450 ease-[cubic-bezier(0.34,1.3,0.64,1)] motion-reduce:transition-none${
+              video ? ' aspect-video overflow-hidden bg-black' : ' aspect-square'
+            }${playing ? '' : ' scale-92'}${column ? ' max-md:hidden' : ''}${theater ? ' hidden' : ''}`}
           >
             {nowPlaying.artworkUrl && (
               <>
@@ -253,9 +314,10 @@ export function FullScreenPlayer() {
                 playing={playing}
               />
             )}
+            {video && !theater && <VideoSurface className="absolute inset-0" />}
           </div>
 
-          <div className={`mt-[clamp(20px,3.2vh,32px)] flex items-center gap-3${column ? ' max-md:mt-0' : ''}`}>
+          <div className={`flex items-center gap-3${theater ? '' : ' mt-[clamp(20px,3.2vh,32px)]'}${column ? ' max-md:mt-0' : ''}`}>
             {/* As the mini player's: the title opens the album, each credited name its artist. */}
             <div className="flex min-w-0 flex-1 flex-col gap-0.5">
               <div className="flex min-w-0 items-center">
@@ -311,7 +373,7 @@ export function FullScreenPlayer() {
 
       {hasLyrics && (
         <button
-          className={`${chrome} bottom-5 left-5 aria-pressed:text-primary`}
+          className={`${corner} bottom-5 left-5 aria-pressed:text-primary`}
           aria-label="Lyrics"
           aria-pressed={showLyrics}
           onClick={() => togglePanel('lyrics')}
@@ -320,7 +382,7 @@ export function FullScreenPlayer() {
         </button>
       )}
       <button
-        className={`${chrome} right-5 bottom-5 aria-pressed:text-primary`}
+        className={`${corner} right-5 bottom-5 aria-pressed:text-primary`}
         aria-label="Up Next"
         aria-pressed={showQueue}
         onClick={() => togglePanel('queue')}
