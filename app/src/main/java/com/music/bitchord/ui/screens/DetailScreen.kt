@@ -337,6 +337,12 @@ fun DetailScreen(
      * [LocalFolder].
      */
     folder: LocalFolder? = null,
+    /**
+     * Set while this playlist's songs are being rearranged: drawn in place of
+     * the track list, over the same page colour, and handed the page's
+     * [ArtworkPalette] so it reads as this page rather than a sheet over it.
+     */
+    reorder: (@Composable (ArtworkPalette) -> Unit)? = null,
 ) {
     val rawSongs = (page.songs as? UiState.Success)?.data.orEmpty()
     // A folder keeps its own sort — the one its top bar menu sets — rather
@@ -537,7 +543,9 @@ fun DetailScreen(
                     )
                 }
 
-                LazyColumn(
+                if (reorder != null) {
+                    reorder(palette)
+                } else LazyColumn(
                     state = listState,
                     modifier = Modifier.fillMaxSize(),
                     // The artist photo runs edge-to-edge up under the glass bar;

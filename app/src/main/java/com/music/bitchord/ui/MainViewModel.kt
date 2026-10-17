@@ -1248,7 +1248,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /**
-     * The playlist's entries as they stand on YouTube, for the reorder sheet —
+     * The playlist's entries as they stand on YouTube, for the reorder page —
      * see [YtMusicRepository.playlistEntries] for why not the open page's list.
      */
     fun loadPlaylistEntries(playlist: UserPlaylist, onResult: (Result<List<Song>>) -> Unit) {
