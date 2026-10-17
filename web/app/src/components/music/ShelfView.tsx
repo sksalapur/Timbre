@@ -1,20 +1,16 @@
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { PrefetchLink } from '@/components/PrefetchLink';
-import shelfStyles from '@/components/Shelf.module.css';
+import { shelfHeader, shelfKinds, shelfList, shelfSection, type ShelfKind } from '@/components/shelf';
 import type { MusicItem, Shelf, Track } from '@/data/music/types';
 import type { QueueSource } from '@/playback/queue/timeline';
 import { browseHref } from './links';
 import { CircleLockup, SquareLockup, TrackLockup, VideoLockup } from './Lockups';
 import { playList } from './play';
-import styles from './ShelfView.module.css';
 
-const LAYOUT_CLASS = {
-  tracks: shelfStyles.tracks,
-  square: shelfStyles.square,
-  video: shelfStyles.video,
-  circle: shelfStyles.circle,
-} as const;
+// Arrow buttons (report §2): 28×52 glass pills, only ≥1000px, shown on shelf hover.
+const arrow =
+  'absolute top-1/2 z-3 hidden h-13 w-7 -translate-y-1/2 place-items-center rounded-pill bg-thin-material text-secondary opacity-0 transition-[opacity,background-color,color] duration-(--duration-arrow) ease-linear [backdrop-filter:saturate(180%)_blur(60px)] hover:text-primary disabled:pointer-events-none lg:grid lg:enabled:group-hover/shelf:opacity-100';
 
 function renderItem(shelf: Shelf, item: MusicItem): ReactNode {
   switch (shelf.layout) {
@@ -33,7 +29,7 @@ function renderItem(shelf: Shelf, item: MusicItem): ReactNode {
  * A shelf's scrolling row with Apple's hover arrows (report §2), around any
  * list items: the shelves below, and the artist page's Top Songs.
  */
-export function ShelfScroller({ layoutClass, children }: { layoutClass: string | undefined; children: ReactNode }) {
+export function ShelfScroller({ kind, children }: { kind: ShelfKind; children: ReactNode }) {
   const list = useRef<HTMLUListElement>(null);
   const [edges, setEdges] = useState({ start: true, end: true });
 
@@ -61,20 +57,20 @@ export function ShelfScroller({ layoutClass, children }: { layoutClass: string |
   };
 
   return (
-    <div className={`${shelfStyles.body} ${styles.body}`}>
+    <div className="group/shelf relative">
       <button
-        className={`${styles.arrow} ${styles.arrowLeft}`}
+        className={`${arrow} left-1.5`}
         aria-label="Previous Page"
         disabled={edges.start}
         onClick={() => page(-1)}
       >
         <ChevronLeft size={20} strokeWidth={2.4} />
       </button>
-      <ul ref={list} className={`${shelfStyles.list} ${layoutClass}`} onScroll={measure}>
+      <ul ref={list} className={`${shelfList} ${shelfKinds[kind]}`} onScroll={measure}>
         {children}
       </ul>
       <button
-        className={`${styles.arrow} ${styles.arrowRight}`}
+        className={`${arrow} right-1.5`}
         aria-label="Next Page"
         disabled={edges.end}
         onClick={() => page(1)}
@@ -88,12 +84,12 @@ export function ShelfScroller({ layoutClass, children }: { layoutClass: string |
 /** A shelf's title, a link with a chevron when there's a page behind it. */
 function ShelfTitle({ title, to }: { title: string; to?: string | null }) {
   return (
-    <div className={shelfStyles.header}>
-      <h2 className={styles.title}>
+    <div className={shelfHeader}>
+      <h2 className="type-title-2-emphasized">
         {to ? (
-          <PrefetchLink to={to} className={styles.titleLink}>
+          <PrefetchLink to={to} className="group/title inline-flex items-center gap-0.5">
             {title}
-            <ChevronRight size={18} strokeWidth={2.6} className={styles.chevron} />
+            <ChevronRight size={18} strokeWidth={2.6} className="text-secondary group-hover/title:text-primary" />
           </PrefetchLink>
         ) : (
           title
@@ -122,9 +118,9 @@ export const trackItem = (track: Track): MusicItem => ({
  */
 export function TrackShelf({ title, to, tracks, source }: { title: string; to?: string | null; tracks: Track[]; source: QueueSource }) {
   return (
-    <section className={shelfStyles.section} aria-label={title}>
+    <section className={shelfSection} aria-label={title}>
       <ShelfTitle title={title} to={to} />
-      <ShelfScroller key={tracks.length} layoutClass={shelfStyles.tracks}>
+      <ShelfScroller key={tracks.length} kind="tracks">
         {tracks.map((track, i) => (
           <li key={track.videoId}>
             <TrackLockup item={trackItem(track)} onPlay={() => playList(tracks, i, { source })} />
@@ -138,9 +134,9 @@ export function TrackShelf({ title, to, tracks, source }: { title: string; to?: 
 /** A titled horizontal shelf (report §2): grid columns per breakpoint, scroll-snap, hover arrows. */
 export function ShelfView({ shelf }: { shelf: Shelf }) {
   return (
-    <section className={shelfStyles.section} aria-label={shelf.title}>
+    <section className={shelfSection} aria-label={shelf.title}>
       <ShelfTitle title={shelf.title} to={shelf.seeAll ? browseHref(shelf.seeAll) : null} />
-      <ShelfScroller key={shelf.items.length} layoutClass={LAYOUT_CLASS[shelf.layout]}>
+      <ShelfScroller key={shelf.items.length} kind={shelf.layout}>
         {shelf.items.map((item, i) => (
           <li key={`${item.id}-${i}`}>{renderItem(shelf, item)}</li>
         ))}

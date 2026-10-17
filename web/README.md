@@ -4,7 +4,7 @@ The web player and its companion browser extension. The plan, and the decisions 
 
 | Package | What it is |
 |---|---|
-| `app/` | The site: Vite, React 19, TypeScript, React Router, TanStack Query, Zustand, CSS Modules |
+| `app/` | The site: Vite, React 19, TypeScript, React Router, TanStack Query, Zustand, Tailwind CSS v4 |
 | `extension/` | Manifest V3 extension for Chromium and Firefox, built with WXT |
 | `shared/` | The page ↔ extension bridge contract and client, used by both |
 | `docs/` | `apple-music-dom.md` (the design measurements), `kira-notes.md` (how the reference YouTube web client plays), `youtube-playback.md`, `youtube-signin.md`, `queue-and-player.md`, `lyrics.md`, `spotify-and-discord.md` |

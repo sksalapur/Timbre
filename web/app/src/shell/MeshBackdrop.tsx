@@ -1,6 +1,12 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { GRID, meshPalette, type Rgb } from '@/lib/meshPalette';
-import styles from './MeshBackdrop.module.css';
+
+/*
+ * The 2D fallback's banding is broken up by a still film of grain (bg-grain).
+ * The WebGL mesh dithers itself, finer and per frame, so it goes without.
+ */
+const backdrop =
+  'absolute inset-0 -z-1 overflow-hidden bg-[#343438] data-fallback:after:absolute data-fallback:after:inset-0 data-fallback:after:bg-grain data-fallback:after:opacity-6';
 
 const FRAME_MS = 1000 / 30;
 const FADE_MS = 1200;
@@ -277,8 +283,9 @@ export function MeshBackdrop({ artworkUrl, playing }: { artworkUrl: string | nul
   }, [animate, generation, fallback]);
 
   return (
-    <div className={styles.backdrop} aria-hidden="true" data-fallback={fallback || undefined}>
-      <canvas key={`${generation}-${fallback}`} ref={canvas} className={styles.canvas} />
+    <div className={backdrop} aria-hidden="true" data-fallback={fallback || undefined}>
+      {/* Drawn at the screen's size by WebGL; the 2D fallback is a 64×40 canvas stretched. */}
+      <canvas key={`${generation}-${fallback}`} ref={canvas} className="absolute inset-0 size-full" />
     </div>
   );
 }

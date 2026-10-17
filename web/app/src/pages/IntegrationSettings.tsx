@@ -19,16 +19,16 @@ import {
   useSpotifyAuth,
   type SpotifyAuthStatus,
 } from '@/extension/useSpotifyAuth';
-import styles from './ExtensionPage.module.css';
+import { settingsUi } from './settingsStyles';
 
 /** Allowed, or an Allow button that opens the extension's permission page. */
 function HostAccessValue({ access, request }: ReturnType<typeof useHostAccess>) {
   const text = { checking: 'Checking…', unavailable: 'Needs the extension', granted: 'Allowed', needed: 'Not allowed' }[access];
   return (
-    <span className={styles.value}>
+    <span className={settingsUi.value}>
       <span>{text}</span>
       {access === 'needed' && (
-        <button className={styles.inlineButton} onClick={request}>
+        <button className={settingsUi.inlineButton} onClick={request}>
           Allow
         </button>
       )}
@@ -77,7 +77,7 @@ export function SpotifyIntegration() {
   const auth = useSpotifyAuth();
   const connect = useSetSpotifyConnected();
   const retry = useRefreshSpotifyAuth();
-  if (auth.state !== 'ready') return <span className={styles.value}>{spotifyText(auth)}</span>;
+  if (auth.state !== 'ready') return <span className={settingsUi.value}>{spotifyText(auth)}</span>;
   const { browserSignedIn, connected, signedIn } = auth.auth;
   const action = !browserSignedIn
     ? { label: 'Sign In', run: openSpotifySignIn }
@@ -87,9 +87,9 @@ export function SpotifyIntegration() {
         ? { label: 'Retry', run: () => retry.mutate() }
         : { label: 'Disconnect', run: () => connect.mutate(false) };
   return (
-    <span className={styles.value}>
+    <span className={settingsUi.value}>
       <span title={auth.auth.problem ?? undefined}>{spotifyText(auth)}</span>
-      <button className={styles.inlineButton} onClick={action.run} disabled={connect.isPending || retry.isPending}>
+      <button className={settingsUi.inlineButton} onClick={action.run} disabled={connect.isPending || retry.isPending}>
         {action.label}
       </button>
     </span>
@@ -110,13 +110,13 @@ export function DiscordIntegration() {
   const connect = useDiscordConnect();
   const disconnect = useDiscordDisconnect();
   const text = discordText(status);
-  if (status.state !== 'ready' || !status.discord.available) return <span className={styles.value}>{text}</span>;
+  if (status.state !== 'ready' || !status.discord.available) return <span className={settingsUi.value}>{text}</span>;
   const connected = status.discord.connected;
   return (
-    <span className={styles.value}>
+    <span className={settingsUi.value}>
       <span title={status.discord.problem ?? undefined}>{text}</span>
       <button
-        className={styles.inlineButton}
+        className={settingsUi.inlineButton}
         onClick={() => (connected ? disconnect.mutate() : connect.mutate())}
         disabled={connect.isPending || disconnect.isPending}
       >
@@ -141,12 +141,12 @@ function discordText(status: DiscordStatus): string {
 
 export function Toggle({ label, detail, checked, onChange }: { label: string; detail?: string; checked: boolean; onChange: (on: boolean) => void }) {
   return (
-    <label className={styles.row}>
-      <span className={styles.rowText}>
+    <label className={settingsUi.controlRow}>
+      <span className={settingsUi.rowText}>
         <span>{label}</span>
-        {detail && <span className={styles.rowDetail}>{detail}</span>}
+        {detail && <span className={settingsUi.rowDetail}>{detail}</span>}
       </span>
-      <input type="checkbox" className={styles.switch} checked={checked} onChange={(e) => onChange(e.currentTarget.checked)} />
+      <input type="checkbox" className={settingsUi.switch} checked={checked} onChange={(e) => onChange(e.currentTarget.checked)} />
     </label>
   );
 }
@@ -191,14 +191,14 @@ export function DiscordSettings() {
   const on = status.discord.enabled;
   return (
     <>
-      <section className={styles.group}>
+      <section className={settingsUi.group}>
         <Toggle label="Show what you’re playing" checked={on} onChange={(v) => setEnabled.mutate(v)} />
         {on && (
           <>
-            <label className={styles.row}>
+            <label className={settingsUi.controlRow}>
               <span>Activity</span>
               <select
-                className={styles.select}
+                className={settingsUi.select}
                 value={options.activityType}
                 onChange={(e) => set({ activityType: e.currentTarget.value as DiscordPresenceOptions['activityType'] })}
               >
@@ -209,19 +209,19 @@ export function DiscordSettings() {
                 ))}
               </select>
             </label>
-            <label className={styles.row}>
+            <label className={settingsUi.controlRow}>
               <span>Name</span>
               <input
-                className={styles.input}
+                className={settingsUi.input}
                 placeholder="BitChord"
                 value={options.activityName}
                 onChange={(e) => set({ activityName: e.currentTarget.value })}
               />
             </label>
-            <label className={styles.row}>
+            <label className={settingsUi.controlRow}>
               <span>Status</span>
               <select
-                className={styles.select}
+                className={settingsUi.select}
                 value={options.status}
                 onChange={(e) => set({ status: e.currentTarget.value as DiscordPresenceOptions['status'] })}
               >
@@ -240,10 +240,10 @@ export function DiscordSettings() {
             />
             <Toggle label="Listen button" checked={options.button1Visible} onChange={(v) => set({ button1Visible: v })} />
             {options.button1Visible && (
-              <label className={styles.row}>
+              <label className={settingsUi.controlRow}>
                 <span>Listen button text</span>
                 <input
-                  className={styles.input}
+                  className={settingsUi.input}
                   placeholder="Listen on YouTube Music"
                   value={options.button1Text}
                   onChange={(e) => set({ button1Text: e.currentTarget.value })}
@@ -252,10 +252,10 @@ export function DiscordSettings() {
             )}
             <Toggle label="BitChord button" checked={options.button2Visible} onChange={(v) => set({ button2Visible: v })} />
             {options.button2Visible && (
-              <label className={styles.row}>
+              <label className={settingsUi.controlRow}>
                 <span>BitChord button text</span>
                 <input
-                  className={styles.input}
+                  className={settingsUi.input}
                   placeholder="Visit BitChord"
                   value={options.button2Text}
                   onChange={(e) => set({ button2Text: e.currentTarget.value })}
@@ -265,7 +265,7 @@ export function DiscordSettings() {
           </>
         )}
       </section>
-      <p className={styles.footer}>
+      <p className={settingsUi.footer}>
         This uses your Discord account’s own token, which Discord’s terms don’t allow. Button text can use {'{song_name}'},{' '}
         {'{artist_name}'} and {'{album_name}'}.
       </p>

@@ -9,7 +9,7 @@ import { useAlbum, useYouTubeReady } from '@/data/music/queries';
 import { useArtworkColor } from '@/lib/artworkColor';
 import { usePageTint } from '@/lib/usePageTint';
 import { AlbumSkeleton } from '@/skeletons/PageSkeletons';
-import styles from './DetailPage.module.css';
+import { detailFooter } from './pageStyles';
 
 /** An album (report §3): header, numbered tracks, footer, "more" shelves. */
 export default function AlbumPage() {
@@ -48,13 +48,14 @@ export default function AlbumPage() {
         fallbackArtists={data.artists}
         source={context.source}
       />
-      <footer className={styles.footer}>
+      <footer className={detailFooter}>
         <p>{data.subtitle}</p>
         <p>{data.meta}</p>
         {artists && <p>{artists}</p>}
       </footer>
       {data.more.length > 0 && (
-        <div className={styles.alternate}>
+        // "More By" and friends sit on the alternate shelf background (report §3, section--alternate).
+        <div className="bg-shelf pb-5">
           <Shelves shelves={data.more} />
         </div>
       )}

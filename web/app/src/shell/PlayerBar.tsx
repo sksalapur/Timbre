@@ -17,7 +17,24 @@ import { useLyrics } from '@/lyrics/useLyrics';
 import { usePlayer } from '@/state/player';
 import { useUi } from '@/state/ui';
 import { Lcd } from './Lcd';
-import styles from './PlayerBar.module.css';
+
+const control = 'grid place-items-center rounded-[6px] disabled:opacity-40';
+// Shuffle and repeat: secondary, and the key colour when on, as Apple's toggles.
+const toggle = `${control} size-7 text-secondary aria-pressed:text-key`;
+const transport = `${control} size-7 text-primary`;
+const action = 'grid h-7 w-6 place-items-center rounded-[4px] text-primary aria-pressed:text-key';
+// The actions the volume level slides in over: they fade out while it's open.
+const fading = `${action} transition-opacity group-data-volume-open/actions:pointer-events-none group-data-volume-open/actions:opacity-0`;
+
+const slider = [
+  'absolute top-1/2 right-[33px] mx-0 mb-0 -mt-2 block h-4 w-24 cursor-pointer appearance-none bg-transparent',
+  'pointer-events-none translate-x-2 opacity-0 transition-[opacity,translate]',
+  'data-open:pointer-events-auto data-open:translate-none data-open:opacity-100',
+  '[&::-webkit-slider-runnable-track]:h-1 [&::-webkit-slider-runnable-track]:rounded-[2px] [&::-webkit-slider-runnable-track]:bg-[linear-gradient(to_right,var(--systemPrimary)_var(--fill),var(--systemQuaternary)_var(--fill))]',
+  '[&::-moz-range-track]:h-1 [&::-moz-range-track]:rounded-[2px] [&::-moz-range-track]:bg-[linear-gradient(to_right,var(--systemPrimary)_var(--fill),var(--systemQuaternary)_var(--fill))]',
+  '[&::-webkit-slider-thumb]:-mt-1 [&::-webkit-slider-thumb]:size-3 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:shadow-[0_0_2px_#0006]',
+  '[&::-moz-range-thumb]:size-3 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:bg-white [&::-moz-range-thumb]:shadow-[0_0_2px_#0006]',
+].join(' ');
 
 /**
  * Apple's volume control: the speaker mutes, and hovering it slides the level
@@ -32,7 +49,7 @@ function VolumeControl({ open, onOpen }: { open: boolean; onOpen: () => void }) 
   return (
     <>
       <input
-        className={styles.slider}
+        className={slider}
         data-open={open || undefined}
         type="range"
         min={0}
@@ -45,7 +62,7 @@ function VolumeControl({ open, onOpen }: { open: boolean; onOpen: () => void }) 
         onChange={(e) => setVolume(Number(e.currentTarget.value))}
       />
       <button
-        className={styles.action}
+        className={action}
         aria-label={muted ? 'Unmute' : 'Mute'}
         aria-pressed={muted}
         onClick={toggleMute}
@@ -74,25 +91,33 @@ export function PlayerBar() {
   const [volumeOpen, setVolumeOpen] = useState(false);
 
   return (
-    <div className={styles.bar} data-panel-open={sidePanel !== null}>
-      <div className={styles.pill} role="region" aria-label="Player" data-player-pill>
-        <div className={styles.controls}>
-          <button className={styles.small} aria-label="Shuffle" aria-pressed={shuffle} onClick={toggleShuffle}>
+    // The side panel overlays the page; the pill re-centres in what's left.
+    <div
+      className="pointer-events-none absolute right-0 bottom-(--player-bottom-offset) left-(--web-navigation-width) z-[calc(var(--z-web-chrome)-1)] flex justify-center px-5 transition-[padding-inline-end] duration-(--duration-panel) ease-panel data-[panel-open=true]:pe-[calc(var(--side-panel-width)+20px)] max-sm:hidden"
+      data-panel-open={sidePanel !== null}
+    >
+      <div
+        className="glass-pill group/pill pointer-events-auto relative grid h-(--player-pill-height) w-[min(668px,100%)] grid-cols-[184px_minmax(180px,427px)_minmax(57px,auto)] items-center rounded-pill px-4"
+        role="region"
+        aria-label="Player"
+      >
+        <div className="flex items-center justify-between pr-2">
+          <button className={toggle} aria-label="Shuffle" aria-pressed={shuffle} onClick={toggleShuffle}>
             <ShuffleIcon size={28} />
           </button>
-          <div className={styles.main}>
-            <button className={styles.skip} disabled={!hasTrack} aria-label="Previous" onClick={previous}>
+          <div className="flex items-center gap-1.5">
+            <button className={transport} disabled={!hasTrack} aria-label="Previous" onClick={previous}>
               <BackwardIcon size={26} />
             </button>
-            <button className={styles.play} disabled={!hasTrack} aria-label={playing ? 'Pause' : 'Play'} onClick={togglePlay}>
+            <button className={transport} disabled={!hasTrack} aria-label={playing ? 'Pause' : 'Play'} onClick={togglePlay}>
               {playing ? <PauseIcon size={28} /> : <PlayIcon size={28} />}
             </button>
-            <button className={styles.skip} disabled={!hasTrack || !hasNext} aria-label="Next" onClick={next}>
+            <button className={transport} disabled={!hasTrack || !hasNext} aria-label="Next" onClick={next}>
               <ForwardIcon size={26} />
             </button>
           </div>
           <button
-            className={styles.small}
+            className={toggle}
             aria-label={repeat === 'one' ? 'Repeat one' : repeat === 'all' ? 'Repeat all' : 'Repeat'}
             aria-pressed={repeat !== 'off'}
             onClick={cycleRepeat}
@@ -101,22 +126,22 @@ export function PlayerBar() {
           </button>
         </div>
 
-        <div className={styles.lcd}>
+        <div className="h-full min-w-0 px-4">
           <Lcd />
         </div>
 
         <div
-          className={styles.actions}
+          className="group/actions relative flex items-center justify-end gap-[9px]"
           data-volume-open={volumeOpen || undefined}
           onPointerLeave={() => setVolumeOpen(false)}
           onBlur={(e) => {
             if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setVolumeOpen(false);
           }}
         >
-          <FavoriteButton videoId={videoId} className={styles.action} />
+          <FavoriteButton videoId={videoId} className={fading} />
           {hasLyrics && (
             <button
-              className={styles.action}
+              className={fading}
               aria-label="Lyrics"
               aria-pressed={sidePanel === 'lyrics'}
               onClick={() => toggleSidePanel('lyrics')}
@@ -125,7 +150,7 @@ export function PlayerBar() {
             </button>
           )}
           <button
-            className={styles.action}
+            className={fading}
             aria-label="Up Next"
             aria-pressed={sidePanel === 'up-next'}
             onClick={() => toggleSidePanel('up-next')}

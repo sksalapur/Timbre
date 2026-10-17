@@ -9,9 +9,11 @@ import { sizedArtwork } from '@/lib/artwork';
 import type { Track } from '@/data/music/types';
 import { usePlayer } from '@/state/player';
 import { useUi } from '@/state/ui';
-import styles from './Lcd.module.css';
 import { albumPageFor, artistPageFor } from './nowPlayingLinks';
 import { useScrubber } from './useScrubber';
+
+// The title and each artist: plain until hovered, then underlined on their own.
+export const pageLink = 'cursor-pointer text-start hover:underline focus-visible:underline aria-busy:cursor-progress';
 
 /**
  * A name in the LCD that opens a page: a plain link when the page is known,
@@ -59,7 +61,7 @@ export function Credits({
   videoId,
   line,
   artists,
-  className = styles.link!,
+  className = pageLink,
 }: {
   videoId: string;
   line: string;
@@ -83,6 +85,9 @@ export function Credits({
   );
 }
 
+// As wide as the name, so only the name opens the album.
+const titleClass = 'max-w-full self-start truncate type-body-emphasized';
+
 /** The now-playing tile inside the pill (report §1, "LCD"). */
 export function Lcd() {
   const nowPlaying = usePlayer((s) => s.nowPlaying);
@@ -97,7 +102,7 @@ export function Lcd() {
 
   if (!nowPlaying) {
     return (
-      <div className={styles.empty}>
+      <div className="grid h-full place-items-center text-tertiary">
         <LogoMark size={26} />
       </div>
     );
@@ -106,9 +111,13 @@ export function Lcd() {
   const { videoId, title, artist } = nowPlaying;
   const album = track?.album ?? null;
   return (
-    <div className={styles.lcd}>
+    <div className="group/lcd relative grid h-full grid-cols-[34px_minmax(0,1fr)] items-center gap-x-2 pb-1.5">
       {/* As Apple's: the artwork opens the full-screen player, with an expand glyph on hover. */}
-      <button className={styles.artwork} aria-label="Open full screen player" onClick={() => openFullScreen(true)}>
+      <button
+        className="group/art relative block size-[34px] overflow-hidden rounded-[6px] bg-joe p-0 transition-[filter,opacity]"
+        aria-label="Open full screen player"
+        onClick={() => openFullScreen(true)}
+      >
         {nowPlaying.artworkUrl && (
           <img
             key={nowPlaying.artworkUrl}
@@ -116,30 +125,36 @@ export function Lcd() {
             alt=""
             referrerPolicy="no-referrer"
             decoding="async"
+            className="size-full object-cover opacity-0 transition-opacity duration-200 ease-in data-loaded:opacity-100"
             onLoad={(e) => e.currentTarget.setAttribute('data-loaded', '')}
           />
         )}
-        <span className={styles.expand} aria-hidden="true">
+        {/* Hovering anywhere on the player pill dims the artwork and shows the expand glyph. */}
+        <span
+          className="absolute inset-0 grid place-items-center bg-[rgb(0_0_0/0.5)] text-white opacity-0 transition-opacity duration-200 group-hover/pill:opacity-100 group-focus-visible/art:opacity-100"
+          aria-hidden="true"
+        >
           <Maximize2 size={14} strokeWidth={2.25} />
         </span>
       </button>
-      <div className={styles.meta}>
+      {/* Over the seek line, the names soften into the background so the times can sit over them. */}
+      <div className="flex min-w-0 flex-col transition-[filter,opacity] group-has-[[data-scrubber]:hover]/lcd:opacity-30 group-has-[[data-scrubber]:hover]/lcd:blur-[3px] group-has-[[data-dragging]]/lcd:opacity-30 group-has-[[data-dragging]]/lcd:blur-[3px]">
         {title ? (
           // The song's name opens its album.
           <PageLink
-            className={`${styles.title} ${styles.link}`}
+            className={`${titleClass} ${pageLink}`}
             href={albumHref(album?.id ?? null)}
             resolve={() => albumPageFor(videoId, album, [title, artist].filter(Boolean).join(' '))}
           >
             {title}
           </PageLink>
         ) : (
-          <span className={styles.title}>{status === 'loading' ? 'Loading…' : ''}</span>
+          <span className={titleClass}>{status === 'loading' ? 'Loading…' : ''}</span>
         )}
         {status === 'error' ? (
-          <span className={`${styles.subtitle} ${styles.error}`}>{error}</span>
+          <span className="truncate type-callout-medium text-key">{error}</span>
         ) : (
-          <span className={styles.subtitle}>
+          <span className="truncate type-callout-medium text-secondary">
             {artist ? <Credits videoId={videoId} line={artist} artists={track?.artists ?? []} /> : status === 'loading' ? 'Loading…' : ''}
           </span>
         )}
@@ -149,6 +164,10 @@ export function Lcd() {
   );
 }
 
+// Elapsed and remaining, over the line's two ends while the pointer is on it.
+const time =
+  'pointer-events-none absolute bottom-[11px] type-[600_11px/13px] tabular-nums text-primary opacity-0 transition-opacity group-hover/scrub:opacity-100 group-data-dragging/scrub:opacity-100';
+
 /**
  * Elapsed time as a 2px line along the LCD's bottom (report §1). Hovering
  * shows the times; pressing or dragging on the line seeks.
@@ -156,11 +175,20 @@ export function Lcd() {
 function Progress() {
   const { bar, elapsed, remaining, dragging, handlers } = useScrubber();
   return (
-    <div className={styles.scrubber} data-dragging={dragging || undefined} {...handlers}>
-      <span ref={elapsed} className={`${styles.time} ${styles.elapsed}`} />
-      <span ref={remaining} className={`${styles.time} ${styles.remaining}`} />
-      <div className={styles.progress} aria-hidden="true">
-        <div ref={bar} className={styles.track} />
+    // The hit area: taller than the 2px line it carries.
+    <div
+      className="group/scrub absolute inset-x-0 bottom-0 h-3.5 cursor-pointer touch-none"
+      data-scrubber
+      data-dragging={dragging || undefined}
+      {...handlers}
+    >
+      <span ref={elapsed} className={`${time} left-0`} />
+      <span ref={remaining} className={`${time} right-0`} />
+      <div
+        className="absolute inset-x-0 bottom-1.5 h-0.5 overflow-hidden rounded-[1px] bg-quaternary transition-[height,left,right] duration-100 ease-in group-hover/scrub:bottom-[5px] group-hover/scrub:h-1 group-data-dragging/scrub:bottom-[5px] group-data-dragging/scrub:h-1"
+        aria-hidden="true"
+      >
+        <div ref={bar} className="size-full origin-left scale-x-(--progress) bg-secondary [--progress:0]" />
       </div>
     </div>
   );

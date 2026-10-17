@@ -21,8 +21,7 @@ import { sizedArtwork } from '@/lib/artwork';
 import { useLyrics } from '@/lyrics/useLyrics';
 import { usePlayer } from '@/state/player';
 import { useUi } from '@/state/ui';
-import styles from './FullScreenPlayer.module.css';
-import { Credits, PageLink } from './Lcd';
+import { Credits, PageLink, pageLink } from './Lcd';
 import { LyricsPanel } from './LyricsPanel';
 import { MeshBackdrop } from './MeshBackdrop';
 import { albumPageFor } from './nowPlayingLinks';
@@ -43,19 +42,32 @@ function useBrowserFullScreen(): boolean {
 function Scrubber() {
   const { bar, elapsed, remaining, dragging, handlers } = useScrubber();
   return (
-    <div className={styles.scrubber} data-dragging={dragging || undefined}>
-      <div className={styles.hit} {...handlers}>
-        <div className={styles.line} aria-hidden="true">
-          <div ref={bar} className={styles.fill} />
+    <div className="group/scrub mt-3.5" data-dragging={dragging || undefined}>
+      {/* A taller hit area than the line it carries. */}
+      <div className="group/hit flex h-4 cursor-pointer touch-none items-center" {...handlers}>
+        <div
+          className="h-1 flex-1 overflow-hidden rounded-[999px] bg-quaternary transition-[height] duration-120 ease-in group-hover/hit:h-2 group-data-dragging/scrub:h-2"
+          aria-hidden="true"
+        >
+          <div
+            ref={bar}
+            className="size-full origin-left scale-x-(--progress) bg-secondary transition-[background-color] duration-120 ease-in [--progress:0] group-hover/hit:bg-primary group-data-dragging/scrub:bg-primary"
+          />
         </div>
       </div>
-      <div className={styles.times}>
+      <div className="mt-0.5 flex justify-between type-[500_11px/14px] tabular-nums text-tertiary">
         <span ref={elapsed} />
         <span ref={remaining} />
       </div>
     </div>
   );
 }
+
+const transportButton =
+  'grid place-items-center rounded-full transition-[background-color,scale] duration-100 ease-in enabled:hover:bg-quinary enabled:active:scale-90 disabled:opacity-40';
+// Shuffle and repeat, when on: full white on the mesh, where red would clash.
+const toggle = `${transportButton} size-9 text-tertiary aria-pressed:text-primary`;
+const skip = `${transportButton} size-12 text-primary`;
 
 /** Shuffle, previous, play/pause, next, repeat. No volume: the pill keeps that. */
 function Transport() {
@@ -67,21 +79,21 @@ function Transport() {
   const { togglePlay, next, previous, toggleShuffle, cycleRepeat } = usePlayer.getState();
 
   return (
-    <div className={styles.transport}>
-      <button className={styles.toggle} aria-label="Shuffle" aria-pressed={shuffle} onClick={toggleShuffle}>
+    <div className="mx-auto mt-[clamp(8px,1.6vh,16px)] mb-0 flex h-13 w-[min(100%,315px)] items-center justify-between">
+      <button className={toggle} aria-label="Shuffle" aria-pressed={shuffle} onClick={toggleShuffle}>
         <ShuffleIcon size={30} />
       </button>
-      <button className={styles.skip} disabled={!hasTrack} aria-label="Previous" onClick={previous}>
+      <button className={skip} disabled={!hasTrack} aria-label="Previous" onClick={previous}>
         <BackwardIcon size={40} />
       </button>
-      <button className={styles.play} disabled={!hasTrack} aria-label={playing ? 'Pause' : 'Play'} onClick={togglePlay}>
+      <button className={`${transportButton} size-14 text-primary`} disabled={!hasTrack} aria-label={playing ? 'Pause' : 'Play'} onClick={togglePlay}>
         {playing ? <PauseIcon size={48} /> : <PlayIcon size={48} />}
       </button>
-      <button className={styles.skip} disabled={!hasTrack || !hasNext} aria-label="Next" onClick={next}>
+      <button className={skip} disabled={!hasTrack || !hasNext} aria-label="Next" onClick={next}>
         <ForwardIcon size={40} />
       </button>
       <button
-        className={styles.toggle}
+        className={toggle}
         aria-label={repeat === 'one' ? 'Repeat one' : repeat === 'all' ? 'Repeat all' : 'Repeat'}
         aria-pressed={repeat !== 'off'}
         onClick={cycleRepeat}
@@ -91,6 +103,11 @@ function Transport() {
     </div>
   );
 }
+
+// Close, browser full screen, and the column toggles, in the corners.
+const chrome =
+  'absolute z-1 grid size-8 place-items-center rounded-full text-secondary transition-[background-color,color] duration-100 ease-in hover:bg-quinary hover:text-primary';
+const artworkLayer = 'absolute inset-0 size-full rounded-[inherit] object-cover opacity-0 transition-opacity duration-300 ease-in';
 
 /**
  * The full-screen player (report §7): the artwork on the left with the
@@ -160,10 +177,14 @@ export function FullScreenPlayer() {
   if (!nowPlaying) return null;
   const { videoId, title, artist } = nowPlaying;
   const album = track?.album ?? null;
+  // With a right-hand column; on narrow windows that column fills the screen and the controls sit under it, without the artwork.
+  const column = showLyrics || showQueue;
 
   return (
     <div
-      className={styles.overlay}
+      // Over everything but menus and dialogs, which portal above it. The on-dark colours come from tokens.css (data-full-screen).
+      // --art, the artwork's side: Apple's 461px at 1440px wide, and never taller than the screen leaves room for.
+      className="fixed inset-0 z-[calc(var(--z-contextual-menus)-2)] isolate animate-enter overflow-hidden text-primary [--art:min(32vw,calc(100dvh-330px),720px)] motion-reduce:[animation-name:fade-in] max-md:[--art:min(84vw,calc(100dvh-330px),420px)]"
       role="dialog"
       aria-modal="true"
       aria-label="Now Playing"
@@ -172,12 +193,12 @@ export function FullScreenPlayer() {
     >
       <MeshBackdrop artworkUrl={nowPlaying.artworkUrl} playing={playing} />
 
-      <button ref={close} className={`${styles.chrome} ${styles.close}`} aria-label="Close" onClick={() => setFullScreen(false)}>
+      <button ref={close} className={`${chrome} top-4 left-5`} aria-label="Close" onClick={() => setFullScreen(false)}>
         <X size={20} />
       </button>
       {document.fullscreenEnabled && (
         <button
-          className={`${styles.chrome} ${styles.expand}`}
+          className={`${chrome} top-4 right-5`}
           aria-label={browserFullScreen ? 'Exit full screen' : 'Enter full screen'}
           onClick={toggleBrowserFullScreen}
         >
@@ -185,14 +206,26 @@ export function FullScreenPlayer() {
         </button>
       )}
 
-      <div className={styles.layout} data-lyrics={showLyrics || showQueue || undefined}>
-        <section className={styles.player} aria-label="Player">
-          <div className={styles.artwork}>
+      {/* Apple's grid areas "controls lyrics": the artwork column, then the lyrics. */}
+      <div
+        className={`grid h-full items-center justify-center gap-x-[clamp(48px,7vw,144px)] px-[clamp(24px,9vw,144px)] py-16 max-md:px-6 max-md:pb-18 ${
+          column
+            ? 'grid-cols-[var(--art)_minmax(0,38vw)] max-md:grid-cols-[minmax(0,1fr)] max-md:grid-rows-[minmax(0,1fr)_auto] max-md:items-stretch max-md:gap-y-4'
+            : 'grid-cols-[var(--art)]'
+        }`}
+        data-lyrics={column || undefined}
+      >
+        <section className={`flex w-(--art) min-w-0 flex-col${column ? ' max-md:order-2 max-md:w-full' : ''}`} aria-label="Player">
+          {/* Shrinks a touch while paused, as Apple's does. */}
+          <div
+            className={`relative aspect-square w-(--art) rounded-[10px] transition-[scale] duration-450 ease-[cubic-bezier(0.34,1.3,0.64,1)] motion-reduce:transition-none${playing ? '' : ' scale-92'}${column ? ' max-md:hidden' : ''}`}
+          >
             {nowPlaying.artworkUrl && (
               <>
                 <img
                   key={`glow-${nowPlaying.artworkUrl}`}
-                  className={styles.glow}
+                  // The radiosity glow: a small copy, blurred and saturated, behind the artwork.
+                  className={`${artworkLayer} -z-1 translate-y-2 scale-96 blur-[20px] saturate-200 data-loaded:opacity-40`}
                   src={sizedArtwork(nowPlaying.artworkUrl, 60)}
                   alt=""
                   referrerPolicy="no-referrer"
@@ -201,7 +234,7 @@ export function FullScreenPlayer() {
                 />
                 <img
                   key={nowPlaying.artworkUrl}
-                  className={styles.cover}
+                  className={`${artworkLayer} bg-[#ffffff12] shadow-[0_4px_10px_#0000001a] data-loaded:opacity-100`}
                   src={sizedArtwork(nowPlaying.artworkUrl, 600)}
                   alt=""
                   referrerPolicy="no-referrer"
@@ -210,25 +243,33 @@ export function FullScreenPlayer() {
                 />
               </>
             )}
-            {motion && <MotionArtwork key={motion.url} motion={motion} className={styles.motion} playing={playing} />}
+            {/* Apple's motion artwork, over the cover once it's playing. */}
+            {motion && (
+              <MotionArtwork
+                key={motion.url}
+                motion={motion}
+                className="absolute inset-0 size-full rounded-[inherit] object-cover opacity-0 transition-opacity duration-600 ease-in data-ready:opacity-100"
+                playing={playing}
+              />
+            )}
           </div>
 
-          <div className={styles.info}>
+          <div className={`mt-[clamp(20px,3.2vh,32px)] flex items-center gap-3${column ? ' max-md:mt-0' : ''}`}>
             {/* As the mini player's: the title opens the album, each credited name its artist. */}
-            <div className={styles.meta}>
+            <div className="flex min-w-0 flex-1 flex-col gap-0.5">
               <PageLink
-                className={`${styles.title} ${styles.link}`}
+                className={`max-w-full self-start truncate type-[600_17px/22px] ${pageLink}`}
                 href={albumHref(album?.id ?? null)}
                 resolve={() => albumPageFor(videoId, album, [title, artist].filter(Boolean).join(' '))}
               >
                 {title}
               </PageLink>
-              <span className={styles.subtitle}>
-                {artist && <Credits videoId={videoId} line={artist} artists={track?.artists ?? []} className={styles.link} />}
+              <span className="truncate type-title-3 text-secondary">
+                {artist && <Credits videoId={videoId} line={artist} artists={track?.artists ?? []} className={pageLink} />}
                 {artist && album?.name && ' — '}
                 {album?.name && (
                   <PageLink
-                    className={styles.link!}
+                    className={pageLink}
                     href={albumHref(album.id ?? null)}
                     resolve={() => albumPageFor(videoId, album, [title, artist].filter(Boolean).join(' '))}
                   >
@@ -237,7 +278,11 @@ export function FullScreenPlayer() {
                 )}
               </span>
             </div>
-            <FavoriteButton videoId={nowPlaying.videoId} className={styles.favorite} size={18} />
+            <FavoriteButton
+              videoId={nowPlaying.videoId}
+              className="grid size-8 flex-none place-items-center rounded-full bg-quinary text-primary hover:bg-quaternary"
+              size={18}
+            />
           </div>
 
           <Scrubber />
@@ -245,12 +290,16 @@ export function FullScreenPlayer() {
         </section>
 
         {showLyrics && (
-          <section className={styles.lyrics} aria-label="Lyrics">
+          <section className="flex min-h-0 animate-fade-in self-stretch" aria-label="Lyrics">
             <LyricsPanel variant="full" />
           </section>
         )}
         {showQueue && (
-          <section className={styles.queue} aria-label="Up Next">
+          // Up Next in the right-hand column: the side panel's list, laid out as a column.
+          <section
+            className="flex min-h-0 animate-fade-in flex-col self-stretch [mask-image:linear-gradient(180deg,#000_calc(100%-80px),transparent)]"
+            aria-label="Up Next"
+          >
             <UpNext />
           </section>
         )}
@@ -258,7 +307,7 @@ export function FullScreenPlayer() {
 
       {hasLyrics && (
         <button
-          className={`${styles.chrome} ${styles.lyricsToggle}`}
+          className={`${chrome} bottom-5 left-5 aria-pressed:text-primary`}
           aria-label="Lyrics"
           aria-pressed={showLyrics}
           onClick={() => togglePanel('lyrics')}
@@ -267,7 +316,7 @@ export function FullScreenPlayer() {
         </button>
       )}
       <button
-        className={`${styles.chrome} ${styles.queueToggle}`}
+        className={`${chrome} right-5 bottom-5 aria-pressed:text-primary`}
         aria-label="Up Next"
         aria-pressed={showQueue}
         onClick={() => togglePanel('queue')}

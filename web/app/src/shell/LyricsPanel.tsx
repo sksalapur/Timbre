@@ -13,7 +13,6 @@ import { sourceById, type LyricsSourceId } from '@/lyrics/sources';
 import { useLyrics, useLyricsUi } from '@/lyrics/useLyrics';
 import { getAudio, usePlayer } from '@/state/player';
 import { LyricsSettings } from './LyricsSettings';
-import styles from './LyricsPanel.module.css';
 
 type AmLyricsElement = HTMLElement & {
   currentTime: number;
@@ -33,7 +32,7 @@ type AmLyricsElement = HTMLElement & {
  */
 const HIDE_FOOTER = '.lyrics-footer { visibility: hidden !important; pointer-events: none !important; }';
 
-/** The phone's lyric typeface (@font-face in LyricsPanel.module.css), then the app's. */
+/** The phone's lyric typeface (@font-face in styles/global.css), then the app's. */
 const LYRIC_FONT = "'BitChord SF Pro Display', 'DM Sans', system-ui, sans-serif";
 
 let lyricFont: Promise<void> | null = null;
@@ -111,7 +110,7 @@ function LyricsView({ ttml, full }: { ttml: string; full: boolean }) {
     el.autoScroll = true;
     el.highlightColor = '#ffffff';
     el.fontFamily = LYRIC_FONT;
-    el.className = styles.lyrics!;
+    el.className = 'block min-h-0 flex-1 overflow-hidden [--am-lyrics-highlight-color:#fff]';
     el.toggleAttribute('data-full', full);
     const onLineClick = (event: Event) => {
       const timestamp = (event as CustomEvent<{ timestamp: number }>).detail?.timestamp;
@@ -195,7 +194,17 @@ function LyricsView({ ttml, full }: { ttml: string; full: boolean }) {
     };
   }, [deck, videoId, ttml]);
 
-  return <div ref={host} className={styles.host} />;
+  // am-lyrics renders and scrolls itself; it only needs the space. Full screen fades it out at the top and bottom.
+  return (
+    <div
+      ref={host}
+      className={
+        full
+          ? 'flex min-h-0 flex-1 [mask-image:linear-gradient(180deg,transparent,#000_var(--lyrics-top-fade,0px),#000_50%,transparent)]'
+          : 'flex min-h-0 flex-1'
+      }
+    />
+  );
 }
 
 function useUngranted(): string[] {
@@ -207,7 +216,7 @@ function useUngranted(): string[] {
 const NO_STATES: Partial<Record<LyricsSourceId, SourceState>> = {};
 
 /** The provider picker: which provider these lyrics are from, and the others' answers for this track. */
-function ProviderPicker({ current }: { current: LyricsSourceId | null }) {
+function ProviderPicker({ current, full }: { current: LyricsSourceId | null; full: boolean }) {
   const videoId = usePlayer((s) => s.nowPlaying?.videoId ?? '');
   const states = useLyricsUi((s) => s.states[videoId]) ?? NO_STATES;
   const picked = useLyricsUi((s) => s.picked[videoId]);
@@ -218,12 +227,27 @@ function ProviderPicker({ current }: { current: LyricsSourceId | null }) {
   const label = current ? sourceById(current)?.label : 'Lyrics';
 
   return (
-    <div className={styles.bar}>
-      <button className={styles.picker} aria-haspopup="menu" onClick={(e) => setAnchor(e.currentTarget)}>
+    // In full screen the picker sits quietly above the lines, shown on hover.
+    <div
+      className={
+        full
+          ? 'flex items-center justify-between pb-1 opacity-0 transition-opacity duration-200 group-hover/panel:opacity-100 focus-within:opacity-100'
+          : 'flex items-center justify-between px-4 pt-4 pb-1'
+      }
+    >
+      <button
+        className="inline-flex items-center gap-1 rounded-[8px] px-2 py-1 type-callout-emphasized text-secondary hover:bg-quinary"
+        aria-haspopup="menu"
+        onClick={(e) => setAnchor(e.currentTarget)}
+      >
         <span>{label}</span>
         <ChevronDown size={14} />
       </button>
-      <button className={styles.icon} aria-label="Lyric settings" onClick={() => setSettings(true)}>
+      <button
+        className="grid size-7 place-items-center rounded-[8px] text-secondary hover:bg-quinary"
+        aria-label="Lyric settings"
+        onClick={() => setSettings(true)}
+      >
         <Settings2 size={16} />
       </button>
       {anchor && (
@@ -241,7 +265,7 @@ function ProviderPicker({ current }: { current: LyricsSourceId | null }) {
                 checked={picked === id}
                 trailing={
                   state === 'pending' ? (
-                    <Loader2 size={13} className={styles.spin} />
+                    <Loader2 size={13} className="animate-spin" />
                   ) : state === 'found' ? (
                     <Check size={13} />
                   ) : state === 'missing' ? (
@@ -266,12 +290,13 @@ function ProviderPicker({ current }: { current: LyricsSourceId | null }) {
 function PermissionNotice({ origins }: { origins: string[] }) {
   const names = origins.map((o) => new URL(o).host.replace(/^www\./, ''));
   return (
-    <div className={styles.notice}>
+    <div className="mx-4 my-1.5 flex items-center gap-2.5 rounded-[10px] bg-quinary px-2.5 py-2 type-callout text-secondary">
       <span>
         {names.slice(0, 2).join(', ')}
         {names.length > 2 ? ` and ${names.length - 2} more` : ''} need the extension’s permission.
       </span>
       <button
+        className="flex-none type-callout-emphasized text-key"
         // The notice stays until the extension confirms the grant (checked when this tab comes back).
         onClick={() => void getBridge()?.call('lyrics.requestPermissions', { origins })}
       >
@@ -284,6 +309,11 @@ function PermissionNotice({ origins }: { origins: string[] }) {
 /**
  * The track's Spotify Canvas behind the lyrics, dimmed so they stay legible.
  * Muted and looping, it fades in once it can play and pauses with the music.
+ *
+ * The blur runs on a quarter-size video that is then scaled up 4×: a 3px blur
+ * there reads as about 12px on screen for a sixteenth of the pixels, which is
+ * what keeps a blurred, playing video cheap. The 5% overscan on each side
+ * keeps the soft edges out of view.
  */
 function CanvasBackdrop({ url }: { url: string }) {
   const video = useRef<HTMLVideoElement>(null);
@@ -300,7 +330,7 @@ function CanvasBackdrop({ url }: { url: string }) {
     <video
       ref={video}
       key={url}
-      className={styles.canvas}
+      className="absolute top-[-5%] left-[-5%] -z-1 size-[27.5%] origin-[0_0] scale-400 object-cover opacity-0 blur-[3px] transition-opacity duration-600 [mask-image:linear-gradient(to_bottom,rgb(0_0_0/1),rgb(0_0_0/0.85))] data-ready:opacity-85"
       data-ready={ready || undefined}
       src={url}
       muted
@@ -314,6 +344,11 @@ function CanvasBackdrop({ url }: { url: string }) {
   );
 }
 
+const panel = 'group/panel relative isolate flex min-h-0 flex-1 flex-col overflow-hidden';
+// The full-screen player's column (report §7): lines 26px, then 30px from 980px, 36px from 1320px and 42px from 1680px.
+const fullSizes =
+  '[--bitchord-lyric-size:26px] min-[980px]:[--bitchord-lyric-size:30px] min-[1320px]:[--bitchord-lyric-size:36px] min-[1680px]:[--bitchord-lyric-size:42px]';
+
 /**
  * The lyrics, with their provider picker and empty states: the side panel
  * (report §7), and the right-hand column of the full-screen player, where the
@@ -326,27 +361,32 @@ export function LyricsPanel({ variant = 'panel' }: { variant?: 'panel' | 'full' 
   const canvas = useCanvas();
   const fontReady = useLyricFont();
   const result = lyrics.data;
+  const full = variant === 'full';
+  const empty = full
+    ? 'flex flex-1 flex-col items-center justify-center gap-2 px-6 text-center type-title-3 text-secondary'
+    : 'flex flex-1 flex-col items-center justify-center gap-2 px-6 pb-20 text-center type-[400_12px/16px] text-secondary';
+  const emptyTitle = full ? 'type-title-1-emphasized text-primary' : 'type-[600_12px/16px]';
 
   return (
-    <div className={styles.panel} data-variant={variant}>
+    <div className={full ? `${panel} ${fullSizes}` : panel}>
       {canvas && variant === 'panel' && <CanvasBackdrop url={canvas} />}
-      <ProviderPicker current={result?.source ?? null} />
+      <ProviderPicker current={result?.source ?? null} full={full} />
       {/* Only worth raising when nothing was found: then the hosts behind the extension might have it. */}
       {ungranted.length > 0 && !result && !lyrics.isFetching && <PermissionNotice origins={ungranted} />}
       {!hasTrack ? (
-        <div className={styles.empty}>
-          <p className={styles.emptyTitle}>No lyrics available</p>
+        <div className={empty}>
+          <p className={emptyTitle}>No lyrics available</p>
           <p>Play a song to see its lyrics here.</p>
         </div>
       ) : (lyrics.isPending && lyrics.fetchStatus !== 'idle') || (result && !fontReady) ? (
-        <div className={styles.empty}>
-          <Loader2 size={20} className={styles.spin} />
+        <div className={empty}>
+          <Loader2 size={20} className="animate-spin" />
         </div>
       ) : result ? (
-        <LyricsView ttml={result.ttml} full={variant === 'full'} />
+        <LyricsView ttml={result.ttml} full={full} />
       ) : (
-        <div className={styles.empty}>
-          <p className={styles.emptyTitle}>No lyrics available</p>
+        <div className={empty}>
+          <p className={emptyTitle}>No lyrics available</p>
           <p>None of the lyric providers has this song. Try another in the list above.</p>
         </div>
       )}
