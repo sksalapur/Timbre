@@ -1,5 +1,6 @@
 import { Maximize, Minimize, X } from 'lucide-react';
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { useLocation } from 'react-router';
 import {
   BackwardIcon,
   ForwardIcon,
@@ -10,15 +11,22 @@ import {
   RepeatIcon,
   RepeatOneIcon,
   ShuffleIcon,
+  UpNextIcon,
 } from '@/components/icons/Transport';
 import { FavoriteButton } from '@/components/music/FavoriteButton';
+import { albumHref } from '@/components/music/links';
+import { MotionArtwork } from '@/components/music/MotionArtwork';
+import { useTrackMotion } from '@/data/apple/motionArt';
 import { sizedArtwork } from '@/lib/artwork';
 import { useLyrics } from '@/lyrics/useLyrics';
 import { usePlayer } from '@/state/player';
 import { useUi } from '@/state/ui';
 import styles from './FullScreenPlayer.module.css';
+import { Credits, PageLink } from './Lcd';
 import { LyricsPanel } from './LyricsPanel';
 import { MeshBackdrop } from './MeshBackdrop';
+import { albumPageFor } from './nowPlayingLinks';
+import { UpNext } from './UpNext';
 import { useScrubber } from './useScrubber';
 
 function useBrowserFullScreen(): boolean {
@@ -93,11 +101,20 @@ function Transport() {
  */
 export function FullScreenPlayer() {
   const nowPlaying = usePlayer((s) => s.nowPlaying);
-  const album = usePlayer((s) => s.queue[s.index]?.track.album?.name ?? null);
+  // The queue's row for what's playing: it carries the album and each artist's channel.
+  const track = usePlayer((s) => {
+    const entry = s.queue[s.index]?.track;
+    return entry && entry.videoId === s.nowPlaying?.videoId ? entry : null;
+  });
+  // Apple's animated sleeve over the cover, as the phone's now-playing shows it.
+  const motion = useTrackMotion(nowPlaying?.title, nowPlaying?.artist, track?.album?.name);
+  const { pathname } = useLocation();
+  const openedAt = useRef(pathname);
   const playing = usePlayer((s) => s.status === 'playing' || s.status === 'buffering');
   const setFullScreen = useUi((s) => s.setFullScreen);
   const lyrics = useLyrics();
-  const [lyricsOn, setLyricsOn] = useState(true);
+  // The right-hand column: the lyrics, Up Next, or nothing. Lyrics toggle bottom left, Up Next bottom right.
+  const [panel, setPanel] = useState<'lyrics' | 'queue' | null>('lyrics');
   const browserFullScreen = useBrowserFullScreen();
   const close = useRef<HTMLButtonElement>(null);
   // Whether this player put the page in the browser's full screen, so closing it leaves it again.
@@ -105,7 +122,9 @@ export function FullScreenPlayer() {
 
   // The lyrics column is there while lyrics are on and there are lyrics, or might be.
   const hasLyrics = !!lyrics.data || (lyrics.isPending && lyrics.fetchStatus !== 'idle');
-  const showLyrics = lyricsOn && hasLyrics;
+  const showLyrics = panel === 'lyrics' && hasLyrics;
+  const showQueue = panel === 'queue';
+  const togglePanel = (p: 'lyrics' | 'queue') => setPanel((on) => (on === p ? null : p));
 
   useEffect(() => {
     const opener = document.activeElement as HTMLElement | null;
@@ -115,6 +134,11 @@ export function FullScreenPlayer() {
       opener?.focus({ preventScroll: true });
     };
   }, []);
+
+  // A title, artist or album link went somewhere: get out of the way so the page shows.
+  useEffect(() => {
+    if (pathname !== openedAt.current) setFullScreen(false);
+  }, [pathname, setFullScreen]);
 
   // Nothing left to show once the queue ends.
   useEffect(() => {
@@ -134,7 +158,8 @@ export function FullScreenPlayer() {
   };
 
   if (!nowPlaying) return null;
-  const subtitle = [nowPlaying.artist, album].filter(Boolean).join(' — ');
+  const { videoId, title, artist } = nowPlaying;
+  const album = track?.album ?? null;
 
   return (
     <div
@@ -160,7 +185,7 @@ export function FullScreenPlayer() {
         </button>
       )}
 
-      <div className={styles.layout} data-lyrics={showLyrics || undefined}>
+      <div className={styles.layout} data-lyrics={showLyrics || showQueue || undefined}>
         <section className={styles.player} aria-label="Player">
           <div className={styles.artwork}>
             {nowPlaying.artworkUrl && (
@@ -185,12 +210,32 @@ export function FullScreenPlayer() {
                 />
               </>
             )}
+            {motion && <MotionArtwork key={motion.url} motion={motion} className={styles.motion} playing={playing} />}
           </div>
 
           <div className={styles.info}>
+            {/* As the mini player's: the title opens the album, each credited name its artist. */}
             <div className={styles.meta}>
-              <span className={styles.title}>{nowPlaying.title}</span>
-              <span className={styles.subtitle}>{subtitle}</span>
+              <PageLink
+                className={`${styles.title} ${styles.link}`}
+                href={albumHref(album?.id ?? null)}
+                resolve={() => albumPageFor(videoId, album, [title, artist].filter(Boolean).join(' '))}
+              >
+                {title}
+              </PageLink>
+              <span className={styles.subtitle}>
+                {artist && <Credits videoId={videoId} line={artist} artists={track?.artists ?? []} className={styles.link} />}
+                {artist && album?.name && ' — '}
+                {album?.name && (
+                  <PageLink
+                    className={styles.link!}
+                    href={albumHref(album.id ?? null)}
+                    resolve={() => albumPageFor(videoId, album, [title, artist].filter(Boolean).join(' '))}
+                  >
+                    {album.name}
+                  </PageLink>
+                )}
+              </span>
             </div>
             <FavoriteButton videoId={nowPlaying.videoId} className={styles.favorite} size={18} />
           </div>
@@ -204,18 +249,31 @@ export function FullScreenPlayer() {
             <LyricsPanel variant="full" />
           </section>
         )}
+        {showQueue && (
+          <section className={styles.queue} aria-label="Up Next">
+            <UpNext />
+          </section>
+        )}
       </div>
 
       {hasLyrics && (
         <button
           className={`${styles.chrome} ${styles.lyricsToggle}`}
           aria-label="Lyrics"
-          aria-pressed={lyricsOn}
-          onClick={() => setLyricsOn((on) => !on)}
+          aria-pressed={showLyrics}
+          onClick={() => togglePanel('lyrics')}
         >
-          {lyricsOn ? <LyricsActiveIcon size={18} /> : <LyricsIcon size={18} />}
+          {showLyrics ? <LyricsActiveIcon size={18} /> : <LyricsIcon size={18} />}
         </button>
       )}
+      <button
+        className={`${styles.chrome} ${styles.queueToggle}`}
+        aria-label="Up Next"
+        aria-pressed={showQueue}
+        onClick={() => togglePanel('queue')}
+      >
+        <UpNextIcon size={18} />
+      </button>
     </div>
   );
 }

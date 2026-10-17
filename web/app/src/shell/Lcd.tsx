@@ -24,7 +24,7 @@ interface PageLinkProps {
   children: ReactNode;
 }
 
-function PageLink({ href, resolve, className, children }: PageLinkProps) {
+export function PageLink({ href, resolve, className, children }: PageLinkProps) {
   const navigate = useNavigate();
   const [busy, setBusy] = useState(false);
   if (href) {
@@ -55,13 +55,23 @@ function PageLink({ href, resolve, className, children }: PageLinkProps) {
  * The artists, each its own link, as the phone draws its credit line: the
  * byline as written, with every credited name in it opening that artist's page.
  */
-function Credits({ videoId, line, artists }: { videoId: string; line: string; artists: Track['artists'] }) {
+export function Credits({
+  videoId,
+  line,
+  artists,
+  className = styles.link!,
+}: {
+  videoId: string;
+  line: string;
+  artists: Track['artists'];
+  className?: string;
+}) {
   const segments = creditSegments(line, artistCredits(line, artists));
   return segments.map((segment, i) =>
     segment.credit ? (
       <PageLink
         key={i}
-        className={styles.link!}
+        className={className}
         href={artistHref(segment.credit.id)}
         resolve={() => artistPageFor(videoId, segment.credit!)}
       >

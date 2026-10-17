@@ -120,14 +120,26 @@ function LyricsView({ ttml, full }: { ttml: string; full: boolean }) {
     el.addEventListener('line-click', onLineClick);
     host.current?.append(el);
     element.current = el;
+    const unmounted = new AbortController();
     void Promise.resolve(el.updateComplete).then(() => {
       const root = el.shadowRoot;
       if (!root) return;
       const sheet = new CSSStyleSheet();
       sheet.replaceSync(HIDE_FOOTER + FAR_LINES + FULL_SIZE);
       root.adoptedStyleSheets = [...root.adoptedStyleSheets, sheet];
+      // The full-screen column fades its top edge, but am-lyrics' toolbar
+      // (romanize, translate, download) sits at the top of the same scroller
+      // until the lines push it away. The fade grows with the scroll instead,
+      // so the toolbar is never under it.
+      const scroller = root.querySelector('.lyrics-container');
+      const target = host.current;
+      if (!full || !scroller || !target) return;
+      const fade = () => target.style.setProperty('--lyrics-top-fade', `${Math.min(scroller.scrollTop, 80)}px`);
+      fade();
+      scroller.addEventListener('scroll', fade, { passive: true, signal: unmounted.signal });
     });
     return () => {
+      unmounted.abort();
       el.removeEventListener('line-click', onLineClick);
       el.remove();
       element.current = null;

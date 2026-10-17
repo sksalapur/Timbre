@@ -30,9 +30,8 @@ The race, as on the phone:
 | Host | CORS | Route |
 |---|---|---|
 | lrc.red (search and `/s/{isrc}.ttml`), lyrics-api.binimum.org (307 to lrc.red, both `*`), lyrics.paxsenix.org, lrclib.net | `*` | direct |
-| lyricsplus.prjktla.my.id, lyricsplus.binimum.org, lyricsplus.atomix.one | `*` | direct |
+| lyricsplus.prjktla.my.id, lyricsplus.binimum.org (the only LyricsPlus mirrors left; atomix.one, `.workers.dev` and both `.vercel.app` were dead on 2026-10-17 and dropped) | `*` | direct |
 | lyrics-api.boidu.dev, unison.boidu.dev | echoes `localhost` only | direct, falling back to the extension elsewhere |
-| lyricsplus `.workers.dev` and `.vercel.app` mirrors | none | extension |
 | KuGou, Musixmatch, Genius, music.apple.com and amp-api (PaxSenix's Apple search), api.paxsenix.org | none | extension |
 | translate.googleapis.com (am-lyrics' translation) | `*` | direct |
 

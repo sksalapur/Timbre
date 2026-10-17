@@ -334,14 +334,9 @@ export async function paxSenixMusixmatch(q: LyricsQuery, key: string): Promise<P
 
 // ---- LyricsPlus (LyricsPlus.kt) ------------------------------------------------------------------
 
-const MIRRORS = [
-  'https://lyricsplus.prjktla.my.id',
-  'https://lyricsplus.atomix.one',
-  'https://lyricsplus.binimum.org',
-  'https://lyricsplus.prjktla.workers.dev',
-  'https://lyricsplus-seven.vercel.app',
-  'https://lyrics-plus-backend.vercel.app',
-];
+// atomix.one (bad certificate), prjktla.workers.dev (worker deleted) and the
+// two vercel.app deployments (disabled, 402) were dropped on 2026-10-17.
+const MIRRORS = ['https://lyricsplus.prjktla.my.id', 'https://lyricsplus.binimum.org'];
 let lastGoodMirror: string | null = null;
 
 interface LyricsPlusResponse {

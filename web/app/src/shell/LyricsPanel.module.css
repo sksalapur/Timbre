@@ -155,29 +155,29 @@
 }
 
 /*
- * The full-screen player's column (report §7): lines 28px, then 38px from
- * 980px, 50px from 1320px and 72px from 1680px, faded out at the top and
+ * The full-screen player's column (report §7): lines 26px, then 30px from
+ * 980px, 36px from 1320px and 42px from 1680px, faded out at the top and
  * bottom. The picker sits quietly above them.
  */
 .panel[data-variant='full'] {
-  --bitchord-lyric-size: 28px;
+  --bitchord-lyric-size: 26px;
 }
 
 @media (min-width: 980px) {
   .panel[data-variant='full'] {
-    --bitchord-lyric-size: 38px;
+    --bitchord-lyric-size: 30px;
   }
 }
 
 @media (min-width: 1320px) {
   .panel[data-variant='full'] {
-    --bitchord-lyric-size: 50px;
+    --bitchord-lyric-size: 36px;
   }
 }
 
 @media (min-width: 1680px) {
   .panel[data-variant='full'] {
-    --bitchord-lyric-size: 72px;
+    --bitchord-lyric-size: 42px;
   }
 }
 
@@ -193,7 +193,7 @@
 }
 
 .panel[data-variant='full'] .host {
-  mask-image: linear-gradient(180deg, transparent, #000 80px, #000 50%, transparent);
+  mask-image: linear-gradient(180deg, transparent, #000 var(--lyrics-top-fade, 0px), #000 50%, transparent);
 }
 
 .panel[data-variant='full'] .empty {

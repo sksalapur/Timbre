@@ -6,7 +6,7 @@ import { browseHref } from '@/components/music/links';
 import { playList } from '@/components/music/play';
 import { Shelves, TrackShelf } from '@/components/music/ShelfView';
 import { LoadError, NeedsExtension } from '@/components/music/States';
-import { useAppleArtistArt, type AppleArtistArt } from '@/data/apple/artistArt';
+import { requestAppleAccess, useAppleArtistArt, useUngrantedAppleOrigins, type AppleArtistArt } from '@/data/apple/artistArt';
 import { useArtist, useYouTubeReady } from '@/data/music/queries';
 import type { ArtworkColor } from '@/lib/artworkColor';
 import { usePageTint } from '@/lib/usePageTint';
@@ -58,6 +58,7 @@ export default function ArtistPage() {
   const { missing } = useYouTubeReady();
   const artist = useArtist(id);
   const apple = useAppleArtistArt(artist.data?.name);
+  const appleUngranted = useUngrantedAppleOrigins();
   const tint = useMemo<ArtworkColor | null>(
     () => (apple ? { background: apple.background, dark: luminance(apple.background) < 0.6 } : null),
     [apple],
@@ -106,6 +107,17 @@ export default function ArtistPage() {
           >
             <PlayIcon size={26} />
           </button>
+          {!apple && appleUngranted.length > 0 && (
+            <div className={styles.appleNotice}>
+              <span>Apple Music artist art needs the extension’s permission.</span>
+              <button
+                // Stays until the extension confirms the grant (checked when this tab comes back).
+                onClick={requestAppleAccess}
+              >
+                Allow
+              </button>
+            </div>
+          )}
         </div>
       </header>
 

@@ -6,7 +6,7 @@
   background-color: #343438;
 }
 
-/* Stretched from 64×40; the browser's bilinear scaling does the smoothing. */
+/* Drawn at the screen's size by WebGL; the 2D fallback is a 64×40 canvas stretched. */
 .canvas {
   position: absolute;
   inset: 0;
@@ -15,11 +15,10 @@
 }
 
 /*
- * A still film of grain over the colours: smooth dark gradients band on 8-bit
- * displays, and noise breaks the bands up. It never changes, so it costs a
- * single composite.
+ * The 2D fallback's banding, broken up by a still film of grain. The WebGL
+ * mesh dithers itself, finer and per frame, so it goes without.
  */
-.backdrop::after {
+.backdrop[data-fallback]::after {
   content: '';
   position: absolute;
   inset: 0;

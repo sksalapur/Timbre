@@ -1,4 +1,8 @@
 import type { DiscordPresenceOptions } from '@bitchord/shared/bridge';
+import { APPLE_ORIGINS, useAppleAccess } from '@/data/apple/artistArt';
+import { useAppleSettings } from '@/data/apple/motionArt';
+import { useHostAccess } from '@/extension/useHostAccess';
+import { LYRIC_EXTENSION_ORIGINS } from '@/lyrics/http';
 import { useSpotifySettings } from '@/data/spotify/canvas';
 import {
   useDiscord,
@@ -16,6 +20,57 @@ import {
   type SpotifyAuthStatus,
 } from '@/extension/useSpotifyAuth';
 import styles from './ExtensionPage.module.css';
+
+/** Allowed, or an Allow button that opens the extension's permission page. */
+function HostAccessValue({ access, request }: ReturnType<typeof useHostAccess>) {
+  const text = { checking: 'Checking…', unavailable: 'Needs the extension', granted: 'Allowed', needed: 'Not allowed' }[access];
+  return (
+    <span className={styles.value}>
+      <span>{text}</span>
+      {access === 'needed' && (
+        <button className={styles.inlineButton} onClick={request}>
+          Allow
+        </button>
+      )}
+    </span>
+  );
+}
+
+/** The Apple Music section's access row: one grant covers artist art and animated artwork. */
+export function AppleMusicIntegration() {
+  return <HostAccessValue {...useAppleAccess()} />;
+}
+
+/** The Apple Music section's switches. Neither needs an Apple Music account. */
+export function AppleMusicToggles() {
+  const { artistArt, motion, setArtistArt, setMotion } = useAppleSettings();
+  return (
+    <>
+      <Toggle
+        label="Artist Art"
+        detail="Artist pages take Apple Music’s photo, logo and colour."
+        checked={artistArt}
+        onChange={setArtistArt}
+      />
+      <Toggle
+        label="Animated Artwork"
+        detail="Apple Music’s moving covers in the full-screen player and on album pages. Not on metered connections or with reduced motion."
+        checked={motion}
+        onChange={setMotion}
+      />
+    </>
+  );
+}
+
+/**
+ * The lyric sources a page can't ask itself (KuGou, Musixmatch, Genius,
+ * PaxSenix…), as in the Lyrics dialog. Apple's hosts are granted under Apple
+ * Music, so they aren't asked for twice.
+ */
+const LYRIC_ONLY_ORIGINS = LYRIC_EXTENSION_ORIGINS.filter((o) => !APPLE_ORIGINS.includes(o));
+export function LyricSourcesAccess() {
+  return <HostAccessValue {...useHostAccess(LYRIC_ONLY_ORIGINS)} />;
+}
 
 /** The Spotify row's words and button (SpotifyLibraryScreen's states). */
 export function SpotifyIntegration() {

@@ -109,6 +109,33 @@
   transform: scale(1.04);
 }
 
+/* The lyrics panel's permission notice, as a pill over the photograph. */
+.appleNotice {
+  margin-top: 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px 6px 14px;
+  border-radius: 999px;
+  background-color: #0000004d;
+  backdrop-filter: blur(20px) saturate(1.6);
+  font: var(--callout);
+  color: #ffffffcc;
+}
+
+.appleNotice button {
+  flex: none;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font: var(--callout-emphasized);
+  color: #fff;
+  background-color: #ffffff26;
+}
+
+.appleNotice button:hover {
+  background-color: #ffffff40;
+}
+
 .sectionTitle {
   font: var(--title-2-emphasized);
 }

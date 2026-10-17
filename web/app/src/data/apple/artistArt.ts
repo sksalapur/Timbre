@@ -1,6 +1,10 @@
 import { useQuery } from '@tanstack/react-query';
-import { lyricsGet, urlWith } from '@/lyrics/http';
+import { useSyncExternalStore } from 'react';
+import { requestHostAccess, useHostAccess } from '@/extension/useHostAccess';
+import { lyricsGet, onGranted, onUngrantedChange, ungrantedOrigins, urlWith } from '@/lyrics/http';
+import { queryClient } from '@/lib/queryClient';
 import { normalized, num, obj, parse, parseArtistPage, str, type AppleArtistArt, type Json } from './artistPage';
+import { useAppleSettings } from './motionArt';
 import { appleWebToken } from './webToken';
 
 export type { AppleArtistArt };
@@ -46,18 +50,49 @@ export async function fetchAppleArtistArt(name: string): Promise<AppleArtistArt 
   return parseArtistPage(html);
 }
 
+// Apple's hosts are optional extension permissions: once one is allowed, the lookups it refused run again.
+onGranted(() => void queryClient.invalidateQueries({ queryKey: ['apple', 'artist-art'] }));
+
+export const APPLE_ORIGINS = ['https://music.apple.com', 'https://amp-api.music.apple.com'];
+
+/**
+ * The Apple hosts the extension refused (ungrantedOrigins, filled by
+ * lyricsGet): the artist page offers to allow them. Empty until a lookup
+ * has actually been refused.
+ */
+export function useUngrantedAppleOrigins(): string[] {
+  return useSyncExternalStore(
+    onUngrantedChange,
+    () => APPLE_ORIGINS.filter((o) => ungrantedOrigins.has(o)).join(','),
+    () => '',
+  )
+    .split(',')
+    .filter(Boolean);
+}
+
+/** Opens the extension's permission page for both Apple hosts. */
+export function requestAppleAccess(): void {
+  requestHostAccess(APPLE_ORIGINS);
+}
+
+/** Whether the extension may reach both Apple hosts, for Settings. No Apple Music account is involved. */
+export function useAppleAccess() {
+  return useHostAccess(APPLE_ORIGINS);
+}
+
 /**
  * Apple's header art for [name]. Null until (and unless) it arrives: the
  * YouTube header stands in meanwhile, and stays when Apple has nothing.
  */
 export function useAppleArtistArt(name: string | null | undefined): AppleArtistArt | null {
+  const on = useAppleSettings((s) => s.artistArt);
   const query = useQuery({
     queryKey: ['apple', 'artist-art', normalized(name ?? '')],
     queryFn: () => fetchAppleArtistArt(name!),
-    enabled: !!name && !!normalized(name),
+    enabled: on && !!name && !!normalized(name),
     staleTime: Infinity,
     gcTime: 60 * 60_000,
     retry: false,
   });
-  return query.data ?? null;
+  return on ? (query.data ?? null) : null;
 }
