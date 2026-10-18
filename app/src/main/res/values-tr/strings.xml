@@ -1213,6 +1213,10 @@
     <string name="cached_songs">Önbellekteki şarkılar</string>
     <string name="cached_songs_subtitle">Şarkı önbelleğindeki YouTube ve JioSaavn şarkıları</string>
     <string name="cached_songs_empty">Henüz önbellekte şarkı yok. YouTube veya JioSaavn üzerinden çaldığın şarkılar burada görünecek.</string>
+    <string name="cached_song_partial">Kısmi</string>
+    <string name="remove_from_cache">Önbellekten kaldır</string>
+    <string name="cached_song_remove">Kaldır</string>
+    <string name="removed_from_cache">Şarkı önbelleğinden kaldırıldı</string>
     <string name="show_cache_folder">Önbellekteki şarkılar klasörünü göster</string>
     <string name="show_cache_folder_subtitle">Kitaplığa, önbellekte tutulan YouTube ve JioSaavn şarkılarını içeren bir klasör ekler</string>
     <string name="song_cache_unlimited">Sınırsız</string>
@@ -1267,6 +1271,10 @@
     <string name="replay_songs_end_week"> haftanızı doldurdu.</string>
     <string name="replay_summary_end_week">hafta</string>
     <string name="replay_this_week">Bu hafta</string>
+    <string name="replay_period_weekly">Haftalık</string>
+    <string name="replay_period_monthly">Aylık</string>
+    <string name="replay_period_yearly">Yıllık</string>
+    <string name="replay_period_lifetime">Tüm zamanlar</string>
     <string name="onboarding_title">Milyonlarca şarkı, BitChord’da akışta</string>
     <string name="onboarding_name_prompt">Size nasıl hitap edelim?</string>
     <string name="onboarding_name_hint">Adınız</string>
