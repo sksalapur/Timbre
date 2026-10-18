@@ -132,10 +132,10 @@ fun glassBarTint(): Color? =
     if (MaterialTheme.colorScheme.surface.luminance() > 0.5f) null else Color.White.copy(alpha = DARK_BAR_OPACITY)
 
 /** How white the nav bar's glass is in dark theme — see [glassBarTint]. */
-private const val DARK_BAR_OPACITY = 0.14f
+private const val DARK_BAR_OPACITY = 0.09f
 
 /** The selected tab's pill in dark theme, a step whiter than the bar. */
-private const val DARK_INDICATOR_OPACITY = 0.2f
+private const val DARK_INDICATOR_OPACITY = 0.14f
 
 /**
  * A lightweight visual match for liquid glass over a stable background.
