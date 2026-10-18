@@ -1311,6 +1311,10 @@
     <string name="replay_songs_end_week"> ont rempli votre semaine.</string>
     <string name="replay_summary_end_week">semaine</string>
     <string name="replay_this_week">Cette semaine</string>
+    <string name="replay_period_weekly">Hebdo</string>
+    <string name="replay_period_monthly">Mensuel</string>
+    <string name="replay_period_yearly">Annuel</string>
+    <string name="replay_period_lifetime">À vie</string>
     <string name="onboarding_title">Des millions de titres à écouter sur BitChord</string>
     <string name="onboarding_name_prompt">Comment devons-nous vous appeler ?</string>
     <string name="onboarding_name_hint">Votre nom</string>

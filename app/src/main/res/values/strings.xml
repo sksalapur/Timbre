@@ -873,6 +873,10 @@
     <string name="counted_on_device_with_bitchord">Counted on this device with BitChord</string>
     <string name="this_month">This month</string>
     <string name="replay_this_week">This week</string>
+    <string name="replay_period_weekly">Weekly</string>
+    <string name="replay_period_monthly">Monthly</string>
+    <string name="replay_period_yearly">Yearly</string>
+    <string name="replay_period_lifetime">Lifetime</string>
     <string name="this_year">This year</string>
     <string name="all_time">All time</string>
     <string name="switch_account">Switch account</string>

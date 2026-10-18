@@ -1310,6 +1310,10 @@
     <string name="replay_songs_end_week"> ने आपका हफ़्ता भर दिया।</string>
     <string name="replay_summary_end_week">हफ़्ता</string>
     <string name="replay_this_week">इस हफ़्ते</string>
+    <string name="replay_period_weekly">साप्ताहिक</string>
+    <string name="replay_period_monthly">मासिक</string>
+    <string name="replay_period_yearly">वार्षिक</string>
+    <string name="replay_period_lifetime">सर्वकालिक</string>
     <string name="onboarding_title">लाखों गाने, BitChord पर स्ट्रीम करें</string>
     <string name="onboarding_name_prompt">हम आपको क्या कहकर बुलाएँ?</string>
     <string name="onboarding_name_hint">आपका नाम</string>
