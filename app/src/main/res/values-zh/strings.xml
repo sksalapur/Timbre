@@ -1339,4 +1339,13 @@
     <string name="artist_signatures_unconfigured">未配置 — 点击设置 API URL</string>
     <string name="artist_signatures_test_failed">无法访问该 URL 的 API</string>
     <string name="signed_by">由 %1$s 签名</string>
+    <string name="song_info">歌曲信息</string>
+    <string name="song_info_album">专辑</string>
+    <string name="song_info_release_date">发行日期</string>
+    <string name="song_info_views">播放 / 观看次数</string>
+    <string name="song_info_likes">点赞数</string>
+    <string name="song_info_comments">评论数</string>
+    <string name="song_info_unavailable">暂无信息</string>
+    <string name="song_info_error">部分信息无法加载。</string>
+    <string name="song_info_retry">重试</string>
 </resources>
