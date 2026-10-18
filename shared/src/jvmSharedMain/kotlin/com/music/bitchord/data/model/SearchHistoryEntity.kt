@@ -32,3 +32,12 @@ enum class EntityType {
     @SerialName("ARTIST") ARTIST,
     @SerialName("PLAYLIST") PLAYLIST,
 }
+
+fun SearchHistoryEntity.toSong(): Song? = if (entityType == EntityType.TRACK) {
+    Song(
+        videoId = id,
+        title = title,
+        artist = subtitle,
+        thumbnailUrl = artworkUrl,
+    )
+} else null

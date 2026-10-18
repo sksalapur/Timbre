@@ -1,5 +1,6 @@
 package com.music.bitchord.ui.screens
 
+import com.music.bitchord.data.model.toSong
 import com.music.bitchord.ui.components.SwipeToQueueBox
 import com.music.bitchord.ui.components.contextClick
 import androidx.compose.ui.unit.Dp
@@ -298,6 +299,7 @@ fun SearchScreen(
                         onClick = onHistoryClick,
                         onRemove = onHistoryRemove,
                         onClear = onHistoryClear,
+                        onSongSwipe = onSongSwipe,
                     )
                 }
                 results is UiState.Loading -> songListSkeleton(circular = filter == SearchFilter.ARTISTS)
@@ -769,6 +771,7 @@ private fun LazyListScope.recentSearches(
     onClick: (SearchHistoryEntity) -> Unit,
     onRemove: (String) -> Unit,
     onClear: () -> Unit,
+    onSongSwipe: (Song) -> Unit,
 ) {
     item(key = "recent:header") {
         Row(
@@ -795,12 +798,14 @@ private fun LazyListScope.recentSearches(
         }
     }
     items(history, key = { "recent:${it.id}" }) { entity ->
+        val onSwipe = entity.toSong()?.let { song -> { onSongSwipe(song) } }
         RecentSearchEntityRow(
             entity = entity,
             isCurrent = entity.entityType == EntityType.TRACK && entity.id == currentSong?.videoId,
             isPlaying = isPlaying,
             onClick = { onClick(entity) },
             onRemove = { onRemove(entity.id) },
+            onSwipeToQueue = onSwipe,
         )
     }
 }
@@ -888,59 +893,66 @@ private fun RecentSearchEntityRow(
     isPlaying: Boolean,
     onClick: () -> Unit,
     onRemove: () -> Unit,
+    onSwipeToQueue: (() -> Unit)? = null,
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(start = PAGE_GUTTER, end = 8.dp, top = 6.dp, bottom = 6.dp),
-        verticalAlignment = Alignment.CenterVertically,
+    SwipeToQueueBox(
+        onSwipeToQueue = onSwipeToQueue,
+        modifier = Modifier.fillMaxWidth(),
     ) {
-        Box(Modifier.size(52.dp)) {
-            AsyncImage(
-                model = entity.artworkUrl,
-                contentDescription = null,
-                modifier = Modifier
-                    .size(52.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .thumbnailBorder(RoundedCornerShape(8.dp))
-                    .background(MaterialTheme.colorScheme.surfaceVariant),
-            )
-            if (isCurrent && isPlaying) {
-                SearchPlayingBars(Modifier.align(Alignment.Center))
-            }
-        }
-        Spacer(Modifier.width(14.dp))
-        Column(Modifier.weight(1f)) {
-            Text(
-                text = entity.title,
-                style = MaterialTheme.typography.titleMedium,
-                color = if (isCurrent) PlayingAccent else MaterialTheme.colorScheme.onBackground,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Spacer(Modifier.height(2.dp))
-            Text(
-                text = entity.subtitle.ifBlank { entity.entityType.name.lowercase(Locale.ROOT).replaceFirstChar { it.uppercase(Locale.ROOT) } },
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-        Box(
+        Row(
             modifier = Modifier
-                .size(40.dp)
-                .clip(CircleShape)
-                .clickable(onClick = onRemove),
-            contentAlignment = Alignment.Center,
+                .fillMaxWidth()
+                .background(MaterialTheme.colorScheme.background)
+                .clickable(onClick = onClick)
+                .padding(start = PAGE_GUTTER, end = 8.dp, top = 6.dp, bottom = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Icon(
-                Icons.Rounded.Close,
-                contentDescription = stringResource(Res.string.recent_search_remove, entity.title),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(18.dp),
-            )
+            Box(Modifier.size(52.dp)) {
+                AsyncImage(
+                    model = entity.artworkUrl,
+                    contentDescription = null,
+                    modifier = Modifier
+                        .size(52.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .thumbnailBorder(RoundedCornerShape(8.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant),
+                )
+                if (isCurrent && isPlaying) {
+                    SearchPlayingBars(Modifier.align(Alignment.Center))
+                }
+            }
+            Spacer(Modifier.width(14.dp))
+            Column(Modifier.weight(1f)) {
+                Text(
+                    text = entity.title,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = if (isCurrent) PlayingAccent else MaterialTheme.colorScheme.onBackground,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    text = entity.subtitle.ifBlank { entity.entityType.name.lowercase(Locale.ROOT).replaceFirstChar { it.uppercase(Locale.ROOT) } },
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(CircleShape)
+                    .clickable(onClick = onRemove),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    Icons.Rounded.Close,
+                    contentDescription = stringResource(Res.string.recent_search_remove, entity.title),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(18.dp),
+                )
+            }
         }
     }
 }
