@@ -53,10 +53,7 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
-import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
-import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.graphics.drawscope.ContentDrawScope
 import androidx.compose.foundation.layout.windowInsetsTopHeight
 import androidx.compose.foundation.lazy.LazyListState
@@ -223,7 +220,7 @@ import com.music.bitchord.ui.components.BrowseTarget
 import com.music.bitchord.ui.components.ConfirmationAlert
 import com.music.bitchord.ui.components.DownloadManagerSheet
 import com.music.bitchord.ui.components.PlaylistPickerSheet
-import com.music.bitchord.ui.components.ReorderPlaylistSheet
+import com.music.bitchord.ui.components.ReorderPlaylistPage
 import com.music.bitchord.ui.components.LongPressOrigin
 import com.music.bitchord.ui.components.SongActionsPresentation
 import com.music.bitchord.ui.components.SongActionsSheet
@@ -652,7 +649,7 @@ private fun BitChordApp(
     var browseMenuOrigin by remember { mutableStateOf<HeldItem?>(null) }
     /** Rename asked for from the popup, which hands it on to the sheet's form. */
     var browseRenameInSheet by remember { mutableStateOf(false) }
-    /** The playlist being rearranged, or null when the reorder sheet is shut. */
+    /** The playlist being rearranged, or null when the reorder page is shut. */
     var reorderTarget by remember { mutableStateOf<UserPlaylist?>(null) }
     /** Its entries as YouTube has them now — fetched fresh when the sheet opens. */
     var reorderEntries by remember { mutableStateOf<UiState<List<Song>>>(UiState.Loading) }
@@ -712,6 +709,11 @@ private fun BitChordApp(
     val topDetail = detailStack.lastOrNull()
     /** The release page on screen, or null when a route or a tab is. */
     val detail = topDetail?.takeIf { visibleEntry == null }
+    // The reorder list lives on its playlist's page; leaving that page by any
+    // route — Back, a tab, another page over it — puts the list away with it.
+    LaunchedEffect(detail?.browseId) {
+        if (reorderTarget?.browseId != detail?.browseId) reorderTarget = null
+    }
 
     SystemBarIcons(
         dark = !darkTheme && !showNowPlaying && route != AppRoute.Replay && replayStory == null && !onboardingVisible,
@@ -2922,6 +2924,8 @@ private fun BitChordApp(
                                     continuationToken = latestPage?.continuation ?: page.continuation,
                                 )
                             }
+                            // This page's songs being rearranged, drawn in place of its list.
+                            val reordering = reorderTarget?.takeIf { it.browseId == page.browseId }
                             DetailScreen(
                                 page = page,
                                 currentSong = player.song,
@@ -2989,6 +2993,35 @@ private fun BitChordApp(
                                 songSort = songSort,
                                 folder = folder,
                                 contentPadding = listPadding,
+                                reorder = if (reordering != null) {
+                                    { palette ->
+                                        ReorderPlaylistPage(
+                                            playlist = reordering,
+                                            entries = reorderEntries,
+                                            saving = reorderSaving,
+                                            palette = palette,
+                                            contentPadding = PaddingValues(
+                                                bottom = listPadding.calculateBottomPadding(),
+                                            ),
+                                            onClose = { reorderTarget = null },
+                                            onSave = { reordered ->
+                                                val original = (reorderEntries as? UiState.Success)?.data.orEmpty()
+                                                reorderSaving = true
+                                                viewModel.reorderPlaylist(reordering, original, reordered) { saved ->
+                                                    reorderSaving = false
+                                                    showQueueNotice(
+                                                        context.getString(
+                                                            if (saved) R.string.playlist_reordered else R.string.reorder_failed,
+                                                        ),
+                                                    )
+                                                    if (saved && reorderTarget == reordering) reorderTarget = null
+                                                }
+                                            },
+                                        )
+                                    }
+                                } else {
+                                    null
+                                },
                             )
                         } else when ((destination as? AppDestination.Tab)?.index ?: selectedTab) {
                             TAB_HOME -> HomeScreen(
@@ -4557,6 +4590,18 @@ private fun BitChordApp(
                 onReorder = playlist?.let { p ->
                     {
                         browseActions = null
+                        // Rearranged on the playlist's own page: open it first
+                        // when the menu was raised from anywhere else.
+                        if (detail?.browseId != p.browseId) {
+                            viewModel.openDetail(
+                                browseId = p.browseId,
+                                title = p.title,
+                                subtitle = p.subtitle,
+                                thumbnailUrl = p.thumbnailUrl,
+                                type = BrowseType.PLAYLIST,
+                            )
+                        }
+                        detailSearching = false
                         reorderTarget = p
                         reorderEntries = UiState.Loading
                         reorderSaving = false
@@ -4617,46 +4662,6 @@ private fun BitChordApp(
             if (browseActions == null) {
                 browseMenuOrigin = null
                 browseRenameInSheet = false
-            }
-        }
-
-        // ---- Reorder playlist ----
-        // Full height, and the list never hands its leftover scroll to the
-        // sheet: every vertical drag inside it is meant for a row or the list,
-        // and one that pulled the sheet down instead would throw the new order
-        // away. (Material3 1.3 has no sheetGesturesEnabled; the row drags
-        // consume their own events, so the list's overscroll is the only path.)
-        reorderTarget?.let { target ->
-            val close = { reorderTarget = null }
-            val keepSheetStill = remember {
-                object : NestedScrollConnection {
-                    override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource) = available
-                    override suspend fun onPostFling(consumed: Velocity, available: Velocity) = available
-                }
-            }
-            ModalBottomSheet(
-                onDismissRequest = close,
-                sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-                containerColor = MaterialTheme.colorScheme.background,
-            ) {
-                ReorderPlaylistSheet(
-                    modifier = Modifier.nestedScroll(keepSheetStill),
-                    playlist = target,
-                    entries = reorderEntries,
-                    saving = reorderSaving,
-                    onClose = close,
-                    onSave = { reordered ->
-                        val original = (reorderEntries as? UiState.Success)?.data.orEmpty()
-                        reorderSaving = true
-                        viewModel.reorderPlaylist(target, original, reordered) { saved ->
-                            reorderSaving = false
-                            showQueueNotice(
-                                context.getString(if (saved) R.string.playlist_reordered else R.string.reorder_failed),
-                            )
-                            if (saved && reorderTarget == target) reorderTarget = null
-                        }
-                    },
-                )
             }
         }
 
