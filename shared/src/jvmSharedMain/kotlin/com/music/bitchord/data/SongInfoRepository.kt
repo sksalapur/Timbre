@@ -64,6 +64,11 @@ object SongInfoRepository {
             attempt {
                 val response = client.get("https://www.youtube.com/watch") {
                     header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36")
+                    // Without a consent answer an EU request is redirected to
+                    // consent.youtube.com, whose page has no player response.
+                    // SOCS=CAI is "reject all": it answers the question and
+                    // opts into nothing.
+                    header("Cookie", "SOCS=CAI")
                     parameter("v", song.videoId)
                     parameter("hl", Innertube.currentLanguage)
                 }
