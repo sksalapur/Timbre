@@ -284,6 +284,7 @@ internal fun TvNowPlayingStage(
                         looking = lyricsLoading,
                         isPlaying = isPlaying,
                         onSeekToLine = onSeek,
+                        centerFocus = true,
                         modifier = Modifier.fillMaxSize(),
                     )
                 }

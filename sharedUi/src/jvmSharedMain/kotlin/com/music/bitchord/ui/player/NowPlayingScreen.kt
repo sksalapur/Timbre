@@ -2022,6 +2022,7 @@ fun NowPlayingScreen(
                                     picked = lyricPicker.picks,
                                     onPickLine = lyricPicker.pick,
                                     onTogglePick = lyricPicker.toggle,
+                                    centerFocus = true,
                                     modifier = Modifier.fillMaxSize(),
                                 )
                             }
