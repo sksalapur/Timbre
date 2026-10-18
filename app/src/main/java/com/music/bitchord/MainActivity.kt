@@ -4534,17 +4534,14 @@ private fun BitChordApp(
             val playlist = target.browseId
                 ?.takeIf { signedIn && ownedPlaylists[it] == true }
                 ?.let { id -> playlists.firstOrNull { it.browseId == id } }
-            // True for any real YouTube Music browse id, and also for Spotify
-            // playlists saved on this device ("local:playlist:sp_local_…") —
-            // those carry real YouTube video ids that can be downloaded just
-            // like a remote playlist.  The device-folder ids ("local:downloads",
-            // "local:all", …) are not downloadable and stay false.
-            val remote = target.browseId.let { id ->
-                id != null && (
-                    !id.startsWith("local:") ||
-                    id.startsWith("local:playlist:sp_local_")
-                )
-            }
+            val remote = target.browseId?.startsWith("local:") == false
+            // Spotify playlists saved on this device ("local:playlist:sp_local_…")
+            // carry real YouTube video ids, so they download like a remote
+            // playlist — but they have no YouTube Music page, so Share stays
+            // on [remote] alone. The device-folder ids ("local:downloads",
+            // "local:all", …) are neither.
+            val downloadable = remote ||
+                target.browseId?.startsWith("local:playlist:sp_local_") == true
             val pinnedPlaylists by AppSettings.pinnedPlaylists.collectAsStateWithLifecycle()
             val pinnableId = target.browseId?.takeIf { target.type == BrowseType.PLAYLIST }
             BrowseActionsSheet(
@@ -4602,7 +4599,7 @@ private fun BitChordApp(
                                 )
                             },
                     )
-                }.takeIf { remote },
+                }.takeIf { downloadable },
                 // The same link a share off YouTube Music's own overflow
                 // gives — built from the browse id rather than fetched,
                 // since nothing about it depends on the tracks or the
