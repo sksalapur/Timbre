@@ -1231,6 +1231,10 @@
     <string name="replay_songs_end_week"> đã lấp đầy tuần của bạn.</string>
     <string name="replay_summary_end_week">tuần</string>
     <string name="replay_this_week">Tuần này</string>
+    <string name="replay_period_weekly">Tuần</string>
+    <string name="replay_period_monthly">Tháng</string>
+    <string name="replay_period_yearly">Năm</string>
+    <string name="replay_period_lifetime">Mọi lúc</string>
     <string name="onboarding_title">Hàng triệu bài hát, phát trực tuyến trên BitChord</string>
     <string name="onboarding_name_prompt">Chúng tôi nên gọi bạn là gì?</string>
     <string name="onboarding_name_hint">Tên của bạn</string>

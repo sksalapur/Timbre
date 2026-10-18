@@ -1285,6 +1285,10 @@
     <string name="replay_songs_end_week"> 填满了你的这一周。</string>
     <string name="replay_summary_end_week">周</string>
     <string name="replay_this_week">本周</string>
+    <string name="replay_period_weekly">每周</string>
+    <string name="replay_period_monthly">每月</string>
+    <string name="replay_period_yearly">每年</string>
+    <string name="replay_period_lifetime">全部</string>
     <string name="onboarding_title">数百万首歌曲，在 BitChord 上畅听</string>
     <string name="onboarding_name_prompt">我们该怎么称呼你？</string>
     <string name="onboarding_name_hint">你的名字</string>

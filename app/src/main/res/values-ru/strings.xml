@@ -1346,6 +1346,10 @@
     <string name="replay_songs_end_week"> заполнили вашу неделю.</string>
     <string name="replay_summary_end_week">неделя</string>
     <string name="replay_this_week">На этой неделе</string>
+    <string name="replay_period_weekly">Неделя</string>
+    <string name="replay_period_monthly">Месяц</string>
+    <string name="replay_period_yearly">Год</string>
+    <string name="replay_period_lifetime">Всё время</string>
     <string name="onboarding_title">Миллионы треков в BitChord</string>
     <string name="onboarding_name_prompt">Как к вам обращаться?</string>
     <string name="onboarding_name_hint">Ваше имя</string>

@@ -1319,6 +1319,10 @@
     <string name="replay_songs_end_week"> מילאו את השבוע שלך.</string>
     <string name="replay_summary_end_week">שבוע</string>
     <string name="replay_this_week">השבוע</string>
+    <string name="replay_period_weekly">שבועי</string>
+    <string name="replay_period_monthly">חודשי</string>
+    <string name="replay_period_yearly">שנתי</string>
+    <string name="replay_period_lifetime">כל הזמן</string>
     <string name="onboarding_title">מיליוני שירים, בסטרימינג ב-BitChord</string>
     <string name="onboarding_name_prompt">איך לקרוא לך?</string>
     <string name="onboarding_name_hint">השם שלך</string>

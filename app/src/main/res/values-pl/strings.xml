@@ -1354,6 +1354,10 @@
     <string name="replay_songs_end_week"> wypełniły twój tydzień.</string>
     <string name="replay_summary_end_week">tydzień</string>
     <string name="replay_this_week">W tym tygodniu</string>
+    <string name="replay_period_weekly">Tydzień</string>
+    <string name="replay_period_monthly">Miesiąc</string>
+    <string name="replay_period_yearly">Rok</string>
+    <string name="replay_period_lifetime">Cały czas</string>
     <string name="onboarding_title">Miliony utworów w streamingu w BitChord</string>
     <string name="onboarding_name_prompt">Jak mamy się do ciebie zwracać?</string>
     <string name="onboarding_name_hint">Twoje imię</string>

@@ -1297,6 +1297,10 @@
     <string name="replay_songs_end_week"> เติมเต็มสัปดาห์ของคุณ</string>
     <string name="replay_summary_end_week">สัปดาห์</string>
     <string name="replay_this_week">สัปดาห์นี้</string>
+    <string name="replay_period_weekly">รายสัปดาห์</string>
+    <string name="replay_period_monthly">รายเดือน</string>
+    <string name="replay_period_yearly">รายปี</string>
+    <string name="replay_period_lifetime">ตลอดกาล</string>
     <string name="onboarding_title">เพลงนับล้าน สตรีมบน BitChord</string>
     <string name="onboarding_name_prompt">ให้เราเรียกคุณว่าอะไรดี</string>
     <string name="onboarding_name_hint">ชื่อของคุณ</string>

@@ -1271,6 +1271,10 @@
     <string name="replay_songs_end_week"> haftanızı doldurdu.</string>
     <string name="replay_summary_end_week">hafta</string>
     <string name="replay_this_week">Bu hafta</string>
+    <string name="replay_period_weekly">Haftalık</string>
+    <string name="replay_period_monthly">Aylık</string>
+    <string name="replay_period_yearly">Yıllık</string>
+    <string name="replay_period_lifetime">Tüm zamanlar</string>
     <string name="onboarding_title">Milyonlarca şarkı, BitChord’da akışta</string>
     <string name="onboarding_name_prompt">Size nasıl hitap edelim?</string>
     <string name="onboarding_name_hint">Adınız</string>
