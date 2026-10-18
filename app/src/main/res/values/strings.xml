@@ -1139,6 +1139,10 @@
     <string name="cached_songs">Cached songs</string>
     <string name="cached_songs_subtitle">Songs from YouTube and JioSaavn in the song cache</string>
     <string name="cached_songs_empty">No cached songs yet. Songs you play from YouTube or JioSaavn will show up here.</string>
+    <string name="cached_song_partial">Partial</string>
+    <string name="remove_from_cache">Remove from cache</string>
+    <string name="cached_song_remove">Remove</string>
+    <string name="removed_from_cache">Removed from the song cache</string>
     <string name="show_cache_folder">Show cached songs folder</string>
     <string name="show_cache_folder_subtitle">Adds a Cached songs folder to Library with the YouTube and JioSaavn songs kept in the song cache</string>
     <string name="song_cache_unlimited">Unlimited</string>

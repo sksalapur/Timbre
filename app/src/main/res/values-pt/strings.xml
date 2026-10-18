@@ -1261,6 +1261,10 @@
     <string name="cached_songs">Músicas em cache</string>
     <string name="cached_songs_subtitle">Músicas do YouTube e JioSaavn no cache de músicas</string>
     <string name="cached_songs_empty">Ainda não há músicas em cache. As músicas que você tocar do YouTube ou JioSaavn aparecerão aqui.</string>
+    <string name="cached_song_partial">Parcial</string>
+    <string name="remove_from_cache">Remover do cache</string>
+    <string name="cached_song_remove">Remover</string>
+    <string name="removed_from_cache">Removida do cache de músicas</string>
     <string name="show_cache_folder">Mostrar pasta de músicas em cache</string>
     <string name="show_cache_folder_subtitle">Adiciona à Biblioteca uma pasta com as músicas do YouTube e JioSaavn guardadas no cache</string>
     <string name="song_cache_unlimited">Ilimitado</string>

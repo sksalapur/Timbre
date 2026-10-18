@@ -1195,6 +1195,10 @@
     <string name="cached_songs">Brani in cache</string>
     <string name="cached_songs_subtitle">Brani di YouTube e JioSaavn nella cache dei brani</string>
     <string name="cached_songs_empty">Ancora nessun brano in cache. I brani che riproduci da YouTube o JioSaavn appariranno qui.</string>
+    <string name="cached_song_partial">Parziale</string>
+    <string name="remove_from_cache">Rimuovi dalla cache</string>
+    <string name="cached_song_remove">Rimuovi</string>
+    <string name="removed_from_cache">Rimosso dalla cache dei brani</string>
     <string name="show_cache_folder">Mostra cartella dei brani in cache</string>
     <string name="show_cache_folder_subtitle">Aggiunge alla Libreria una cartella con i brani di YouTube e JioSaavn conservati nella cache</string>
     <string name="song_cache_unlimited">Illimitata</string>

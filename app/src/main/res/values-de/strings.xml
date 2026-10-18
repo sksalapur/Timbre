@@ -1256,6 +1256,10 @@
     <string name="cached_songs">Zwischengespeicherte Songs</string>
     <string name="cached_songs_subtitle">Songs von YouTube und JioSaavn im Song-Cache</string>
     <string name="cached_songs_empty">Noch keine zwischengespeicherten Songs. Songs, die du von YouTube oder JioSaavn abspielst, erscheinen hier.</string>
+    <string name="cached_song_partial">Teilweise</string>
+    <string name="remove_from_cache">Aus dem Cache entfernen</string>
+    <string name="cached_song_remove">Entfernen</string>
+    <string name="removed_from_cache">Aus dem Song-Cache entfernt</string>
     <string name="show_cache_folder">Ordner für zwischengespeicherte Songs anzeigen</string>
     <string name="show_cache_folder_subtitle">Fügt der Mediathek einen Ordner mit den YouTube- und JioSaavn-Songs im Song-Cache hinzu</string>
     <string name="song_cache_unlimited">Unbegrenzt</string>
