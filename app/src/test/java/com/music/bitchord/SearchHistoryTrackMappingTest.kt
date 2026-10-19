@@ -45,4 +45,17 @@ class SearchHistoryTrackMappingTest {
         assertNull(artist.toSong())
         assertNull(playlist.toSong())
     }
+
+    @Test
+    fun `raw query entries return null song`() {
+        val query = SearchHistoryEntity(
+            id = "q:some search",
+            title = "some search",
+            subtitle = "",
+            artworkUrl = null,
+            entityType = EntityType.TRACK,
+        )
+
+        assertNull(query.toSong())
+    }
 }

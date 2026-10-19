@@ -800,31 +800,18 @@ private fun LazyListScope.recentSearches(
         }
     }
     items(history, key = { "recent:${it.id}" }) { entity ->
-        val onSwipe = entity.toSong()?.let { song -> { onSongSwipe(song) } }
+        // A recent track gets the same menu and swipe as a result row, so it can
+        // be queued without interrupting what's playing. The ids an old build
+        // saved as raw queries ("q:…") have no track behind them.
+        val song = entity.toSong()
         RecentSearchEntityRow(
             entity = entity,
             isCurrent = entity.entityType == EntityType.TRACK && entity.id == currentSong?.videoId,
             isPlaying = isPlaying,
             onClick = { onClick(entity) },
-            // A recent track gets the same menu as a result row, so it can be
-            // queued without interrupting what's playing. The ids an old
-            // build saved as raw queries ("q:…") have no track behind them.
-            onLongPress = if (entity.entityType == EntityType.TRACK && !entity.id.startsWith("q:")) {
-                {
-                    onSongLongPress(
-                        Song(
-                            videoId = entity.id,
-                            title = entity.title,
-                            artist = entity.subtitle,
-                            thumbnailUrl = entity.artworkUrl,
-                        ),
-                    )
-                }
-            } else {
-                null
-            },
+            onLongPress = song?.let { { onSongLongPress(it) } },
             onRemove = { onRemove(entity.id) },
-            onSwipeToQueue = onSwipe,
+            onSwipeToQueue = song?.let { { onSongSwipe(it) } },
         )
     }
 }
