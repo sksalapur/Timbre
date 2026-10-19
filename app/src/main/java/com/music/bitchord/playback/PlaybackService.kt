@@ -2851,7 +2851,7 @@ class PlaybackService : MediaLibraryService() {
     ) {
         val exoPlayer = player ?: return
         currentAudioInputFormat = null
-        NerdStats.onTrackTransition()
+        NerdStats.onTrackTransition(mediaItem?.mediaId)
         AudioOutputStatus.onTrackTransition()
         // The entry this track is read from now counts as played — the only
         // kind the Cached songs folder lists. See [AudioCache.Origin].
@@ -5084,6 +5084,7 @@ class PlaybackService : MediaLibraryService() {
         val player = player ?: return
         val format = player.audioFormat
         val mediaId = player.currentMediaItem?.mediaId
+        val generation = NerdStats.currentGeneration
         val measured = format?.measure()
         // DSD reaches the renderer already decimated to PCM (DsdExtractor), so
         // its sample mime is `audio/raw`; the extractor leaves `dsd64` and the
@@ -5103,17 +5104,17 @@ class PlaybackService : MediaLibraryService() {
                 Pair((format.bitrate + 500) / 1000, TelemetryProvenance.AUTHORITATIVE)
             mediaId != null && localBitrateCache.containsKey(mediaId) ->
                 Pair(localBitrateCache[mediaId], TelemetryProvenance.AUTHORITATIVE)
-            NerdStats.declaredFormat(mediaId)?.kbps != null ->
-                Pair(NerdStats.declaredFormat(mediaId)?.kbps, TelemetryProvenance.AUTHORITATIVE)
-            NerdStats.pickedBitrateKbps(mediaId) != null ->
-                Pair(NerdStats.pickedBitrateKbps(mediaId), TelemetryProvenance.AUTHORITATIVE)
+            NerdStats.declaredFormat(mediaId, generation)?.kbps != null ->
+                Pair(NerdStats.declaredFormat(mediaId, generation)?.kbps, TelemetryProvenance.AUTHORITATIVE)
+            NerdStats.pickedBitrateKbps(mediaId, generation) != null ->
+                Pair(NerdStats.pickedBitrateKbps(mediaId, generation), TelemetryProvenance.AUTHORITATIVE)
             dsd == null && isRawPcm && pcmDataRate != null ->
                 Pair(pcmDataRate, TelemetryProvenance.DERIVED)
             else ->
                 Pair(null, TelemetryProvenance.UNKNOWN)
         }
 
-        NerdStats.current.value = NerdStats.Snapshot(
+        NerdStats.publish(NerdStats.Snapshot(
             mimeType = dsd?.let { "audio/$it" } ?: format?.sampleMimeType,
             bitrateKbps = bitrate,
             bitrateProvenance = provenance,
@@ -5121,14 +5122,16 @@ class PlaybackService : MediaLibraryService() {
             sampleRateHz = dsdRateHz ?: measured?.sampleRateHz,
             channels = measured?.channels,
             bitDepth = if (dsd != null) 1 else if (isLossless) measured?.bitDepth else null,
-            claimed = NerdStats.declaredFormat(mediaId),
+            claimed = NerdStats.declaredFormat(mediaId, generation),
             sourceName = currentSourceName(mediaId, player.currentMediaItem),
             container = when (format?.containerMimeType) {
                 "audio/x-dsf" -> "DSF"
                 "audio/x-dff" -> "DFF"
                 else -> null
             },
-        )
+            generation = generation,
+            mediaId = mediaId,
+        ), expectedGeneration = generation)
     }
 
     /** Serialize only the bounded window needed for a future cold-start resume. */
