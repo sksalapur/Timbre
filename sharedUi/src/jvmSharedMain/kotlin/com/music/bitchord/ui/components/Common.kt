@@ -343,6 +343,47 @@ fun SongRow(
      */
     trailing: (@Composable () -> Unit)? = null,
 ) {
+    SwipeToQueueBox(
+        onSwipeToQueue = onSwipeToQueue,
+        modifier = modifier,
+    ) {
+        SongRowContent(
+            song = song,
+            onClick = onClick,
+            onLongPress = onLongPress,
+            onMore = onMore ?: onLongPress,
+            modifier = if (onSwipeToQueue != null) Modifier.background(rowBackground) else modifier,
+            trackNumber = trackNumber,
+            subtitleColor = subtitleColor,
+            downloadedTint = downloadedTint,
+            isCurrent = isCurrent,
+            isPlaying = isPlaying,
+            activeTint = activeTint,
+            searchPlayingStyle = searchPlayingStyle,
+            selected = selected,
+            showSourceQuality = showSourceQuality,
+            trailing = trailing,
+        )
+    }
+}
+
+/**
+ * Wraps content with a swipe gesture revealing [QueueSwipeBackground] that
+ * triggers [onSwipeToQueue] when swiped past 45% of width and snaps back.
+ * If [onSwipeToQueue] is null, renders [content] directly.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun SwipeToQueueBox(
+    onSwipeToQueue: (() -> Unit)?,
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit,
+) {
+    if (onSwipeToQueue == null) {
+        content()
+        return
+    }
+
     val haptics = rememberHaptics()
     val swipeStateHolder = remember { mutableStateOf<SwipeToDismissBoxState?>(null) }
     var boxWidth by remember { mutableFloatStateOf(0f) }
@@ -364,27 +405,6 @@ fun SongRow(
         positionalThreshold = { distance -> distance * 0.5f },
     )
     swipeStateHolder.value = swipeState
-
-    if (onSwipeToQueue == null) {
-        SongRowContent(
-            song = song,
-            onClick = onClick,
-            onLongPress = onLongPress,
-            onMore = onMore ?: onLongPress,
-            modifier = modifier,
-            trackNumber = trackNumber,
-            subtitleColor = subtitleColor,
-            downloadedTint = downloadedTint,
-            isCurrent = isCurrent,
-            isPlaying = isPlaying,
-            activeTint = activeTint,
-            searchPlayingStyle = searchPlayingStyle,
-            selected = selected,
-            showSourceQuality = showSourceQuality,
-            trailing = trailing,
-        )
-        return
-    }
 
     // The row reveals "Queue" from the first pixel of the drag, but it only
     // *commits* past 45% of the width — so without this the label is a promise
@@ -415,23 +435,7 @@ fun SongRow(
         modifier = modifier.onSizeChanged { boxWidth = it.width.toFloat() },
         backgroundContent = { QueueSwipeBackground(swipeState) },
     ) {
-        SongRowContent(
-            song = song,
-            onClick = onClick,
-            onLongPress = onLongPress,
-            onMore = onMore ?: onLongPress,
-            modifier = Modifier.background(rowBackground),
-            trackNumber = trackNumber,
-            subtitleColor = subtitleColor,
-            downloadedTint = downloadedTint,
-            isCurrent = isCurrent,
-            isPlaying = isPlaying,
-            activeTint = activeTint,
-            searchPlayingStyle = searchPlayingStyle,
-            selected = selected,
-            showSourceQuality = showSourceQuality,
-            trailing = trailing,
-        )
+        content()
     }
 }
 
