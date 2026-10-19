@@ -62,6 +62,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.VolumeDown
 import androidx.compose.material.icons.automirrored.rounded.VolumeUp
 import androidx.compose.material.icons.rounded.CastConnected
+import androidx.compose.material.icons.rounded.DirectionsCar
 import androidx.compose.material.icons.rounded.Headphones
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.Tv
@@ -961,11 +962,14 @@ private fun rememberOutputGlyph(): OutputGlyph {
             // No active row is the phone too — the caption under the pill
             // says "This phone" in the same case.
             null, AudioOutputKind.PHONE -> OutputGlyph(vectorResource(Res.drawable.ic_output_phone))
-            AudioOutputKind.BLUETOOTH -> OutputGlyph(
-                vectorResource(
-                    if (active.isSpeaker) Res.drawable.ic_output_speaker else Res.drawable.ic_output_buds,
-                ),
-            )
+            AudioOutputKind.BLUETOOTH -> when (active.form) {
+                BluetoothForm.BUDS -> OutputGlyph(vectorResource(Res.drawable.ic_output_buds))
+                BluetoothForm.SPEAKER -> OutputGlyph(vectorResource(Res.drawable.ic_output_speaker))
+                BluetoothForm.CAR -> OutputGlyph(Icons.Rounded.DirectionsCar)
+                // Headphones doubles as the neutral "some audio device" glyph:
+                // a device that won't say what it is gets that, not a guess.
+                BluetoothForm.HEADPHONES, BluetoothForm.UNKNOWN -> OutputGlyph(Icons.Rounded.Headphones)
+            }
             AudioOutputKind.WIRED, AudioOutputKind.USB -> OutputGlyph(Icons.Rounded.Headphones)
             AudioOutputKind.HDMI -> OutputGlyph(Icons.Rounded.Tv, PILL_OUTPUT_WIDE_SIZE)
             AudioOutputKind.OTHER -> OutputGlyph(vectorResource(Res.drawable.ic_output_speaker))

@@ -227,12 +227,15 @@ data class AudioOutputDevice(
     val kind: AudioOutputKind,
     val isActive: Boolean = false,
     /**
-     * A [AudioOutputKind.BLUETOOTH] device that is a loudspeaker rather than
-     * something worn. Both connect as the same A2DP sink; only the paired
-     * device's class tells them apart, so false wherever that can't be read.
+     * What shape of thing a [AudioOutputKind.BLUETOOTH] device is. Buds and
+     * speakers connect as the same A2DP sink, so this is worked out from the
+     * device's name and class — and [BluetoothForm.UNKNOWN] wherever neither
+     * says, rather than a guess drawn as fact.
      */
-    val isSpeaker: Boolean = false,
+    val form: BluetoothForm = BluetoothForm.UNKNOWN,
 )
+
+enum class BluetoothForm { UNKNOWN, BUDS, HEADPHONES, SPEAKER, CAR }
 
 data class OutputFormatUi(
     /** "24-bit PCM · 48 kHz" — whichever parts are known. */

@@ -3374,18 +3374,27 @@ private fun BitChordApp(
                 // bar, and a fade across them would only muddy them. It comes in as
                 // the page scrolls past that header, when content starts passing
                 // under the bar and needs the cover.
+                //
+                // Home's wordmark sits up there too, lifted under the bar by
+                // HOME_TITLE_LIFT, and at rest the fade washed it out. It is held
+                // off the same way, from the first pixel of scroll rather than
+                // partway through, since the wordmark is the top of its heading.
                 val artistListState = detail
                     ?.takeIf { isDetailVisible && it.type == BrowseType.ARTIST }
                     ?.let { detailListStates.getOrPut(it.browseId) { LazyListState() } }
-                val topFadeAlpha by remember(artistListState) {
+                val homeHeadingVisible = route == null && detail == null && selectedTab == TAB_HOME
+                val headerListState = artistListState ?: homeListState.takeIf { homeHeadingVisible }
+                val fadeStart = if (artistListState != null) TOP_FADE_START else 0f
+                val fadeRamp = if (artistListState != null) TOP_FADE_RAMP else 1f
+                val topFadeAlpha by remember(headerListState, fadeStart, fadeRamp) {
                     derivedStateOf {
-                        val list = artistListState ?: return@derivedStateOf 1f
+                        val list = headerListState ?: return@derivedStateOf 1f
                         if (list.firstVisibleItemIndex > 0) return@derivedStateOf 1f
                         val header = list.layoutInfo.visibleItemsInfo
                             .firstOrNull { it.index == 0 }?.size?.toFloat()
                             ?: return@derivedStateOf 0f
-                        ((list.firstVisibleItemScrollOffset - header * TOP_FADE_START) /
-                            (header * TOP_FADE_RAMP)).coerceIn(0f, 1f)
+                        ((list.firstVisibleItemScrollOffset - header * fadeStart) /
+                            (header * fadeRamp)).coerceIn(0f, 1f)
                     }
                 }
                 BottomFadeScrim(

@@ -1875,7 +1875,7 @@ private fun AboutSection(
             style = MaterialTheme.typography.bodyLarge,
             fontWeight = FontWeight.Medium,
             color = palette.onBackgroundVariant,
-            maxLines = if (expanded) Int.MAX_VALUE else 3,
+            maxLines = if (expanded) Int.MAX_VALUE else 2,
             overflow = TextOverflow.Ellipsis,
             onTextLayout = { result -> if (!expanded) clipped = result.hasVisualOverflow },
             modifier = Modifier
