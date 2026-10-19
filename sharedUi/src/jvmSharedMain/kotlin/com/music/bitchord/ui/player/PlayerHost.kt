@@ -226,6 +226,12 @@ data class AudioOutputDevice(
     val name: String,
     val kind: AudioOutputKind,
     val isActive: Boolean = false,
+    /**
+     * A [AudioOutputKind.BLUETOOTH] device that is a loudspeaker rather than
+     * something worn. Both connect as the same A2DP sink; only the paired
+     * device's class tells them apart, so false wherever that can't be read.
+     */
+    val isSpeaker: Boolean = false,
 )
 
 data class OutputFormatUi(

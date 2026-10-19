@@ -1,7 +1,10 @@
 package com.music.bitchord.playback
 
+import android.bluetooth.BluetoothAdapter
+import android.bluetooth.BluetoothClass
 import android.media.AudioDeviceInfo
 import android.media.AudioManager
+import android.os.Build
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -73,6 +76,8 @@ object AudioRouting {
         val kind: Kind,
         /** Where the audio is going right now — see [activeOf]. */
         val isActive: Boolean = false,
+        /** A Bluetooth loudspeaker rather than a pair of buds — see [isSpeaker]. */
+        val isSpeaker: Boolean = false,
     )
 
     private val _selectedId = MutableStateFlow<Int?>(null)
@@ -113,6 +118,7 @@ object AudioRouting {
                     name = nameOf(info, kind),
                     kind = kind,
                     isActive = info.id == active?.id,
+                    isSpeaker = kind == Kind.BLUETOOTH && isSpeaker(info),
                 )
             }
             // One row per physical device. Several entries under one name is
@@ -190,6 +196,39 @@ object AudioRouting {
         -> Kind.HDMI
         else -> null
     }
+
+    /**
+     * Whether a Bluetooth sink is a speaker. Buds and speakers both arrive as
+     * `TYPE_BLUETOOTH_A2DP`, so outside LE Audio — which has a type of its own
+     * for speakers — the answer is the paired device's class of device.
+     *
+     * Reading that class needs BLUETOOTH_CONNECT from Android 12, which the
+     * output picker asks for on first open; until it has been granted this says
+     * false and the player draws buds, the more common case by far.
+     */
+    @Suppress("DEPRECATION", "MissingPermission")
+    private fun isSpeaker(info: AudioDeviceInfo): Boolean {
+        if (info.type == AudioDeviceInfo.TYPE_BLE_SPEAKER) return true
+        if (info.type != AudioDeviceInfo.TYPE_BLUETOOTH_A2DP || Build.VERSION.SDK_INT < 28) return false
+        val address = info.address.takeIf { BluetoothAdapter.checkBluetoothAddress(it) } ?: return false
+        val deviceClass = runCatching {
+            BluetoothAdapter.getDefaultAdapter()?.getRemoteDevice(address)?.bluetoothClass?.deviceClass
+        }.getOrNull() ?: return false
+        return deviceClass in SPEAKER_CLASSES
+    }
+
+    /**
+     * Classes of device that sit in a room rather than on a head. Portable
+     * audio is what most battery speakers report; a car stereo is nobody's
+     * earbuds either.
+     */
+    private val SPEAKER_CLASSES = setOf(
+        BluetoothClass.Device.AUDIO_VIDEO_LOUDSPEAKER,
+        BluetoothClass.Device.AUDIO_VIDEO_PORTABLE_AUDIO,
+        BluetoothClass.Device.AUDIO_VIDEO_HIFI_AUDIO,
+        BluetoothClass.Device.AUDIO_VIDEO_CAR_AUDIO,
+        BluetoothClass.Device.AUDIO_VIDEO_VIDEO_DISPLAY_AND_LOUDSPEAKER,
+    )
 
     /**
      * `productName` is the phone's model for the built-in speaker and for wired

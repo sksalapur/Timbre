@@ -143,6 +143,7 @@ private fun AudioRouting.Device.toOutputDevice() = AudioOutputDevice(
         AudioRouting.Kind.OTHER -> AudioOutputKind.OTHER
     },
     isActive = isActive,
+    isSpeaker = isSpeaker,
 )
 
 /**
