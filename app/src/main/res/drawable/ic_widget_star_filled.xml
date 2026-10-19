@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Like, set. Filled rather than tinted, as BitChordIcons.HeartFilled explains. -->
+<!-- Favorite, set. Filled rather than tinted, as BitChordIcons.HeartFilled explains. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp"
     android:height="24dp"
@@ -7,7 +7,7 @@
     android:viewportHeight="24">
     <path
         android:fillColor="#FFFFFFFF"
-        android:pathData="M12,20C12,20 3.2,14.6 3.2,8.9A4.5,4.5 0,0 1,12 7.4A4.5,4.5 0,0 1,20.8 8.9C20.8,14.6 12,20 12,20Z"
+        android:pathData="M12,3.86L14.33,9.66L20.56,10.08L15.77,14.08L17.29,20.14L12,16.82L6.71,20.14L8.23,14.08L3.44,10.08L9.67,9.66Z"
         android:strokeColor="#FFFFFFFF"
         android:strokeLineCap="round"
         android:strokeLineJoin="round"

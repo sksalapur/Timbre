@@ -359,8 +359,8 @@ internal fun TvTransport(
             }
             Row(horizontalArrangement = Arrangement.spacedBy(11.dp)) {
                 TvTransportButton(
-                    icon = if (isLiked) BitChordIcons.HeartFilled else BitChordIcons.Heart,
-                    contentDescription = if (isLiked) "Unlove" else "Love",
+                    icon = if (isLiked) BitChordIcons.StarFilled else BitChordIcons.Star,
+                    contentDescription = if (isLiked) "Unfavorite" else "Favorite",
                     onClick = onToggleLike,
                 )
                 TvTransportButton(

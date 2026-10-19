@@ -1878,13 +1878,14 @@ class PlaybackService : MediaLibraryService() {
 
     /** Favorite and Shuffle: the only actions shown on the phone notification. */
     private fun notificationButtons(): List<CommandButton> {
+        val liked = LikeState.overrides.value[player?.currentMediaItem?.mediaId] == LikeStatus.LIKE
+        // The icon constant tells controllers like Android Auto what the button
+        // means; the custom drawable swaps Material's sharp star for the
+        // player's rounded one on the notification itself.
         val favorite = if (!canLike(player?.currentMediaItem)) null else CommandButton.Builder(
-            if (LikeState.overrides.value[player?.currentMediaItem?.mediaId] == LikeStatus.LIKE) {
-                CommandButton.ICON_HEART_FILLED
-            } else {
-                CommandButton.ICON_HEART_UNFILLED
-            },
+            if (liked) CommandButton.ICON_STAR_FILLED else CommandButton.ICON_STAR_UNFILLED,
         )
+            .setCustomIconResId(if (liked) R.drawable.ic_notification_star_filled else R.drawable.ic_notification_star)
             .setSessionCommand(favoriteCommand)
             .setDisplayName("Favorite")
             .build()
