@@ -366,7 +366,7 @@ object NerdStats {
      */
     fun sourceBitrate(mediaId: String?, measuredKbps: () -> Int?): Pair<Int, TelemetryProvenance>? {
         val declared = declaredFormat(mediaId)
-        declared?.kbps?.takeUnless { declared.kbpsInferred }
+        declared?.takeUnless { it.kbpsInferred }?.kbps
             ?.let { return it to TelemetryProvenance.AUTHORITATIVE }
         if (declared?.isLossless == true) return null
         if (declared != null) {
