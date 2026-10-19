@@ -5,6 +5,7 @@ import com.music.bitchord.data.sources.StreamFormat
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.update
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicLong
 
 /**
  * Architectural provenance of audio pipeline telemetry statistics.
@@ -59,12 +60,8 @@ object NerdStats {
         val bitrateProvenance: TelemetryProvenance = TelemetryProvenance.UNKNOWN,
         /** True PCM throughput (sampleRate * bitDepth * channels / 1000). Never conflated with encoded bitrate. */
         val pcmDataRateKbps: Int? = null,
-        /** Monotonic playback generation token owning this snapshot. */
-        val generation: Long = 0L,
-        /** Logical media item ID owning this snapshot. */
+        /** The queue item this describes; see [publish]. */
         val mediaId: String? = null,
-        /** Deck or player instance that produced this snapshot (e.g. MAIN vs SPARE). */
-        val deckId: String = "MAIN",
     ) {
         /**
          * Whether what arrived is measurably worse than what was promised.
@@ -229,63 +226,38 @@ object NerdStats {
         }
     }
 
-    data class PlaybackIdentity(
-        val generation: Long,
-        val mediaId: String?,
-        val renditionKey: String? = null,
-        val deckId: String = "MAIN",
-    )
+    private val generation = AtomicLong(1L)
 
-    private val _generation = java.util.concurrent.atomic.AtomicLong(1L)
-    val currentGeneration: Long get() = _generation.get()
+    /**
+     * Bumped by every [onTrackTransition] and [forgetLastSession]. Read once at
+     * the start of building a [Snapshot] and handed back to [publish], so a
+     * build that a track change overtook is dropped instead of landing.
+     */
+    val currentGeneration: Long get() = generation.get()
 
+    /** The queue item [current] may describe, as of the last [onTrackTransition]. */
     @Volatile
-    var activeIdentity: PlaybackIdentity = PlaybackIdentity(1L, null)
-        private set
+    private var activeMediaId: String? = null
 
     val current = MutableStateFlow<Snapshot?>(null)
 
     /**
-     * Advances playback generation, immediately evicting any previous track/rendition snapshot
-     * and invalidating in-flight metadata callbacks.
+     * Sets [current], unless the track [snapshot] describes has stopped being
+     * the one playing.
+     *
+     * Building a snapshot reads the renderer, the declared format and the
+     * source name one after another, and a track change can land between
+     * those reads; the nulling [onTrackTransition] does would then be
+     * overwritten by figures for the track it just replaced. A snapshot naming
+     * a different item than the last transition did — the standby deck's
+     * incoming track during a crossfade — is refused for the same reason.
+     *
+     * @return whether [current] was set.
      */
-    fun advanceGeneration(
-        mediaId: String?,
-        renditionKey: String? = null,
-        deckId: String = "MAIN",
-    ): Long {
-        val nextGen = _generation.incrementAndGet()
-        activeIdentity = PlaybackIdentity(nextGen, mediaId, renditionKey, deckId)
-        current.value = null
-        if (mediaId != null) {
-            clearDeclared(mediaId)
-        }
-        return nextGen
-    }
-
-    /**
-     * Atomically clears current snapshot and invalidates in-flight callbacks.
-     */
-    fun invalidateCurrent(reason: String = "") {
-        _generation.incrementAndGet()
-        current.value = null
-    }
-
-    /**
-     * Generation-safe atomic publish. Rejects callbacks from previous generations or different media items.
-     */
-    fun publish(snapshot: Snapshot, expectedGeneration: Long? = null): Boolean {
-        val liveGen = currentGeneration
-        if (expectedGeneration != null && expectedGeneration != liveGen) {
-            return false
-        }
-        if (snapshot.generation != 0L && snapshot.generation != liveGen) {
-            return false
-        }
-        val expectedMediaId = activeIdentity.mediaId
-        if (expectedMediaId != null && snapshot.mediaId != null && snapshot.mediaId != expectedMediaId) {
-            return false
-        }
+    fun publish(snapshot: Snapshot, expectedGeneration: Long): Boolean {
+        if (expectedGeneration != currentGeneration) return false
+        val active = activeMediaId
+        if (active != null && snapshot.mediaId != null && snapshot.mediaId != active) return false
         current.value = snapshot
         return true
     }
@@ -303,10 +275,19 @@ object NerdStats {
     val racingLossless = MutableStateFlow<Set<String>>(emptySet())
 
     fun onLosslessRaceStart(videoId: String) {
+        // Upgrade lookups also run for read-ahead items, so two loader threads
+        // can arrive here together. Assigning `value += videoId` is a
+        // read/modify/write sequence: both threads can read the same old set and
+        // the last assignment then erases the other track's marker. That left
+        // the audible track upgrading in the background while Now Playing fell
+        // through to its plain "High quality" label. StateFlow.update retries
+        // the transform atomically when another writer wins that race.
         racingLossless.update { it + videoId }
     }
 
     fun onLosslessRaceEnd(videoId: String) {
+        // Atomic for the same reason as start: completing one read-ahead lookup
+        // must not discard a concurrently-started lookup for another track.
         racingLossless.update { it - videoId }
     }
 
@@ -325,9 +306,9 @@ object NerdStats {
     /** Authoritative source name that supplied the stream, keyed by media/track id. */
     private val sources = ConcurrentHashMap<String, String>()
 
-    fun onStreamPicked(videoId: String, kbps: Int, source: String? = null, generation: Long? = null) {
-        if (generation != null && generation != currentGeneration) return
+    fun onStreamPicked(videoId: String, kbps: Int, source: String? = null) {
         if (kbps > 0) {
+            // Enough for the queue in hand; this is a lookup, not a store.
             if (picked.size >= MAX_REMEMBERED) picked.clear()
             picked[videoId] = kbps
         }
@@ -338,24 +319,18 @@ object NerdStats {
     }
 
     /** Recorded as a source hands over a stream, keyed by that source's own track id. */
-    fun onSourceStream(trackId: String?, format: StreamFormat, source: String? = null, generation: Long? = null) {
+    fun onSourceStream(trackId: String?, format: StreamFormat, source: String? = null) {
         if (trackId.isNullOrBlank()) return
-        if (generation != null && generation != currentGeneration) return
         if (declared.size >= MAX_REMEMBERED) declared.clear()
         declared[trackId] = format
-        // Crucial: if transitioning to lossless or if no explicit kbps is given, clear any old lossy picked bitrate!
-        if (format.isLossless == true || format.kbps == null) {
-            picked.remove(trackId)
-        }
         if (!source.isNullOrBlank()) {
             if (sources.size >= MAX_REMEMBERED) sources.clear()
             sources[trackId] = source
         }
     }
 
-    fun recordSource(mediaId: String?, source: String?, generation: Long? = null) {
+    fun recordSource(mediaId: String?, source: String?) {
         if (mediaId.isNullOrBlank() || source.isNullOrBlank()) return
-        if (generation != null && generation != currentGeneration) return
         if (sources.size >= MAX_REMEMBERED) sources.clear()
         sources[mediaId] = source
     }
@@ -368,19 +343,55 @@ object NerdStats {
             ?: SourceTrackKeys.parse(key)?.second?.let { sources[it] }
     }
 
-    fun pickedBitrateKbps(videoId: String?, generation: Long? = null): Int? {
-        if (generation != null && generation != currentGeneration) return null
-        return videoId?.let { picked[it] }
+    fun pickedBitrateKbps(videoId: String?): Int? = videoId?.let { picked[it] }
+
+    /**
+     * The bitrate the stream behind [mediaId] is being served at, for when the
+     * decoder doesn't say, and how much that figure is worth.
+     *
+     * A declared format is the stream the player was handed, so when there is
+     * one the YouTube resolver's [picked] figure for the same id describes the
+     * stream it replaced. That is how an upgrade to a FLAC that states no
+     * bitrate used to read "160 kbps": the claim had none, and the lookup fell
+     * through to the Opus it upgraded from. A declared lossless stream gets no
+     * encoded bitrate here at all; its PCM rate is reported separately.
+     *
+     * A bitrate filled in from the tier an addon was asked for
+     * ([StreamFormat.kbpsInferred]) is a guess. [measuredKbps], the stream's
+     * real size over its length, gets the first word, and the guess is
+     * reported as [TelemetryProvenance.DERIVED] only when nothing better is
+     * known yet.
+     *
+     * @param measuredKbps only called when its answer would be used.
+     */
+    fun sourceBitrate(mediaId: String?, measuredKbps: () -> Int?): Pair<Int, TelemetryProvenance>? {
+        val declared = declaredFormat(mediaId)
+        declared?.kbps?.takeUnless { declared.kbpsInferred }
+            ?.let { return it to TelemetryProvenance.AUTHORITATIVE }
+        if (declared?.isLossless == true) return null
+        if (declared != null) {
+            measuredKbps()?.let { return it to TelemetryProvenance.MEASURED }
+            declared.kbps?.let { return it to TelemetryProvenance.DERIVED }
+        }
+        pickedBitrateKbps(mediaId)?.let { return it to TelemetryProvenance.AUTHORITATIVE }
+        return measuredKbps()?.let { it to TelemetryProvenance.MEASURED }
     }
 
     /**
-     * Undoes [onSourceStream] and [onStreamPicked] for [trackId].
+     * Undoes [onSourceStream] for [trackId].
+     *
+     * For when a swap to a claimed-better stream doesn't pan out and the
+     * player falls back to what it had — see
+     * [PlaybackService][com.music.bitchord.playback.PlaybackService]'s
+     * upgrade revert. Without this the claim from the abandoned stream keeps
+     * describing the one that's actually playing, which is how a reverted
+     * FLAC swap leaves the "Lossless" badge lit over plain Opus. [picked] is
+     * left alone: it is the stream being reverted *to*.
      */
     fun clearDeclared(trackId: String?) {
         if (trackId != null) {
             declared.remove(trackId)
             sources.remove(trackId)
-            picked.remove(trackId)
         }
     }
 
@@ -389,20 +400,62 @@ object NerdStats {
      *   one wraps the source's id — unwrapped here so callers don't each have
      *   to know the key format.
      */
-    fun declaredFormat(mediaId: String?, generation: Long? = null): StreamFormat? {
-        if (generation != null && generation != currentGeneration) return null
+    fun declaredFormat(mediaId: String?): StreamFormat? {
         val key = mediaId ?: return null
         return declared[key]
             ?: SourceTrackKeys.parse(key)?.second?.let { declared[it] }
     }
 
+    /**
+     * [mediaId] has become the playing track.
+     *
+     * Only [current] goes. What was declared, picked and sourced for
+     * [mediaId] is keyed by the track and was recorded by the resolver before
+     * this point: a read-ahead resolve, or the standby deck's during a
+     * crossfade. Clearing it here would erase the incoming track's own claim,
+     * which [PlaybackService][com.music.bitchord.playback.PlaybackService]
+     * reads straight after this call to decide whether it is Dolby Atmos.
+     */
     fun onTrackTransition(mediaId: String? = null) {
-        advanceGeneration(mediaId)
+        generation.incrementAndGet()
+        activeMediaId = mediaId
+        current.value = null
     }
 
+    /**
+     * Drops everything measured about the last player, because there isn't one
+     * any more.
+     *
+     * All of this describes a stream that a particular player was reading, and
+     * it is scoped to the *process* while the player it describes is scoped to
+     * [PlaybackService][com.music.bitchord.playback.PlaybackService] — which the
+     * app being closed destroys while leaving the process alive to be reused.
+     * Nothing else clears it: [current] is nulled when the queue moves on, and
+     * a service standing back up is not the queue moving on.
+     *
+     * Measured, with the process surviving throughout — one log buffer holds
+     * both halves:
+     *
+     * ```
+     *   15:12:11  upgraded to FLAC at 4759ms      ← last session
+     *   ——— app closed, service destroyed ———
+     *   15:13:38  AdEKgwUqPKI <- audio/opus       ← played from the cache
+     * ```
+     *
+     * Between those two lines the Now Playing screen read "Lossless" over a
+     * player that had not been handed a single byte, and the nerd stats sheet
+     * read `audio/opus · 160 kbps (source said: FLAC)` afterwards. Both are the
+     * same fact: [Snapshot.isLossless] falls back to [Snapshot.claimed] while
+     * the decoder has not spoken, and the claim came from a stream that had
+     * stopped existing a minute earlier.
+     *
+     * @see com.music.bitchord.playback.QualityUpgrade.forgetLastSession for the
+     *   half of this that decides whether the track gets its lossless copy back
+     *   rather than merely how it is labelled.
+     */
     fun forgetLastSession() {
-        _generation.incrementAndGet()
-        activeIdentity = PlaybackIdentity(currentGeneration, null)
+        generation.incrementAndGet()
+        activeMediaId = null
         current.value = null
         racingLossless.value = emptySet()
         picked.clear()

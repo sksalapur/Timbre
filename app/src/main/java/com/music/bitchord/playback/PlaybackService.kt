@@ -690,6 +690,10 @@ class PlaybackService : MediaLibraryService() {
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private val localBitrateCache = ConcurrentHashMap<String, Int>()
 
+    /** [measuredStreamKbps]'s answers, keyed by rendition URI, and the ones still being read. */
+    private val measuredBitrateCache = ConcurrentHashMap<String, Int>()
+    private val measuringBitrate: MutableSet<String> = ConcurrentHashMap.newKeySet()
+
     /**
      * The stream resolver the player's own data source runs, kept so a Cast
      * receiver can be handed the URL it would have produced — see
@@ -1229,6 +1233,7 @@ class PlaybackService : MediaLibraryService() {
         // state lives.
         NerdStats.forgetLastSession()
         localBitrateCache.clear()
+        measuredBitrateCache.clear()
         QualityUpgrade.forgetLastSession()
 
         setMediaNotificationProvider(
@@ -2852,6 +2857,9 @@ class PlaybackService : MediaLibraryService() {
         val exoPlayer = player ?: return
         currentAudioInputFormat = null
         NerdStats.onTrackTransition(mediaItem?.mediaId)
+        // A rendition discarded and fetched again comes back under the same
+        // URI, so a size measured for the last track isn't kept past it.
+        measuredBitrateCache.clear()
         AudioOutputStatus.onTrackTransition()
         // The entry this track is read from now counts as played — the only
         // kind the Cached songs folder lists. See [AudioCache.Origin].
@@ -5104,14 +5112,11 @@ class PlaybackService : MediaLibraryService() {
                 Pair((format.bitrate + 500) / 1000, TelemetryProvenance.AUTHORITATIVE)
             mediaId != null && localBitrateCache.containsKey(mediaId) ->
                 Pair(localBitrateCache[mediaId], TelemetryProvenance.AUTHORITATIVE)
-            NerdStats.declaredFormat(mediaId, generation)?.kbps != null ->
-                Pair(NerdStats.declaredFormat(mediaId, generation)?.kbps, TelemetryProvenance.AUTHORITATIVE)
-            NerdStats.pickedBitrateKbps(mediaId, generation) != null ->
-                Pair(NerdStats.pickedBitrateKbps(mediaId, generation), TelemetryProvenance.AUTHORITATIVE)
             dsd == null && isRawPcm && pcmDataRate != null ->
                 Pair(pcmDataRate, TelemetryProvenance.DERIVED)
             else ->
-                Pair(null, TelemetryProvenance.UNKNOWN)
+                NerdStats.sourceBitrate(mediaId) { measuredStreamKbps(player) }
+                    ?: Pair(null, TelemetryProvenance.UNKNOWN)
         }
 
         NerdStats.publish(NerdStats.Snapshot(
@@ -5122,16 +5127,48 @@ class PlaybackService : MediaLibraryService() {
             sampleRateHz = dsdRateHz ?: measured?.sampleRateHz,
             channels = measured?.channels,
             bitDepth = if (dsd != null) 1 else if (isLossless) measured?.bitDepth else null,
-            claimed = NerdStats.declaredFormat(mediaId, generation),
+            claimed = NerdStats.declaredFormat(mediaId),
             sourceName = currentSourceName(mediaId, player.currentMediaItem),
             container = when (format?.containerMimeType) {
                 "audio/x-dsf" -> "DSF"
                 "audio/x-dff" -> "DFF"
                 else -> null
             },
-            generation = generation,
             mediaId = mediaId,
         ), expectedGeneration = generation)
+    }
+
+    /**
+     * The playing stream's real bitrate: its full size over its length, or
+     * null until both are known.
+     *
+     * For an addon that didn't state a bitrate and got one guessed from the
+     * tier it was asked for — see [NerdStats.sourceBitrate]. The size is what
+     * the server's response said, recorded in the cache index the first time
+     * the rendition was opened, so this works on a stream still downloading.
+     * Slightly high, because container overhead counts toward the bytes and
+     * not toward the audio. Read off the main thread, once per rendition: the
+     * cache index lookup takes the cache's lock, which a loader may be holding.
+     */
+    private fun measuredStreamKbps(player: Player): Int? {
+        val uri = player.currentMediaItem?.localConfiguration?.uri ?: return null
+        val key = uri.toString()
+        measuredBitrateCache[key]?.let { return it }
+        val durationMs = player.duration.takeIf { it != C.TIME_UNSET && it > 0 } ?: return null
+        if (measuringBitrate.add(key)) {
+            scope.launch(Dispatchers.IO) {
+                try {
+                    val bytes = AudioCache.contentLengthOf(uri)
+                    if (bytes > 0) {
+                        val kbps = (bytes * 8 / durationMs).toInt()
+                        if (kbps > 0) measuredBitrateCache[key] = kbps
+                    }
+                } finally {
+                    measuringBitrate.remove(key)
+                }
+            }
+        }
+        return null
     }
 
     /** Serialize only the bounded window needed for a future cold-start resume. */
@@ -6581,6 +6618,7 @@ class PlaybackService : MediaLibraryService() {
         AudioOutputStatus.reset()
         NerdStats.forgetLastSession()
         localBitrateCache.clear()
+        measuredBitrateCache.clear()
         super.onDestroy()
     }
 
