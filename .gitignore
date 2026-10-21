@@ -49,3 +49,6 @@ keystore_base64.txt
 # Built packages — release APKs/bundles are handed out, never committed
 *.apk
 *.aab
+
+*.idsig
+build_release_apks/
