@@ -348,7 +348,6 @@ internal fun PlaybackQualityLabel(
             isLoading = isLoading,
             stillRacing = song.videoId in racingLossless,
             losslessRequested = effectiveQuality == AudioQuality.LOSSLESS,
-            effectiveQuality = effectiveQuality,
             nerdStats = nerdStats,
             modifier = modifier,
         )
