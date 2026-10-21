@@ -24,11 +24,11 @@ object AndroidStreamHooks {
     fun installEarly() {
         MonotonicClock.nowMs = SystemClock::elapsedRealtime
         TrackLog.echo = { level, tag, message, error ->
+            val line = "[$tag] $message"
             when (level) {
-                'D' -> Log.d(tag, message, error)
-                'I' -> Log.i(tag, message, error)
-                'W' -> Log.w(tag, message, error)
-                else -> Log.e(tag, message, error)
+                'D', 'I' -> Log.i("Timbre", line, error)
+                'W' -> Log.w("Timbre", line, error)
+                else -> Log.e("Timbre", line, error)
             }
         }
         TrackLog.sourcesLine = {

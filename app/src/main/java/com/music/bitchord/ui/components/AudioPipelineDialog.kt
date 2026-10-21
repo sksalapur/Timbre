@@ -111,6 +111,8 @@ private fun bitExactVerdict(
     loudnessActive: Boolean,
     eqActive: Boolean,
     spatialActive: Boolean,
+    isBluetooth: Boolean = false,
+    bluetoothCodec: String? = null,
 ): String = when {
     // Not a fault to fix: there is no DSD output path (native DSD or DoP)
     // here, so the PCM conversion is a deviation every DSD track carries,
@@ -119,6 +121,7 @@ private fun bitExactVerdict(
     loudnessActive -> "No — loudness normalization"
     eqActive -> "No — equalizer"
     spatialActive -> "No — spatial audio"
+    isBluetooth -> "No — Bluetooth ${bluetoothCodec ?: "A2DP"} encoding"
     outputExact -> "Yes${outputExactDetail?.let { " ($it)" }.orEmpty()}"
     else -> "No — ${outputExactDetail ?: "converted downstream"}"
 }
@@ -168,6 +171,11 @@ fun AudioPipelineDialog(
     }
 
     val isSignalActive = isPlaying && !isReducedMotion
+
+    LaunchedEffect(Unit) {
+        com.music.bitchord.playback.audio.LosslessOutput.refresh()
+        com.music.bitchord.playback.audio.bluetooth.BluetoothAudioTracker.getInstance(context).refreshCurrentDevice()
+    }
 
     val flowAlpha by animateFloatAsState(
         targetValue = if (isSignalActive) 1f else 0f,
@@ -271,8 +279,18 @@ fun AudioPipelineDialog(
                 !isBitDepthTruncated &&
                 (isDirectUsb || isDirectAudioTrack || (outputStatus.outputExact && outputStatus.systemMixerRateHz == null))
 
+            val bt = outputStatus.bluetoothTelemetry
+            val isLosslessBtCodec = isBluetoothRoute && bt != null && (
+                bt.codecName.contains("LHDC", ignoreCase = true) ||
+                bt.codecName.contains("LDAC", ignoreCase = true) ||
+                bt.codecName.contains("aptX Lossless", ignoreCase = true) ||
+                bt.codecName.contains("LC3plus", ignoreCase = true) ||
+                bt.codecName.contains("aptX Adaptive", ignoreCase = true)
+            )
+
             val certTagColor = when {
                 isBitPerfectPath -> Color(0xFF00E676)
+                isLosslessBtCodec -> Color(0xFF00E5FF)
                 isPhoneSpeaker -> Color(0xFFFFD54F)
                 isBluetoothRoute -> Color(0xFFFFD54F)
                 isDspStageActive -> Color(0xFFFFB74D)
@@ -284,14 +302,17 @@ fun AudioPipelineDialog(
             val certTagTitle = when {
                 isBitPerfectPath && isDirectUsb -> "🟢 BIT-PERFECT: Direct Userspace USB (Bit-Exact)"
                 isBitPerfectPath -> "🟢 BIT-PERFECT: Bit-Exact Signal Path"
+                isLosslessBtCodec -> {
+                    val codec = bt?.codecName ?: "LHDC"
+                    "🔷 HI-RES WIRELESS ($codec HD Audio)"
+                }
                 isPhoneSpeaker -> "🟡 Phone Speaker (Framework Mixed)"
                 isBluetoothRoute -> {
-                    val bt = outputStatus.bluetoothTelemetry
                     val codec = if (bt != null && bt.hasNamedCodec) bt.codecName else "A2DP"
                     "🟡 Framework Mixed ($codec)"
                 }
-                isDspStageActive -> "🟡 DSP Modified Signal Path"
-                isBitDepthTruncated -> "🟡 Downsampled ($sourceBitDepth-bit → 16-bit)"
+                isDspStageActive -> "🟠 DSP Modified Signal Path"
+                isBitDepthTruncated -> "🟡 Downsampled ($sourceBitDepth-bit ➔ 16-bit)"
                 isAudioFlingerMixed -> "🟡 Framework Mixed (AudioFlinger)"
                 else -> "🟡 Downstream Converted"
             }
@@ -303,9 +324,15 @@ fun AudioPipelineDialog(
                     "Bypassing Android AudioFlinger mixer directly to $dev via $uac"
                 }
                 isBitPerfectPath -> "Source bit-depth and sample-rate delivered untouched to output device"
+                isLosslessBtCodec -> {
+                    val codec = bt?.codecName ?: "LHDC"
+                    val rate = bt?.sampleRateHz?.let { " • ${rateText(it)}" } ?: " • 96 kHz"
+                    val bits = bt?.bitDepth?.let { " • $it-bit" } ?: " • 24-bit"
+                    val dev = bt?.deviceName ?: outputStatus.deviceName
+                    "Active Hi-Res Bluetooth codec: $codec$bits$rate • Connected to $dev (Lossy Bluetooth transmission via AudioFlinger)"
+                }
                 isPhoneSpeaker -> "Audio passes through Android AudioFlinger and speaker DSP. Connect an IEM or a lossless-codec-supported TWS for bit-perfect audio."
                 isBluetoothRoute -> {
-                    val bt = outputStatus.bluetoothTelemetry
                     val codec = if (bt != null && bt.hasNamedCodec) bt.codecName else "Bluetooth A2DP"
                     val rate = bt?.sampleRateHz?.let { " • ${rateText(it)}" }.orEmpty()
                     val bits = bt?.bitDepth?.let { " • $it-bit" }.orEmpty()
@@ -554,6 +581,8 @@ fun AudioPipelineDialog(
                         loudnessActive = loudnessNormalization && outputStatus.loudnessGainDb != null,
                         eqActive = eqEnabled,
                         spatialActive = spatialAudio,
+                        isBluetooth = isBluetoothRoute,
+                        bluetoothCodec = bt?.codecName,
                     ),
                 )
             }

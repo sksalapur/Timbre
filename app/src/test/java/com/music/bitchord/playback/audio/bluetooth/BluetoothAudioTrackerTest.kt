@@ -27,8 +27,11 @@ class BluetoothAudioTrackerTest {
         assertEquals("LDAC", BluetoothAudioTracker.mapCodecType(BluetoothAudioTracker.SOURCE_CODEC_TYPE_LDAC))
         assertEquals("LC3", BluetoothAudioTracker.mapCodecType(BluetoothAudioTracker.SOURCE_CODEC_TYPE_LC3))
         assertEquals("Opus", BluetoothAudioTracker.mapCodecType(BluetoothAudioTracker.SOURCE_CODEC_TYPE_OPUS))
-        assertEquals("Vendor Codec (7)", BluetoothAudioTracker.mapCodecType(7))
-        assertEquals("Vendor Codec (8)", BluetoothAudioTracker.mapCodecType(8))
+        assertEquals("aptX Adaptive", BluetoothAudioTracker.mapCodecType(7))
+        assertEquals("aptX TWS+", BluetoothAudioTracker.mapCodecType(8))
+        assertEquals("LHDC", BluetoothAudioTracker.mapCodecType(9))
+        assertEquals("LHDCv5", BluetoothAudioTracker.mapCodecType(11))
+        assertEquals("Vendor Codec (99)", BluetoothAudioTracker.mapCodecType(99))
         assertEquals("Unknown", BluetoothAudioTracker.mapCodecType(-1))
     }
 

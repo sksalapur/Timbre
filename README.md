@@ -13,7 +13,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/sksalapur/Timbre/releases"><img src="https://img.shields.io/badge/Download-Timbre%20v1.8--3%20APK-00D2FF?style=for-the-badge&logo=android&logoColor=white" /></a>
+  <a href="https://github.com/sksalapur/Timbre/releases"><img src="https://img.shields.io/badge/Download-Timbre%20v1.8.4%20APK-00D2FF?style=for-the-badge&logo=android&logoColor=white" /></a>
   <img src="https://img.shields.io/badge/Audio-24--bit%20%2F%20192kHz%20FLAC-gold?style=for-the-badge&logo=audacity&logoColor=white" />
   <a href="https://t.me/Timbre_Community"><img src="https://img.shields.io/badge/Telegram-Community-26A5E4?style=for-the-badge&logo=telegram&logoColor=white" /></a>
   <a href="https://sksalapur.github.io/Timbre/"><img src="https://img.shields.io/badge/Website-Documentation-blueviolet?style=for-the-badge&logo=firefox&logoColor=white" /></a>
@@ -35,42 +35,48 @@
 
 ---
 
-## 🚀 What's New in Timbre v1.8-3: The True Bit-Perfect Breakthrough
+## 🚀 What's New in Timbre v1.8.4: Full Upstream Sync, Audiophile Bluetooth Truth & Artwork Preload
 
-**Timbre v1.8-3** represents our largest audiophile engineering milestone, eliminating deep Android OS mixer bottlenecks and delivering true bit-exact 24-bit studio audio from network edge to physical DAC hardware:
+**Timbre v1.8.4** brings our largest milestone yet, synchronizing 176+ commits from upstream **BitChord v1.8.1**, enforcing absolute audiophile technical honesty across Bluetooth transmission, guaranteeing lossless priority resolution during rapid skipping, and pre-warming queue artwork for instant 0ms track transitions:
 
-### 1. ⚡ Full 24-bit Hi-Res Signal Path (`librempeg` Float32 Priority)
-* **Eliminating the 16-bit Bottleneck**: Android's platform software decoder (`c2.android.flac.decoder`) silently downconverted 24-bit FLAC streams to 16-bit integer PCM before reaching the audio sink.
-* **Native Float32 Decoding**: We now prioritize `FfmpegAudioRenderer` (`librempeg`), natively decoding 24-bit and 32-bit FLAC/ALAC into pristine 32-bit floating-point PCM (`ENCODING_PCM_FLOAT`).
-* **Preserved Dynamic Range**: 24-bit studio masters travel completely uncompressed and unquantized from network edge to DAC hardware with zero loss.
+### 1. 🔄 Full Upstream BitChord v1.8.1 Synchronization
+* **All-New Welcome & Onboarding Experience**: Features Timbre Cyan audiophile styling, personalized Listen Together profile setup, and streamlined Google account linking with YouTube Music.
+* **Search Swipe Actions**: Swipe search history tracks to instantly enqueue next or last.
+* **Detailed Song Info Inspector**: Deep metadata dialog displaying album details, release dates, view counts, likes, and comments.
+* **Wear OS Companion Management**: Full watch connection and streaming settings directly within Settings.
+* **RTL & Synchronized Karaoke Lyrics**: Flawless bidirectional RTL typography and fluid word-by-word sweep animations.
 
-### 2. 🔌 True Exclusive Userspace USB DAC Access (AudioFlinger Bypass)
-* **Direct Userspace USB Streaming**: Interacts directly with external USB Audio Class devices (both UAC1 and UAC2, including Moondrop Chu II DSP, Free DSP, Fiio, Qudelix, and desktop DACs) via Android's USB Host API.
-* **OS Resampler & Mixer Bypass**: Completely bypasses Android's mandatory 48 kHz `AudioFlinger` mixer and kernel ALSA resamplers, eliminating unwanted digital attenuation and dither noise.
-* **Native Clocks**: Streams 44.1 kHz, 96 kHz, and 192 kHz tracks at their exact native hardware clocks.
+### 2. 🔷 Truthful Bluetooth Hi-Res Audio & Anti-Crash Architecture
+* **Technical Truth for Bluetooth Audio**: Bluetooth A2DP audio (including LDAC 990kbps and LHDCv5 1000kbps) travels through Android's `AudioFlinger` mixer and undergoes lossy psychoacoustic compression. Timbre enforces strict technical honesty:
+  * **Emerald Green (`#00E676`)** is strictly reserved for true **Bit-Perfect Direct Hardware DACs** (USB DACs with hardware bypass).
+  * **Electric Cyan (`#00E5FF`)** designates **Hi-Res Wireless (`🔷 HI-RES WIRELESS (LHDCv5 / LDAC)`)**, explicitly noting `(Lossy Bluetooth transmission via AudioFlinger)` and stating `No — Bluetooth LHDCv5 encoding` in the bit-exact verdict.
+* **Zero-Crash Telemetry Fix**: Eliminated a recursive feedback loop between `BluetoothAudioTracker` and `PlaybackService.applyOutputRoute()` that flooded Android's message queue and crashed the app during Bluetooth route changes.
+* **Instant Active Codec Detection**: Real-time detection of connected Bluetooth devices and codecs (e.g. realme Buds T500 Pro -> LHDCv5 24-bit / 96kHz) on launch, route changes, or opening the pipeline dialog—without needing earbud disconnect/reconnect.
 
-### 3. 🛡️ Smart Gated USB Permission & Hot-Plug Lifecycle
-* **Zero Annoyance Gating**: Timbre only requests Exclusive USB Access when **"Direct Bit-Perfect Mode"** is actively turned ON in Settings. No unexpected permission prompts appear if the mode is off.
-* **Dynamic Hot-Reconnection**: Unplugging and reconnecting your USB DAC automatically prompts for permission and triggers an immediate forced pipeline rebuild, restoring green bit-perfect status on the spot.
+### 3. 🎯 Strict Lossless Priority Resolution on Rapid Skip
+* **No More Premature Lossy Fallbacks**: Rapidly skipping tracks now strictly honors your configured Lossless Priority Resolution Window (`losslessTimeoutSeconds`).
+* **Clean Track Handover**: Clearing stale lossy stream choices when skipping to track position 0 guarantees that FLAC modules (Tidal, Qobuz, Lossless Bridge) are given full time to resolve before any lossy YouTube fallback can trigger.
 
-### 4. 🎵 Continuous Bit-Exact Certification Across Track Transitions
-* **Audible Buffer Certification**: Precision AudioSink now dynamically certifies bit-exact telemetry upon active audible buffer emission, eliminating false "converted downstream" drops during dual-player crossfades and track transitions.
+### 4. 🖼️ Queue Lookahead Artwork Pre-Warming (Instant 0ms Cover Art)
+* **Instant Artwork on Skip**: Sequential, bounded queue artwork prefetching pre-warms full-resolution 1200px artwork (`PLAYER_ART_PX = 1200`) for up to 4 upcoming tracks.
+* **100% Network Priority for Hi-Res Audio**: Deferring artwork downloads by 2.5s after playback starts and spacing requests by 300ms ensures that FLAC stream resolution and audio buffering enjoy completely uncontended bandwidth. Subsequent track skips render artwork in **0ms** from local cache.
 
-### 5. 🔍 Truthful Color-Coding & Audio Pipeline Inspector
-* **Enforced Honest Telemetry**: The header badge will **never** display green if audio is routed through AudioFlinger, downsampled, or routed to phone speakers.
-* **Truthful Warnings**:
-  * 🟨 `Framework Mixed (AudioFlinger)`: Clearly indicates when audio is handled by the OS mixer.
-  * 🟨 `Downsampled (24-bit → 16-bit)`: Alerts you if output precision is restricted.
-  * 📢 `Phone Speaker (Framework Mixed)`: Explains that built-in speakers always pass through OS limiters, with guidance to plug in an IEM or connect LDAC earphones for bit-perfect fidelity.
+### 5. 🎨 12 Dynamic Glass App Icons
+* Choose between **Liquid Glass**, **Samsung Glass**, and **Pixel Glass** across Standard, Dark, Clear, and Clear Dark variants directly from **Settings → Appearance → App Icon**.
 
-### 6. 💾 Timbre Studio Settings & Add-ons in Backup & Restore
-* **Full Data Portability**: Timbre's JSON Backup & Restore engine (`Settings` → `Backup & Restore`) now serializes all custom streaming sources, addon tokens, source priorities, and Timbre Studio preferences for seamless one-click device migrations.
+### 6. ⚡ Audio Stream Continuity ("Missed Beat" Stutter Fix)
+* Resolved tail-end audio stutter during the last 5–10 seconds of streaming tracks, ensuring continuous playback from cache without mid-stream invalidation.
+
+### 7. 💾 Seamless Auth & Source Backup & Restore
+* Full JSON portability for YouTube Music session cookies, channel profile IDs, Discord tokens, and custom streaming sources for effortless one-click device migration.
+
+### 8. 🛡️ Hardened Lossless Bot Infrastructure
+* Re-secured `@Timbre_Lossless_Bot` with fresh credentials and strict private chat guards for reliable token generation.
 
 ---
 
 ## 🏛️ Timbre Audiophile Architecture
 
-<<<<<<< HEAD
 ```text
 +-------------------------------------------------------------------------+
 |                       Timbre Audiophile Signal Path                     |
@@ -96,16 +102,6 @@
 |   +-----------------------------------------------------------------+   |
 +-------------------------------------------------------------------------+
 ```
-=======
-<h1><a id="download"></a>Download</h1>
-
-<a href="https://github.com/kushagrasinghx/BitChord/releases" target="_blank" rel="noopener noreferrer"><img src="https://cdn.jsdelivr.net/gh/JMcrafter26/badges@main/src/assets/supported/android/cozy.svg" alt="Download for Android" height="55"/></a>
-
-Grab the latest signed APK from the [Releases](https://github.com/kushagrasinghx/BitChord/releases) page. Sideloading requires enabling "Install unknown apps" for whichever app you download it with.
-
-
-</div>
->>>>>>> upstream/v1.8.1
 
 ---
 

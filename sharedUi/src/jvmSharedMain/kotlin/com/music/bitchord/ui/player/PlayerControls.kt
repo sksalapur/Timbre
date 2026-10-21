@@ -349,6 +349,7 @@ internal fun PlaybackQualityLabel(
             stillRacing = song.videoId in racingLossless,
             losslessRequested = effectiveQuality == AudioQuality.LOSSLESS,
             nerdStats = nerdStats,
+            onClick = onQualityClick,
             modifier = modifier,
         )
     }
@@ -1693,6 +1694,7 @@ private fun LosslessOrStats(
     stillRacing: Boolean,
     losslessRequested: Boolean,
     nerdStats: NerdStats.Snapshot?,
+    onClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     when {
@@ -1721,38 +1723,31 @@ private fun LosslessOrStats(
             (isLoading && losslessRequested && nerdStats == null) -> LosslessLabel(
             text = stringResource(Res.string.upgrading_quality),
             iconPainter = painterResource(Res.drawable.ic_lossless),
-            // Breathes for as long as the search runs: a wait, not a result,
-            // and the one badge state that is still going to change.
             pulsing = true,
             animated = false,
+            onClick = onClick,
             modifier = modifier,
         )
         nerdStats?.isLossless == true -> LosslessLabel(
-            // Same line Tidal, Qobuz and Apple Music draw it at — see
-            // [NerdStats.Snapshot.isHiRes].
             text = stringResource(if (nerdStats.isHiRes) Res.string.hi_res_lossless else Res.string.lossless),
             iconPainter = painterResource(Res.drawable.ic_lossless),
-            // Shimmer is reserved for the thing that was asked for and
-            // confirmed. It is what makes the badge read as an achievement
-            // rather than a label, which only one of these two is.
             animated = true,
+            onClick = onClick,
             modifier = modifier,
         )
         nerdStats?.isDolbyAtmos == true -> LosslessLabel(
             text = "Dolby Atmos",
             animated = true,
             iconPainter = painterResource(Res.drawable.ic_dolby_atmos),
+            onClick = onClick,
             modifier = modifier,
         )
-        // Lossy, but the good end of lossy — a module's 320kbps tier, which
-        // for a great many tracks is the best copy that exists anywhere the
-        // app can reach. See [NerdStats.Snapshot.isHiQuality].
         nerdStats?.isHiQuality == true -> LosslessLabel(
             text = stringResource(Res.string.high_quality),
             animated = false,
             iconPainter = rememberVectorPainter(Icons.Rounded.Headphones),
-            // A Material glyph's own size is 24dp; the badge's are drawn small.
             iconSize = 13.dp,
+            onClick = onClick,
             modifier = modifier,
         )
         // Below that, no badge: "Medium Quality" and "Data Saver" are gone.
@@ -1768,10 +1763,9 @@ private fun LosslessLabel(
     animated: Boolean,
     iconPainter: Painter,
     modifier: Modifier = Modifier,
-    /** Fades the whole label in and out, for a state that is still in progress. */
     pulsing: Boolean = false,
-    /** Unspecified draws [iconPainter] at its own size. */
     iconSize: Dp = Dp.Unspecified,
+    onClick: (() -> Unit)? = null,
 ) {
     // Only while asked for, and not at all under "Reduce animation": the
     // label then just holds still, which says "waiting" well enough.
@@ -1789,15 +1783,21 @@ private fun LosslessLabel(
     } else {
         null
     }
+    val clickMod = if (onClick != null) {
+        Modifier
+            .clip(CircleShape)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 6.dp, vertical = 2.dp)
+    } else {
+        Modifier
+    }
     Row(
-        // Read in the layer, so a frame of the pulse is a redraw of this one
-        // label — no recomposition, no relayout. ModulateAlpha fades each draw
-        // call in place rather than through an offscreen buffer: the glyph and
-        // the word never overlap, so there is nothing a buffer would fix.
-        modifier = modifier.graphicsLayer {
-            alpha = pulse?.value ?: 1f
-            compositingStrategy = CompositingStrategy.ModulateAlpha
-        },
+        modifier = modifier
+            .then(clickMod)
+            .graphicsLayer {
+                alpha = pulse?.value ?: 1f
+                compositingStrategy = CompositingStrategy.ModulateAlpha
+            },
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically,
     ) {

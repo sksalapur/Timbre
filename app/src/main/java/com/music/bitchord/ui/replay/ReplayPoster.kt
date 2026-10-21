@@ -586,7 +586,7 @@ private fun drawGenres(canvas: Canvas, context: Context, type: Fonts, summary: R
 
 private fun drawFooter(canvas: Canvas, context: Context, type: Fonts) {
     canvas.drawText(
-        context.getString(R.string.counted_on_device_with_bitchord),
+        context.getString(R.string.counted_on_device_with_timbre),
         MARGIN,
         POSTER_H - 64f,
         type.label(24f, 0x73FFFFFF, tracking = 0.08f),

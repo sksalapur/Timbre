@@ -8,10 +8,9 @@ This document lists the maintainers responsible for Timbre.
 
 ## Credits & Upstream Engine
 
-<<<<<<< HEAD
 Timbre is built on the [BitChord](https://github.com/kushagrasinghx/BitChord) audio engine created by:
 - **Kushagra Singh** ([@kushagrasinghx](https://github.com/kushagrasinghx)) — Original creator and core architecture of BitChord.
-=======
+
 Maintainers oversee project direction, repository maintenance, review and merging of contributions, and release management.
 
 ## Contributors
@@ -67,4 +66,3 @@ This list is automatically generated from GitHub repository contributor data.
 - [@bazilbycom](https://github.com/bazilbycom)
 - [@Aimar-18](https://github.com/Aimar-18)
 <!-- END CONTRIBUTORS -->
->>>>>>> upstream/v1.8.1

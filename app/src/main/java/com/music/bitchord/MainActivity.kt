@@ -1970,6 +1970,19 @@ private fun BitChordApp(
      * permission arrives as forty loose tracks.
      */
     var downloadPendingFrom by remember { mutableStateOf<DownloadTarget?>(null) }
+    val bluetoothPermission = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        if (granted) {
+            com.music.bitchord.playback.audio.LosslessOutput.refresh()
+            com.music.bitchord.playback.audio.bluetooth.BluetoothAudioTracker.getInstance(context).refreshCurrentDevice()
+        }
+    }
+    LaunchedEffect(Unit) {
+        if (Build.VERSION.SDK_INT >= 31 && androidx.core.content.ContextCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
+            bluetoothPermission.launch(Manifest.permission.BLUETOOTH_CONNECT)
+        }
+    }
     val notifyPermission = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
     ) { /* Refusing costs the progress notification, not the download. */ }
