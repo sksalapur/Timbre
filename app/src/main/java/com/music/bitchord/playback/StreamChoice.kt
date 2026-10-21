@@ -151,6 +151,18 @@ object StreamChoice {
      * Whether the copy currently serving [videoId] came from a source standing
      * in for YouTube.
      */
+    /**
+     * Checks if a lossy choice was recorded very recently (within [windowMs]).
+     * Used by PlaybackService to distinguish an immediate re-read of a just-resolved
+     * stream from a stale lossy choice that should be re-evaluated.
+     */
+    fun isRecentLossyChoice(videoId: String, windowMs: Long = 8_000L): Boolean {
+        val choice = chosen[videoId] ?: return false
+        if (choice.stream.format.isLossless == true) return false
+        val elapsed = SystemClock.elapsedRealtime() - choice.at
+        return elapsed < windowMs
+    }
+
     fun isSubstitute(videoId: String): Boolean = chosen[videoId]?.substituted == true
 
     /**

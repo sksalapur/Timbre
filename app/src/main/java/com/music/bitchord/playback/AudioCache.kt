@@ -1316,6 +1316,30 @@ object AudioCache {
     }
 
     /**
+     * Returns the active in-flight warm-up job for [videoId] if one is running,
+     * allowing [PlaybackService.resolveWithModulePriority] to await it directly.
+     */
+    fun getActiveWarmJob(videoId: String): kotlinx.coroutines.Job? = activeWarmJobs[videoId]
+
+    /**
+     * Cancels byte-level read-ahead (cache pre-warming) without killing
+     * in-flight lossless resolution warm-up jobs.
+     *
+     * During a track transition the player's [isPlaying] flickers to false
+     * before the next item starts. The old [cancel] killed every warm-up
+     * job at that moment, destroying the prefetch resolution that had already
+     * been running for several seconds. This lighter variant stops the disk
+     * writes but lets the lossless URL lookups finish so that
+     * [resolveWithModulePriority] can piggyback on them.
+     */
+    fun cancelBytePrefetchOnly() {
+        TrackLog.d(TAG, "DIAG cancelBytePrefetchOnly() called -- keeping ${activeWarmJobs.size} warm jobs alive")
+        pendingQueue = emptyList()
+        job?.cancel()
+        job = null
+    }
+
+    /**
      * Gets the whole of [videoId] onto disk, a range at a time.
      *
      * Progress is measured rather than assumed: a pass that caches nothing

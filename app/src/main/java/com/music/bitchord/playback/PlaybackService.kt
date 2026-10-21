@@ -1516,8 +1516,7 @@ class PlaybackService : MediaLibraryService() {
                 val wantsLossless = SourceResolver.canSubstituteForYouTube() &&
                     SourceResolver.requestForNow() is com.music.bitchord.data.sources.StreamRequest.Lossless
                 val isContinuation = dataSpec.position > 0L
-                val isCurrentlyPlaying = (player?.currentMediaItem?.mediaId == videoId) && (player?.isPlaying == true)
-                if (!isContinuation && !isCurrentlyPlaying && serving.format.isLossless != true && wantsLossless) {
+                if (!isContinuation && serving.format.isLossless != true && wantsLossless && !StreamChoice.isRecentLossyChoice(videoId)) {
                     // Do not serve a stale lossy choice directly when opening a new track; let it respect the Priority Resolution Window!
                     StreamChoice.forget(videoId)
                 } else {
@@ -5199,6 +5198,15 @@ class PlaybackService : MediaLibraryService() {
         // log from a scope that knows nothing, which is most of what a resolve
         // has to say about itself.
         val lookup = scope.async(Dispatchers.IO + TrackLog.about(videoId)) {
+            val existingWarmJob = AudioCache.getActiveWarmJob(videoId)
+            if (existingWarmJob != null && existingWarmJob.isActive) {
+                TrackLog.d("BitChord", "Piggybacking on active warm-up job for $videoId", about = videoId)
+                existingWarmJob.join()
+                val warmed = StreamChoice.of(videoId)
+                if (warmed != null && (warmed.format.isLossless == true || !warmed.belowRequest)) {
+                    return@async warmed
+                }
+            }
             withTimeoutOrNull(SUBSTITUTE_TIMEOUT_MS) { SourceResolver.substituteForYouTube(target) }
         }
         // Started now rather than after the modules have had their say, and
@@ -6054,7 +6062,12 @@ class PlaybackService : MediaLibraryService() {
         preferredPrefetchRequest = null
         preferredPrefetchJob?.cancel()
         preferredPrefetchJob = null
-        AudioCache.cancel()
+        // Use cancelBytePrefetchOnly() instead of cancel() to preserve
+        // in-flight lossless resolution warm-up jobs. During track transitions,
+        // isPlaying flickers to false momentarily, which used to kill all
+        // warm-up jobs via cancel(). Those jobs take 7-8s and the next track's
+        // resolver needs them to avoid falling back to YouTube Opus.
+        AudioCache.cancelBytePrefetchOnly()
     }
 
     /**
