@@ -145,7 +145,7 @@
     <string name="widget_previous">Назад</string>
     <string name="widget_artwork">Обложка альбома</string>
     <string name="widget_nothing_played">Пока ничего не воспроизводилось</string>
-    <string name="widget_open_bitchord">Открыть Timbre</string>
+    <string name="widget_open_timbre">Открыть Timbre</string>
     <string name="widget_preview_title">Название песни</string>
     <string name="widget_preview_artist">Исполнитель</string>
     <string name="widget_pill_label">Сейчас играет 4×1</string>
@@ -336,7 +336,7 @@
     <string name="downloads_finished">Загрузки · завершено</string>
     <string name="downloading_progress">Загрузка · %1$d%%</string>
     <string name="starting">Начало</string>
-    <string name="saved_to_bitchord_folder">Сохранено в Музыка/Timbre</string>
+    <string name="saved_to_timbre_folder">Сохранено в Музыка/Timbre</string>
     <string name="nothing_downloading">Ничего не загружается</string>
     <string name="nothing_to_explore">Сейчас нечего смотреть в обзоре</string>
     <string name="no_youtube_music_results">Нет результатов из YouTube Music</string>
@@ -685,7 +685,7 @@
     </plurals>
     <string name="no_local_albums">Здесь пока ничего нет из альбома или плейлиста. Загрузите полный альбом или плейлист, и он появится здесь.</string>
     <string name="play_your_replay">Воспроизвести ваш Replay</string>
-    <string name="counted_on_device_with_bitchord">Подсчитано на этом устройстве с помощью Timbre</string>
+    <string name="counted_on_device_with_timbre">Подсчитано на этом устройстве с помощью Timbre</string>
     <string name="this_month">Этот месяц</string>
     <string name="this_year">Этот год</string>
     <string name="all_time">За всё время</string>
@@ -1350,7 +1350,7 @@
     <string name="replay_period_monthly">Месяц</string>
     <string name="replay_period_yearly">Год</string>
     <string name="replay_period_lifetime">Всё время</string>
-    <string name="onboarding_title">Миллионы треков в BitChord</string>
+    <string name="onboarding_title">Миллионы треков в Timbre</string>
     <string name="onboarding_name_prompt">Как к вам обращаться?</string>
     <string name="onboarding_name_hint">Ваше имя</string>
     <string name="onboarding_name_footer">Друзья увидят его в режиме «Слушать вместе». Позже вы сможете изменить его в Настройках.</string>
@@ -1360,7 +1360,7 @@
     <string name="onboarding_sign_in_google">Войти через Google</string>
     <string name="onboarding_skip_sign_in">Пропустить вход</string>
     <string name="onboarding_back">Назад</string>
-    <string name="wear_os_section">BitChord для Wear OS</string>
+    <string name="wear_os_section">Timbre для Wear OS</string>
     <string name="wear_os_page_title">Wear OS</string>
     <string name="wear_os_your_watches">Ваши часы</string>
     <string name="wear_os_value_none">Нет часов</string>
@@ -1370,7 +1370,7 @@
     <string name="wear_os_no_watch">Часы не подключены</string>
     <string name="wear_os_no_watch_subtitle">Сначала подключите часы Wear OS к этому телефону в их приложении-компаньоне.</string>
     <string name="wear_os_checking">Проверка…</string>
-    <string name="wear_os_not_installed">BitChord не установлен на этих часах</string>
+    <string name="wear_os_not_installed">Timbre не установлен на этих часах</string>
     <string name="wear_os_up_to_date">Актуальная версия · %1$s</string>
     <string name="wear_os_update_available">Доступно обновление</string>
     <string name="wear_os_unknown">Установлено · не удалось проверить версию</string>
@@ -1387,7 +1387,7 @@
     <string name="wear_os_searching">Поиск часов в сети Wi-Fi…</string>
     <string name="wear_os_found">Часы найдены</string>
     <string name="wear_os_pairing">Подключение…</string>
-    <string name="wear_os_installing">Установка BitChord на часы…</string>
+    <string name="wear_os_installing">Установка Timbre на часы…</string>
     <string name="wear_os_installed">Установлено. Отладку по Wi-Fi можно снова выключить.</string>
     <string name="wear_os_failed">Не получилось (%1$s). Проверьте код и повторите попытку.</string>
     <string name="wear_os_unsupported">Для установки на часы на этом телефоне нужен Android 11 или новее.</string>

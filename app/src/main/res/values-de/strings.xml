@@ -135,7 +135,7 @@
     <string name="widget_previous">Zurück</string>
     <string name="widget_artwork">Albumcover</string>
     <string name="widget_nothing_played">Noch nichts wiedergegeben</string>
-    <string name="widget_open_bitchord">Timbre öffnen</string>
+    <string name="widget_open_timbre">Timbre öffnen</string>
     <string name="widget_preview_title">Songtitel</string>
     <string name="widget_preview_artist">Künstler</string>
     <string name="widget_pill_label">Wird wiedergegeben 4×1</string>
@@ -326,7 +326,7 @@
     <string name="downloads_finished">Downloads · fertig</string>
     <string name="downloading_progress">Wird heruntergeladen · %1$d%%</string>
     <string name="starting">Wird gestartet</string>
-    <string name="saved_to_bitchord_folder">In Music/Timbre gespeichert</string>
+    <string name="saved_to_timbre_folder">In Music/Timbre gespeichert</string>
     <string name="nothing_downloading">Nichts wird heruntergeladen</string>
     <string name="nothing_to_explore">Gerade nichts zu entdecken</string>
     <string name="no_youtube_music_results">Keine Ergebnisse von YouTube Music</string>
@@ -659,7 +659,7 @@
     </plurals>
     <string name="no_local_albums">Hier gehört noch nichts zu einem Album oder einer Playlist. Lade ein vollständiges Album oder eine Playlist herunter, dann erscheint es hier.</string>
     <string name="play_your_replay">Dein Replay abspielen</string>
-    <string name="counted_on_device_with_bitchord">Auf diesem Gerät mit Timbre gezählt</string>
+    <string name="counted_on_device_with_timbre">Auf diesem Gerät mit Timbre gezählt</string>
     <string name="this_month">Dieser Monat</string>
     <string name="this_year">Dieses Jahr</string>
     <string name="all_time">Gesamt</string>
@@ -1318,7 +1318,7 @@
     <string name="replay_period_monthly">Monatlich</string>
     <string name="replay_period_yearly">Jährlich</string>
     <string name="replay_period_lifetime">Gesamt</string>
-    <string name="onboarding_title">Millionen Songs, gestreamt auf BitChord</string>
+    <string name="onboarding_title">Millionen Songs, gestreamt auf Timbre</string>
     <string name="onboarding_name_prompt">Wie sollen wir dich nennen?</string>
     <string name="onboarding_name_hint">Dein Name</string>
     <string name="onboarding_name_footer">Freunde sehen das bei Gemeinsam hören. Du kannst es später in den Einstellungen ändern.</string>
@@ -1328,7 +1328,7 @@
     <string name="onboarding_sign_in_google">Mit Google anmelden</string>
     <string name="onboarding_skip_sign_in">Anmeldung überspringen</string>
     <string name="onboarding_back">Zurück</string>
-    <string name="wear_os_section">BitChord für Wear OS</string>
+    <string name="wear_os_section">Timbre für Wear OS</string>
     <string name="wear_os_page_title">Wear OS</string>
     <string name="wear_os_your_watches">Deine Uhren</string>
     <string name="wear_os_value_none">Keine Uhr</string>
@@ -1338,7 +1338,7 @@
     <string name="wear_os_no_watch">Keine Uhr verbunden</string>
     <string name="wear_os_no_watch_subtitle">Koppel zuerst eine Wear-OS-Uhr in deren Begleit-App mit diesem Smartphone.</string>
     <string name="wear_os_checking">Wird geprüft…</string>
-    <string name="wear_os_not_installed">BitChord ist nicht auf dieser Uhr</string>
+    <string name="wear_os_not_installed">Timbre ist nicht auf dieser Uhr</string>
     <string name="wear_os_up_to_date">Aktuell · %1$s</string>
     <string name="wear_os_update_available">Update verfügbar</string>
     <string name="wear_os_unknown">Installiert · Version konnte nicht geprüft werden</string>
@@ -1355,7 +1355,7 @@
     <string name="wear_os_searching">Suche nach deiner Uhr im WLAN…</string>
     <string name="wear_os_found">Uhr gefunden</string>
     <string name="wear_os_pairing">Kopplung läuft…</string>
-    <string name="wear_os_installing">BitChord wird auf deiner Uhr installiert…</string>
+    <string name="wear_os_installing">Timbre wird auf deiner Uhr installiert…</string>
     <string name="wear_os_installed">Installiert. Du kannst das Debugging über WLAN wieder ausschalten.</string>
     <string name="wear_os_failed">Das hat nicht geklappt (%1$s). Prüfe den Code und versuche es erneut.</string>
     <string name="wear_os_unsupported">Die Installation auf einer Uhr erfordert Android 11 oder neuer auf diesem Smartphone.</string>

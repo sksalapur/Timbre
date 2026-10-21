@@ -138,7 +138,7 @@
     <string name="widget_previous">Poprzedni</string>
     <string name="widget_artwork">Okładka albumu</string>
     <string name="widget_nothing_played">Nic nie zostało odtworzone</string>
-    <string name="widget_open_bitchord">Open Timbre</string>
+    <string name="widget_open_timbre">Open Timbre</string>
     <string name="widget_preview_title">Tytuł utworu</string>
     <string name="widget_preview_artist">Artysta</string>
     <string name="widget_pill_label">Now playing 4×1</string>
@@ -324,7 +324,7 @@
     <string name="downloads_finished">Pobieranie · zakończone</string>
     <string name="downloading_progress">Pobieranie · %1$d%%</string>
     <string name="starting">Rozpoczynanie</string>
-    <string name="saved_to_bitchord_folder">Zapisano w Music/Timbre</string>
+    <string name="saved_to_timbre_folder">Zapisano w Music/Timbre</string>
     <string name="nothing_downloading">Nic się nie pobiera</string>
     <string name="nothing_to_explore">Nie ma teraz nic do odkrycia</string>
     <string name="no_youtube_music_results">Brak wyników z YouTube Music</string>
@@ -606,7 +606,7 @@
     <string name="no_listening_history">brak historii odtwarzania</string>
     <string name="no_local_albums">Nic stąd jeszcze nie należy do albumu ani playlisty. Pobierz cały album lub playlistę, a pojawi się tutaj.</string>
     <string name="play_your_replay">Odtwórz swój Replay</string>
-    <string name="counted_on_device_with_bitchord">Obliczono na tym urządzeniu z Timbre</string>
+    <string name="counted_on_device_with_timbre">Obliczono na tym urządzeniu z Timbre</string>
     <string name="this_month">Ten miesiąc</string>
     <string name="this_year">Ten rok</string>
     <string name="all_time">Cały czas</string>
@@ -1358,7 +1358,7 @@
     <string name="replay_period_monthly">Miesiąc</string>
     <string name="replay_period_yearly">Rok</string>
     <string name="replay_period_lifetime">Cały czas</string>
-    <string name="onboarding_title">Miliony utworów w streamingu w BitChord</string>
+    <string name="onboarding_title">Miliony utworów w streamingu w Timbre</string>
     <string name="onboarding_name_prompt">Jak mamy się do ciebie zwracać?</string>
     <string name="onboarding_name_hint">Twoje imię</string>
     <string name="onboarding_name_footer">Znajomi zobaczą je podczas Wspólnego słuchania. Możesz je później zmienić w Ustawieniach.</string>
@@ -1368,7 +1368,7 @@
     <string name="onboarding_sign_in_google">Zaloguj się przez Google</string>
     <string name="onboarding_skip_sign_in">Pomiń logowanie</string>
     <string name="onboarding_back">Wstecz</string>
-    <string name="wear_os_section">BitChord na Wear OS</string>
+    <string name="wear_os_section">Timbre na Wear OS</string>
     <string name="wear_os_page_title">Wear OS</string>
     <string name="wear_os_your_watches">Twoje zegarki</string>
     <string name="wear_os_value_none">Brak zegarka</string>
@@ -1378,7 +1378,7 @@
     <string name="wear_os_no_watch">Brak połączonego zegarka</string>
     <string name="wear_os_no_watch_subtitle">Najpierw sparuj zegarek Wear OS z tym telefonem w jego aplikacji towarzyszącej.</string>
     <string name="wear_os_checking">Sprawdzanie…</string>
-    <string name="wear_os_not_installed">BitChord nie jest zainstalowany na tym zegarku</string>
+    <string name="wear_os_not_installed">Timbre nie jest zainstalowany na tym zegarku</string>
     <string name="wear_os_up_to_date">Aktualna · %1$s</string>
     <string name="wear_os_update_available">Dostępna aktualizacja</string>
     <string name="wear_os_unknown">Zainstalowano · nie udało się sprawdzić wersji</string>
@@ -1395,7 +1395,7 @@
     <string name="wear_os_searching">Szukanie zegarka w sieci Wi-Fi…</string>
     <string name="wear_os_found">Znaleziono zegarek</string>
     <string name="wear_os_pairing">Parowanie…</string>
-    <string name="wear_os_installing">Instalowanie BitChord na zegarku…</string>
+    <string name="wear_os_installing">Instalowanie Timbre na zegarku…</string>
     <string name="wear_os_installed">Zainstalowano. Możesz ponownie wyłączyć debugowanie bezprzewodowe.</string>
     <string name="wear_os_failed">To nie zadziałało (%1$s). Sprawdź kod i spróbuj ponownie.</string>
     <string name="wear_os_unsupported">Instalacja na zegarku wymaga na tym telefonie Androida 11 lub nowszego.</string>

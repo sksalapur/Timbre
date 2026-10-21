@@ -144,7 +144,7 @@
     <string name="widget_previous">Trước</string>
     <string name="widget_artwork">Ảnh bìa album</string>
     <string name="widget_nothing_played">Chưa phát bài nào</string>
-    <string name="widget_open_bitchord">Mở Timbre</string>
+    <string name="widget_open_timbre">Mở Timbre</string>
     <string name="widget_preview_title">Tên bài hát</string>
     <string name="widget_preview_artist">Nghệ sĩ</string>
     <string name="widget_pill_label">Đang phát 4×1</string>
@@ -362,7 +362,7 @@
     <string name="starting">Đang bắt đầu</string>
     <string name="start_radio">Phát radio</string>
     <string name="radio_started">Đã bắt đầu radio %1$s</string>
-    <string name="saved_to_bitchord_folder">Đã lưu vào Music/Timbre</string>
+    <string name="saved_to_timbre_folder">Đã lưu vào Music/Timbre</string>
     <string name="nothing_downloading">Không có nội dung đang tải</string>
     <string name="nothing_to_explore">Hiện không có gì để khám phá</string>
     <string name="no_youtube_music_results">Không có kết quả nào từ YouTube Music</string>
@@ -682,7 +682,7 @@
     </plurals>
     <string name="no_local_albums">Chưa có mục nào ở đây thuộc về một album hoặc danh sách phát. Tải xuống toàn bộ album hoặc danh sách phát và nội dung sẽ xuất hiện ở đây.</string>
     <string name="play_your_replay">Phát Replay của bạn</string>
-    <string name="counted_on_device_with_bitchord">Được thống kê trên thiết bị này bằng Timbre</string>
+    <string name="counted_on_device_with_timbre">Được thống kê trên thiết bị này bằng Timbre</string>
     <string name="this_month">Tháng này</string>
     <string name="this_year">Năm nay</string>
     <string name="all_time">Tất cả thời gian</string>
@@ -1235,7 +1235,7 @@
     <string name="replay_period_monthly">Tháng</string>
     <string name="replay_period_yearly">Năm</string>
     <string name="replay_period_lifetime">Mọi lúc</string>
-    <string name="onboarding_title">Hàng triệu bài hát, phát trực tuyến trên BitChord</string>
+    <string name="onboarding_title">Hàng triệu bài hát, phát trực tuyến trên Timbre</string>
     <string name="onboarding_name_prompt">Chúng tôi nên gọi bạn là gì?</string>
     <string name="onboarding_name_hint">Tên của bạn</string>
     <string name="onboarding_name_footer">Bạn bè sẽ thấy tên này khi bạn dùng Nghe cùng nhau. Bạn có thể đổi sau trong Cài đặt.</string>
@@ -1245,7 +1245,7 @@
     <string name="onboarding_sign_in_google">Đăng nhập bằng Google</string>
     <string name="onboarding_skip_sign_in">Bỏ qua đăng nhập</string>
     <string name="onboarding_back">Quay lại</string>
-    <string name="wear_os_section">BitChord cho Wear OS</string>
+    <string name="wear_os_section">Timbre cho Wear OS</string>
     <string name="wear_os_page_title">Wear OS</string>
     <string name="wear_os_your_watches">Đồng hồ của bạn</string>
     <string name="wear_os_value_none">Không có đồng hồ</string>
@@ -1255,7 +1255,7 @@
     <string name="wear_os_no_watch">Chưa kết nối đồng hồ nào</string>
     <string name="wear_os_no_watch_subtitle">Trước tiên hãy ghép nối đồng hồ Wear OS với điện thoại này trong ứng dụng đồng hành của đồng hồ.</string>
     <string name="wear_os_checking">Đang kiểm tra…</string>
-    <string name="wear_os_not_installed">BitChord chưa có trên đồng hồ này</string>
+    <string name="wear_os_not_installed">Timbre chưa có trên đồng hồ này</string>
     <string name="wear_os_up_to_date">Mới nhất · %1$s</string>
     <string name="wear_os_update_available">Có bản cập nhật</string>
     <string name="wear_os_unknown">Đã cài đặt · không thể kiểm tra phiên bản</string>
@@ -1272,7 +1272,7 @@
     <string name="wear_os_searching">Đang tìm đồng hồ của bạn trên Wi-Fi…</string>
     <string name="wear_os_found">Đã tìm thấy đồng hồ của bạn</string>
     <string name="wear_os_pairing">Đang ghép nối…</string>
-    <string name="wear_os_installing">Đang cài BitChord lên đồng hồ của bạn…</string>
+    <string name="wear_os_installing">Đang cài Timbre lên đồng hồ của bạn…</string>
     <string name="wear_os_installed">Đã cài đặt. Bạn có thể tắt lại Gỡ lỗi không dây.</string>
     <string name="wear_os_failed">Không thành công (%1$s). Hãy kiểm tra mã và thử lại.</string>
     <string name="wear_os_unsupported">Cài đặt trên đồng hồ cần điện thoại này chạy Android 11 trở lên.</string>

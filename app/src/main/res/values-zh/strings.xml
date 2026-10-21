@@ -130,7 +130,7 @@
     <string name="widget_previous">上一首</string>
     <string name="widget_artwork">专辑封面</string>
     <string name="widget_nothing_played">尚未播放任何内容</string>
-    <string name="widget_open_bitchord">打开 Timbre</string>
+    <string name="widget_open_timbre">打开 Timbre</string>
     <string name="widget_preview_title">歌曲标题</string>
     <string name="widget_preview_artist">艺人</string>
     <string name="widget_pill_label">正在播放 4×1</string>
@@ -321,7 +321,7 @@
     <string name="downloads_finished">下载 · 已完成</string>
     <string name="downloading_progress">正在下载 · %1$d%%</string>
     <string name="starting">正在开始</string>
-    <string name="saved_to_bitchord_folder">已保存到 Music/Timbre</string>
+    <string name="saved_to_timbre_folder">已保存到 Music/Timbre</string>
     <string name="nothing_downloading">当前没有下载任务</string>
     <string name="nothing_to_explore">目前没有可探索的内容</string>
     <string name="no_youtube_music_results">YouTube Music 没有搜索结果</string>
@@ -639,7 +639,7 @@
     </plurals>
     <string name="no_local_albums">这里还没有任何属于专辑或播放列表的内容。下载完整的专辑或播放列表后，它们会显示在这里。</string>
     <string name="play_your_replay">播放你的 Replay</string>
-    <string name="counted_on_device_with_bitchord">由 Timbre 在此设备上统计</string>
+    <string name="counted_on_device_with_timbre">由 Timbre 在此设备上统计</string>
     <string name="this_month">本月</string>
     <string name="this_year">今年</string>
     <string name="all_time">全部时间</string>
@@ -1289,7 +1289,7 @@
     <string name="replay_period_monthly">每月</string>
     <string name="replay_period_yearly">每年</string>
     <string name="replay_period_lifetime">全部</string>
-    <string name="onboarding_title">数百万首歌曲，在 BitChord 上畅听</string>
+    <string name="onboarding_title">数百万首歌曲，在 Timbre 上畅听</string>
     <string name="onboarding_name_prompt">我们该怎么称呼你？</string>
     <string name="onboarding_name_hint">你的名字</string>
     <string name="onboarding_name_footer">使用“一起听”时，好友会看到这个名字。你可以稍后在“设置”中修改。</string>
@@ -1299,7 +1299,7 @@
     <string name="onboarding_sign_in_google">使用 Google 登录</string>
     <string name="onboarding_skip_sign_in">跳过登录</string>
     <string name="onboarding_back">返回</string>
-    <string name="wear_os_section">适用于 Wear OS 的 BitChord</string>
+    <string name="wear_os_section">适用于 Wear OS 的 Timbre</string>
     <string name="wear_os_page_title">Wear OS</string>
     <string name="wear_os_your_watches">你的手表</string>
     <string name="wear_os_value_none">没有手表</string>
@@ -1309,7 +1309,7 @@
     <string name="wear_os_no_watch">未连接手表</string>
     <string name="wear_os_no_watch_subtitle">请先在 Wear OS 手表的配套应用中将其与这部手机配对。</string>
     <string name="wear_os_checking">正在检查…</string>
-    <string name="wear_os_not_installed">这块手表上没有 BitChord</string>
+    <string name="wear_os_not_installed">这块手表上没有 Timbre</string>
     <string name="wear_os_up_to_date">已是最新 · %1$s</string>
     <string name="wear_os_update_available">有可用更新</string>
     <string name="wear_os_unknown">已安装 · 无法检查版本</string>
@@ -1326,7 +1326,7 @@
     <string name="wear_os_searching">正在 Wi-Fi 上查找你的手表…</string>
     <string name="wear_os_found">已找到你的手表</string>
     <string name="wear_os_pairing">正在配对…</string>
-    <string name="wear_os_installing">正在将 BitChord 安装到你的手表…</string>
+    <string name="wear_os_installing">正在将 Timbre 安装到你的手表…</string>
     <string name="wear_os_installed">已安装。你可以再次关闭无线调试。</string>
     <string name="wear_os_failed">未成功（%1$s）。请检查代码后重试。</string>
     <string name="wear_os_unsupported">安装到手表需要这部手机运行 Android 11 或更高版本。</string>

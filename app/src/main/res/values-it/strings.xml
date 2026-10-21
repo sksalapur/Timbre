@@ -162,7 +162,7 @@
     <string name="widget_previous">Precedente</string>
     <string name="widget_artwork">Copertina album</string>
     <string name="widget_nothing_played">Nulla ancora riprodotto</string>
-    <string name="widget_open_bitchord">Apri Timbre</string>
+    <string name="widget_open_timbre">Apri Timbre</string>
     <string name="widget_preview_title">Titolo brano</string>
     <string name="widget_preview_artist">Artista</string>
     <string name="widget_pill_label">In riproduzione 4×1</string>
@@ -371,7 +371,7 @@
     <string name="starting">Avvio</string>
     <string name="start_radio">Avvia radio</string>
     <string name="radio_started">Radio %1$s avviata</string>
-    <string name="saved_to_bitchord_folder">Salvato in Musica/Timbre</string>
+    <string name="saved_to_timbre_folder">Salvato in Musica/Timbre</string>
     <string name="nothing_downloading">Nessun download in corso</string>
     <string name="nothing_to_explore">Niente da esplorare al momento</string>
     <string name="no_youtube_music_results">Nessun risultato da YouTube Music</string>
@@ -707,7 +707,7 @@
     </plurals>
     <string name="no_local_albums">Niente qui appartiene ancora a un album o playlist. Scarica un album o una playlist completa e apparirà qui.</string>
     <string name="play_your_replay">Riproduci il tuo Replay</string>
-    <string name="counted_on_device_with_bitchord">Conteggiato su questo dispositivo con Timbre</string>
+    <string name="counted_on_device_with_timbre">Conteggiato su questo dispositivo con Timbre</string>
     <string name="this_month">Questo mese</string>
     <string name="this_year">Quest\'anno</string>
     <string name="all_time">Sempre</string>
@@ -1257,7 +1257,7 @@
     <string name="replay_period_monthly">Mensile</string>
     <string name="replay_period_yearly">Annuale</string>
     <string name="replay_period_lifetime">Di sempre</string>
-    <string name="onboarding_title">Milioni di brani, in streaming su BitChord</string>
+    <string name="onboarding_title">Milioni di brani, in streaming su Timbre</string>
     <string name="onboarding_name_prompt">Come vuoi che ti chiamiamo?</string>
     <string name="onboarding_name_hint">Il tuo nome</string>
     <string name="onboarding_name_footer">Gli amici lo vedono quando usi Ascolto condiviso. Potrai cambiarlo più tardi in Impostazioni.</string>
@@ -1267,7 +1267,7 @@
     <string name="onboarding_sign_in_google">Accedi con Google</string>
     <string name="onboarding_skip_sign_in">Salta l’accesso</string>
     <string name="onboarding_back">Indietro</string>
-    <string name="wear_os_section">BitChord per Wear OS</string>
+    <string name="wear_os_section">Timbre per Wear OS</string>
     <string name="wear_os_page_title">Wear OS</string>
     <string name="wear_os_your_watches">I tuoi orologi</string>
     <string name="wear_os_value_none">Nessun orologio</string>
@@ -1277,7 +1277,7 @@
     <string name="wear_os_no_watch">Nessun orologio connesso</string>
     <string name="wear_os_no_watch_subtitle">Prima associa un orologio Wear OS a questo telefono nella sua app companion.</string>
     <string name="wear_os_checking">Controllo in corso…</string>
-    <string name="wear_os_not_installed">BitChord non è su questo orologio</string>
+    <string name="wear_os_not_installed">Timbre non è su questo orologio</string>
     <string name="wear_os_up_to_date">Aggiornato · %1$s</string>
     <string name="wear_os_update_available">Aggiornamento disponibile</string>
     <string name="wear_os_unknown">Installato · impossibile controllare la versione</string>
@@ -1294,7 +1294,7 @@
     <string name="wear_os_searching">Ricerca del tuo orologio sul Wi-Fi…</string>
     <string name="wear_os_found">Orologio trovato</string>
     <string name="wear_os_pairing">Associazione in corso…</string>
-    <string name="wear_os_installing">Installazione di BitChord sul tuo orologio…</string>
+    <string name="wear_os_installing">Installazione di Timbre sul tuo orologio…</string>
     <string name="wear_os_installed">Installato. Puoi disattivare di nuovo il Debug wireless.</string>
     <string name="wear_os_failed">Non ha funzionato (%1$s). Controlla il codice e riprova.</string>
     <string name="wear_os_unsupported">L’installazione su un orologio richiede Android 11 o successivo su questo telefono.</string>

@@ -130,7 +130,7 @@
     <string name="widget_previous">前へ</string>
     <string name="widget_artwork">アルバムアート</string>
     <string name="widget_nothing_played">まだ何も再生されていません</string>
-    <string name="widget_open_bitchord">Timbreを開く</string>
+    <string name="widget_open_timbre">Timbreを開く</string>
     <string name="widget_preview_title">曲名</string>
     <string name="widget_preview_artist">アーティスト</string>
     <string name="widget_pill_label">再生中 4×1</string>
@@ -321,7 +321,7 @@
     <string name="downloads_finished">ダウンロード · 完了</string>
     <string name="downloading_progress">ダウンロード中 · %1$d%%</string>
     <string name="starting">開始しています</string>
-    <string name="saved_to_bitchord_folder">Music/Timbreに保存済み</string>
+    <string name="saved_to_timbre_folder">Music/Timbreに保存済み</string>
     <string name="nothing_downloading">ダウンロード中の項目はありません</string>
     <string name="nothing_to_explore">現在探索できるものはありません</string>
     <string name="no_youtube_music_results">YouTube Musicからの結果はありません</string>
@@ -639,7 +639,7 @@
     </plurals>
     <string name="no_local_albums">ここにはまだアルバムやプレイリストに属するものがありません。完全なアルバムやプレイリストをダウンロードするとここに表示されます。</string>
     <string name="play_your_replay">あなたのReplayを再生</string>
-    <string name="counted_on_device_with_bitchord">Timbreでこのデバイス内で集計</string>
+    <string name="counted_on_device_with_timbre">Timbreでこのデバイス内で集計</string>
     <string name="this_month">今月</string>
     <string name="this_year">今年</string>
     <string name="all_time">すべての期間</string>
@@ -1296,7 +1296,7 @@
     <string name="replay_period_monthly">月間</string>
     <string name="replay_period_yearly">年間</string>
     <string name="replay_period_lifetime">全期間</string>
-    <string name="onboarding_title">数百万曲を BitChord でストリーミング</string>
+    <string name="onboarding_title">数百万曲を Timbre でストリーミング</string>
     <string name="onboarding_name_prompt">どうお呼びしましょうか?</string>
     <string name="onboarding_name_hint">あなたの名前</string>
     <string name="onboarding_name_footer">いっしょに聴くを使うと、友だちにこの名前が表示されます。あとから設定で変更できます。</string>
@@ -1306,7 +1306,7 @@
     <string name="onboarding_sign_in_google">Googleでログイン</string>
     <string name="onboarding_skip_sign_in">ログインをスキップ</string>
     <string name="onboarding_back">戻る</string>
-    <string name="wear_os_section">Wear OS 向け BitChord</string>
+    <string name="wear_os_section">Wear OS 向け Timbre</string>
     <string name="wear_os_page_title">Wear OS</string>
     <string name="wear_os_your_watches">お使いのウォッチ</string>
     <string name="wear_os_value_none">ウォッチなし</string>
@@ -1316,7 +1316,7 @@
     <string name="wear_os_no_watch">接続されたウォッチがありません</string>
     <string name="wear_os_no_watch_subtitle">まず、ウォッチのコンパニオンアプリで Wear OS ウォッチをこのスマートフォンとペア設定してください。</string>
     <string name="wear_os_checking">確認中…</string>
-    <string name="wear_os_not_installed">このウォッチには BitChord がインストールされていません</string>
+    <string name="wear_os_not_installed">このウォッチには Timbre がインストールされていません</string>
     <string name="wear_os_up_to_date">最新 · %1$s</string>
     <string name="wear_os_update_available">アップデートあり</string>
     <string name="wear_os_unknown">インストール済み · バージョンを確認できませんでした</string>
@@ -1333,7 +1333,7 @@
     <string name="wear_os_searching">Wi-Fi でウォッチを検索中…</string>
     <string name="wear_os_found">ウォッチが見つかりました</string>
     <string name="wear_os_pairing">ペア設定中…</string>
-    <string name="wear_os_installing">ウォッチに BitChord をインストール中…</string>
+    <string name="wear_os_installing">ウォッチに Timbre をインストール中…</string>
     <string name="wear_os_installed">インストールしました。ワイヤレスデバッグはオフに戻して構いません。</string>
     <string name="wear_os_failed">うまくいきませんでした（%1$s）。コードを確認してもう一度お試しください。</string>
     <string name="wear_os_unsupported">ウォッチへのインストールには、このスマートフォンが Android 11 以降である必要があります。</string>

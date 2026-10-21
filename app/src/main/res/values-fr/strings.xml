@@ -136,7 +136,7 @@
     <string name="widget_previous">Précédent</string>
     <string name="widget_artwork">Pochette d\'album</string>
     <string name="widget_nothing_played">Rien n\'a encore été joué</string>
-    <string name="widget_open_bitchord">Ouvrir Timbre</string>
+    <string name="widget_open_timbre">Ouvrir Timbre</string>
     <string name="widget_preview_title">Titre de la chanson</string>
     <string name="widget_preview_artist">Artiste</string>
     <string name="widget_pill_label">Lecture en cours 4×1</string>
@@ -327,7 +327,7 @@
     <string name="downloads_finished">Téléchargements · terminés</string>
     <string name="downloading_progress">Téléchargement · %1$d%%</string>
     <string name="starting">Démarrage</string>
-    <string name="saved_to_bitchord_folder">Enregistrée dans Musique/Timbre</string>
+    <string name="saved_to_timbre_folder">Enregistrée dans Musique/Timbre</string>
     <string name="nothing_downloading">Aucun téléchargement en cours</string>
     <string name="nothing_to_explore">Rien à explorer pour le moment</string>
     <string name="no_youtube_music_results">Aucun résultat de YouTube Music</string>
@@ -660,7 +660,7 @@
     </plurals>
     <string name="no_local_albums">Rien ici n\'appartient encore à un album ou à une playlist. Téléchargez un album complet ou une playlist et il apparaîtra ici.</string>
     <string name="play_your_replay">Lire votre Replay</string>
-    <string name="counted_on_device_with_bitchord">Calculé sur cet appareil avec Timbre</string>
+    <string name="counted_on_device_with_timbre">Calculé sur cet appareil avec Timbre</string>
     <string name="this_month">Ce mois-ci</string>
     <string name="this_year">Cette année</string>
     <string name="all_time">Depuis toujours</string>
@@ -1319,7 +1319,7 @@
     <string name="replay_period_monthly">Mensuel</string>
     <string name="replay_period_yearly">Annuel</string>
     <string name="replay_period_lifetime">À vie</string>
-    <string name="onboarding_title">Des millions de titres à écouter sur BitChord</string>
+    <string name="onboarding_title">Des millions de titres à écouter sur Timbre</string>
     <string name="onboarding_name_prompt">Comment devons-nous vous appeler ?</string>
     <string name="onboarding_name_hint">Votre nom</string>
     <string name="onboarding_name_footer">Vos amis le voient quand vous utilisez Écoute partagée. Vous pourrez le modifier plus tard dans les Réglages.</string>
@@ -1329,7 +1329,7 @@
     <string name="onboarding_sign_in_google">Se connecter avec Google</string>
     <string name="onboarding_skip_sign_in">Passer la connexion</string>
     <string name="onboarding_back">Retour</string>
-    <string name="wear_os_section">BitChord pour Wear OS</string>
+    <string name="wear_os_section">Timbre pour Wear OS</string>
     <string name="wear_os_page_title">Wear OS</string>
     <string name="wear_os_your_watches">Vos montres</string>
     <string name="wear_os_value_none">Aucune montre</string>
@@ -1339,7 +1339,7 @@
     <string name="wear_os_no_watch">Aucune montre connectée</string>
     <string name="wear_os_no_watch_subtitle">Associez d\'abord une montre Wear OS à ce téléphone dans son application compagnon.</string>
     <string name="wear_os_checking">Vérification…</string>
-    <string name="wear_os_not_installed">BitChord n\'est pas sur cette montre</string>
+    <string name="wear_os_not_installed">Timbre n\'est pas sur cette montre</string>
     <string name="wear_os_up_to_date">À jour · %1$s</string>
     <string name="wear_os_update_available">Mise à jour disponible</string>
     <string name="wear_os_unknown">Installé · version impossible à vérifier</string>
@@ -1356,7 +1356,7 @@
     <string name="wear_os_searching">Recherche de votre montre sur le Wi-Fi…</string>
     <string name="wear_os_found">Montre trouvée</string>
     <string name="wear_os_pairing">Association…</string>
-    <string name="wear_os_installing">Installation de BitChord sur votre montre…</string>
+    <string name="wear_os_installing">Installation de Timbre sur votre montre…</string>
     <string name="wear_os_installed">Installé. Vous pouvez désactiver à nouveau le débogage sans fil.</string>
     <string name="wear_os_failed">Ça n\'a pas fonctionné (%1$s). Vérifiez le code et réessayez.</string>
     <string name="wear_os_unsupported">L\'installation sur une montre nécessite Android 11 ou version ultérieure sur ce téléphone.</string>

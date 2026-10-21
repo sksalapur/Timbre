@@ -135,7 +135,7 @@
     <string name="widget_previous">पिछला</string>
     <string name="widget_artwork">एल्बम आर्ट</string>
     <string name="widget_nothing_played">अभी तक कुछ नहीं चलाया गया</string>
-    <string name="widget_open_bitchord">Timbre खोलें</string>
+    <string name="widget_open_timbre">Timbre खोलें</string>
     <string name="widget_preview_title">गाने का शीर्षक</string>
     <string name="widget_preview_artist">कलाकार</string>
     <string name="widget_pill_label">अभी चल रहा है 4×1</string>
@@ -326,7 +326,7 @@
     <string name="downloads_finished">डाउनलोड · पूरे हुए</string>
     <string name="downloading_progress">डाउनलोड हो रहा है · %1$d%%</string>
     <string name="starting">शुरू हो रहा है</string>
-    <string name="saved_to_bitchord_folder">Music/Timbre में सेव किया गया</string>
+    <string name="saved_to_timbre_folder">Music/Timbre में सेव किया गया</string>
     <string name="nothing_downloading">कुछ भी डाउनलोड नहीं हो रहा</string>
     <string name="nothing_to_explore">अभी एक्सप्लोर करने के लिए कुछ नहीं है</string>
     <string name="no_youtube_music_results">YouTube Music से कोई नतीजे नहीं मिले</string>
@@ -659,7 +659,7 @@
     </plurals>
     <string name="no_local_albums">यहां अभी तक कुछ भी किसी एल्बम या प्लेलिस्ट का हिस्सा नहीं है। पूरा एल्बम या प्लेलिस्ट डाउनलोड करें और यह यहां दिखेगा।</string>
     <string name="play_your_replay">अपना Replay चलाएं</string>
-    <string name="counted_on_device_with_bitchord">इस डिवाइस पर Timbre के साथ गिना गया</string>
+    <string name="counted_on_device_with_timbre">इस डिवाइस पर Timbre के साथ गिना गया</string>
     <string name="this_month">इस महीने</string>
     <string name="this_year">इस साल</string>
     <string name="all_time">अब तक</string>
@@ -1318,7 +1318,7 @@
     <string name="replay_period_monthly">मासिक</string>
     <string name="replay_period_yearly">वार्षिक</string>
     <string name="replay_period_lifetime">सर्वकालिक</string>
-    <string name="onboarding_title">लाखों गाने, BitChord पर स्ट्रीम करें</string>
+    <string name="onboarding_title">लाखों गाने, Timbre पर स्ट्रीम करें</string>
     <string name="onboarding_name_prompt">हम आपको क्या कहकर बुलाएँ?</string>
     <string name="onboarding_name_hint">आपका नाम</string>
     <string name="onboarding_name_footer">साथ सुनें इस्तेमाल करने पर दोस्तों को यह दिखता है। इसे बाद में सेटिंग में बदला जा सकता है।</string>
@@ -1328,7 +1328,7 @@
     <string name="onboarding_sign_in_google">Google से साइन इन करें</string>
     <string name="onboarding_skip_sign_in">साइन इन छोड़ें</string>
     <string name="onboarding_back">वापस</string>
-    <string name="wear_os_section">Wear OS के लिए BitChord</string>
+    <string name="wear_os_section">Wear OS के लिए Timbre</string>
     <string name="wear_os_page_title">Wear OS</string>
     <string name="wear_os_your_watches">आपकी घड़ियाँ</string>
     <string name="wear_os_value_none">कोई घड़ी नहीं</string>
@@ -1338,7 +1338,7 @@
     <string name="wear_os_no_watch">कोई घड़ी कनेक्ट नहीं है</string>
     <string name="wear_os_no_watch_subtitle">पहले Wear OS घड़ी को उसके कंपेनियन ऐप में इस फ़ोन से पेयर करें।</string>
     <string name="wear_os_checking">जाँच हो रही है…</string>
-    <string name="wear_os_not_installed">BitChord इस घड़ी पर नहीं है</string>
+    <string name="wear_os_not_installed">Timbre इस घड़ी पर नहीं है</string>
     <string name="wear_os_up_to_date">अप-टू-डेट · %1$s</string>
     <string name="wear_os_update_available">अपडेट उपलब्ध है</string>
     <string name="wear_os_unknown">इंस्टॉल है · वर्शन की जाँच नहीं हो सकी</string>
@@ -1355,7 +1355,7 @@
     <string name="wear_os_searching">Wi-Fi पर आपकी घड़ी खोजी जा रही है…</string>
     <string name="wear_os_found">आपकी घड़ी मिल गई</string>
     <string name="wear_os_pairing">पेयर हो रहा है…</string>
-    <string name="wear_os_installing">आपकी घड़ी पर BitChord इंस्टॉल हो रहा है…</string>
+    <string name="wear_os_installing">आपकी घड़ी पर Timbre इंस्टॉल हो रहा है…</string>
     <string name="wear_os_installed">इंस्टॉल हो गया। अब आप वायरलेस डीबगिंग फिर से बंद कर सकते हैं।</string>
     <string name="wear_os_failed">यह काम नहीं किया (%1$s)। कोड जाँचें और फिर कोशिश करें।</string>
     <string name="wear_os_unsupported">घड़ी पर इंस्टॉल करने के लिए इस फ़ोन में Android 11 या उसके बाद का वर्शन चाहिए।</string>

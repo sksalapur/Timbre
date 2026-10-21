@@ -137,7 +137,7 @@
     <string name="widget_previous">הקודם</string>
     <string name="widget_artwork">עטיפת אלבום</string>
     <string name="widget_nothing_played">עדיין לא הושמע דבר</string>
-    <string name="widget_open_bitchord">פתיחת Timbre</string>
+    <string name="widget_open_timbre">פתיחת Timbre</string>
     <string name="widget_preview_title">שם השיר</string>
     <string name="widget_preview_artist">אמן</string>
     <string name="widget_pill_label">מתנגן כעת 4×1</string>
@@ -327,7 +327,7 @@
     <string name="downloads_finished">הורדות · הסתיימו</string>
     <string name="downloading_progress">מוריד · %1$d%%</string>
     <string name="starting">מתחיל</string>
-    <string name="saved_to_bitchord_folder">נשמר ב-Music/Timbre</string>
+    <string name="saved_to_timbre_folder">נשמר ב-Music/Timbre</string>
     <string name="nothing_downloading">שום דבר לא יורד</string>
     <string name="nothing_to_explore">אין מה לחקור כרגע</string>
     <string name="no_youtube_music_results">אין תוצאות מ-YouTube Music</string>
@@ -607,7 +607,7 @@
     <string name="no_listening_history">אין היסטוריית האזנה</string>
     <string name="no_local_albums">שום דבר כאן לא שייך עדיין לאלבום או רשימת השמעה. הורד אלבום מלא או רשימת השמעה והם יופיעו כאן.</string>
     <string name="play_your_replay">הפעל את ה-Replay שלך</string>
-    <string name="counted_on_device_with_bitchord">נספר במכשיר זה עם Timbre</string>
+    <string name="counted_on_device_with_timbre">נספר במכשיר זה עם Timbre</string>
     <string name="this_month">החודש</string>
     <string name="this_year">השנה</string>
     <string name="all_time">כל הזמן</string>
@@ -1323,7 +1323,7 @@
     <string name="replay_period_monthly">חודשי</string>
     <string name="replay_period_yearly">שנתי</string>
     <string name="replay_period_lifetime">כל הזמן</string>
-    <string name="onboarding_title">מיליוני שירים, בסטרימינג ב-BitChord</string>
+    <string name="onboarding_title">מיליוני שירים, בסטרימינג ב-Timbre</string>
     <string name="onboarding_name_prompt">איך לקרוא לך?</string>
     <string name="onboarding_name_hint">השם שלך</string>
     <string name="onboarding_name_footer">חברים רואים את זה כשמאזינים יחד. אפשר לשנות זאת מאוחר יותר בהגדרות.</string>
@@ -1333,7 +1333,7 @@
     <string name="onboarding_sign_in_google">התחברות עם Google</string>
     <string name="onboarding_skip_sign_in">דילוג על ההתחברות</string>
     <string name="onboarding_back">חזרה</string>
-    <string name="wear_os_section">BitChord ל-Wear OS</string>
+    <string name="wear_os_section">Timbre ל-Wear OS</string>
     <string name="wear_os_page_title">Wear OS</string>
     <string name="wear_os_your_watches">השעונים שלך</string>
     <string name="wear_os_value_none">אין שעון</string>
@@ -1343,7 +1343,7 @@
     <string name="wear_os_no_watch">אין שעון מחובר</string>
     <string name="wear_os_no_watch_subtitle">קודם צריך לצמד שעון Wear OS לטלפון הזה באפליקציית הליווי שלו.</string>
     <string name="wear_os_checking">בודק…</string>
-    <string name="wear_os_not_installed">BitChord לא מותקן בשעון הזה</string>
+    <string name="wear_os_not_installed">Timbre לא מותקן בשעון הזה</string>
     <string name="wear_os_up_to_date">מעודכן · %1$s</string>
     <string name="wear_os_update_available">יש עדכון זמין</string>
     <string name="wear_os_unknown">מותקן · לא ניתן היה לבדוק את הגרסה</string>
@@ -1360,7 +1360,7 @@
     <string name="wear_os_searching">מחפש את השעון שלך ב-Wi-Fi…</string>
     <string name="wear_os_found">השעון שלך נמצא</string>
     <string name="wear_os_pairing">מצמד…</string>
-    <string name="wear_os_installing">מתקין את BitChord בשעון שלך…</string>
+    <string name="wear_os_installing">מתקין את Timbre בשעון שלך…</string>
     <string name="wear_os_installed">ההתקנה הושלמה. אפשר לכבות שוב את ניפוי הבאגים האלחוטי.</string>
     <string name="wear_os_failed">זה לא עבד (%1$s). בדקו את הקוד ונסו שוב.</string>
     <string name="wear_os_unsupported">התקנה בשעון דורשת Android 11 ומעלה בטלפון הזה.</string>

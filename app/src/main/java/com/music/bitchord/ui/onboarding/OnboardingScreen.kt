@@ -15,6 +15,7 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -62,10 +63,14 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -78,19 +83,41 @@ import com.music.bitchord.ui.icons.BitChordIcons
 import com.music.bitchord.ui.player.MeshGradientBackground
 import com.music.bitchord.ui.player.MESH_CYCLE_MILLIS
 import com.music.bitchord.ui.player.MeshPalette
-import com.music.bitchord.ui.player.WelcomeMeshPalettes
 import com.music.bitchord.ui.player.cyclingMeshPalette
+
+/** Timbre signature brand colors */
+private val TimbreCyan = Color(0xFF00E5FF)
+private val TimbreCyanMuted = Color(0xFF00B0FF)
+private val TimbreSapphire = Color(0xFF0D47A1)
+private val TimbreObsidian = Color(0xFF07090E)
+
+/**
+ * Timbre signature audiophile mesh palettes: electric cyan, cobalt sapphire,
+ * emerald hi-res, and deep obsidian black.
+ * Replaces upstream BitChord red, pink, and ember gradients with Timbre's dark studio identity.
+ */
+private val TimbreWelcomePalettes: List<MeshPalette> = listOf(
+    // Timbre Signature: Electric Cyan, Deep Sapphire, Studio Violet Glow, Obsidian Abyss
+    MeshPalette(listOf(Color(0xFF00E5FF), Color(0xFF0D47A1), Color(0xFF7C4DFF), Color(0xFF07090E))),
+    // Ocean Hi-Res: Sky Cyan, Royal Navy, Deep Teal, Midnight
+    MeshPalette(listOf(Color(0xFF00B0FF), Color(0xFF1565C0), Color(0xFF00BFA5), Color(0xFF0A1128))),
+    // Aurora Studio: Hi-Res Emerald, Cyan Glow, Deep Cobalt, Cosmic Indigo
+    MeshPalette(listOf(Color(0xFF00E676), Color(0xFF00E5FF), Color(0xFF311B92), Color(0xFF07090E))),
+    // Deep Master: Electric Azure, Radiant Purple, Sapphire, Dark Void
+    MeshPalette(listOf(Color(0xFF29B6F6), Color(0xFF651FFF), Color(0xFF1E88E5), Color(0xFF050B14))),
+)
+
+/** The account connect page: blends YouTube connection with Timbre's signature sapphire & cyan backdrop. */
+private val TimbreConnectPalettes: List<MeshPalette> = listOf(
+    MeshPalette(listOf(Color(0xFFE53935), Color(0xFF00E5FF), Color(0xFF1E88E5), Color(0xFF07090E))),
+    MeshPalette(listOf(Color(0xFFFF3D00), Color(0xFF0D47A1), Color(0xFF7C4DFF), Color(0xFF0A1128))),
+    MeshPalette(listOf(Color(0xFFD32F2F), Color(0xFF00B0FF), Color(0xFF311B92), Color(0xFF050B14))),
+    MeshPalette(listOf(Color(0xFFFF5252), Color(0xFF00E5FF), Color(0xFF1565C0), Color(0xFF07090E))),
+)
 
 /**
  * The two welcome pages: a name for Listen Together, then the YouTube sign-in.
- *
- * Shown once — to new installs and, because the flag it sets is new, to anyone
- * updating from a build without it. The second page is skipped for an account
- * that is already signed in; asking somebody to connect what is connected
- * reads as the app having forgotten them.
- *
- * Always drawn dark, whatever the theme, for the same reason Replay is: the
- * mesh is colour, and white type is what sits on colour.
+ * Styled in Timbre's audiophile dark theme with glowing cyan accents and bit-perfect aesthetics.
  */
 @Composable
 fun OnboardingScreen(
@@ -108,23 +135,17 @@ fun OnboardingScreen(
     val focusManager = LocalFocusManager.current
 
     BackHandler(enabled = page == PAGE_CONNECT) { page = PAGE_NAME }
-    // "Sign in with Google" goes through the app's own sign-in WebView, raised
-    // over this page; the account landing is what ends the welcome.
     LaunchedEffect(signedIn, page) {
         if (signedIn && page == PAGE_CONNECT) onFinish()
     }
 
-    // The mesh never settles on one palette: each crossfade is as long as the
-    // hold, so one runs straight into the next.
-    val palette = cyclingMeshPalette(if (page == PAGE_NAME) WelcomeMeshPalettes else ConnectPalettes)
+    // Cycles through Timbre's dark audiophile cyan/sapphire mesh palettes
+    val palette = cyclingMeshPalette(if (page == PAGE_NAME) TimbreWelcomePalettes else TimbreConnectPalettes)
 
     Box(
         modifier
             .fillMaxSize()
-            .background(Color.Black)
-            // Swallows every touch the pages don't, so nothing reaches the app
-            // laid out underneath — and a tap on the backdrop puts the keyboard
-            // away, which is where a thumb goes to dismiss one.
+            .background(TimbreObsidian)
             .pointerInput(Unit) { detectTapGestures { focusManager.clearFocus() } },
     ) {
         MeshGradientBackground(
@@ -134,16 +155,14 @@ fun OnboardingScreen(
             driftMillis = 6_000,
             colorFadeMillis = MESH_CYCLE_MILLIS,
         )
-        // The mesh carries its own light scrim for a player's controls; two
-        // full-width buttons and a paragraph want the foot of it a shade deeper.
         Box(
             Modifier
                 .fillMaxSize()
                 .background(
                     Brush.verticalGradient(
-                        0f to Color.Black.copy(alpha = 0.05f),
+                        0f to Color.Black.copy(alpha = 0.15f),
                         0.55f to Color.Transparent,
-                        1f to Color.Black.copy(alpha = 0.45f),
+                        1f to Color.Black.copy(alpha = 0.55f),
                     ),
                 ),
         )
@@ -188,7 +207,6 @@ fun OnboardingScreen(
     }
 }
 
-/** The column every page is laid out in, capped so a tablet doesn't stretch it. */
 @Composable
 private fun OnboardingPage(content: @Composable ColumnScope.() -> Unit) {
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
@@ -209,8 +227,6 @@ private fun ColumnScope.NamePage(
     onNameChange: (String) -> Unit,
     onNext: () -> Unit,
 ) {
-    // With the keyboard up there is room for the title or the logo, not both;
-    // the title is the one that says where you are.
     val keyboardUp = WindowInsets.isImeVisible
     AnimatedVisibility(
         visible = !keyboardUp,
@@ -219,9 +235,10 @@ private fun ColumnScope.NamePage(
     ) {
         Column {
             Spacer(Modifier.height(56.dp))
-            Image(
+            Icon(
                 painter = painterResource(Res.drawable.ic_logo),
-                contentDescription = null,
+                contentDescription = "Timbre",
+                tint = TimbreCyan,
                 modifier = Modifier.size(width = 46.dp, height = 30.dp),
             )
         }
@@ -235,7 +252,7 @@ private fun ColumnScope.NamePage(
         text = stringResource(R.string.onboarding_name_prompt),
         style = MaterialTheme.typography.titleMedium,
         fontSize = 17.sp,
-        color = Color.White.copy(alpha = 0.78f),
+        color = Color.White.copy(alpha = 0.85f),
         modifier = Modifier.padding(start = 4.dp),
     )
     Spacer(Modifier.height(12.dp))
@@ -253,6 +270,8 @@ private fun ColumnScope.NamePage(
         onClick = onNext,
         enabled = name.isNotBlank(),
         primary = true,
+        primaryColor = TimbreCyan,
+        primaryTextColor = TimbreObsidian,
     )
     Spacer(Modifier.height(16.dp))
 }
@@ -273,7 +292,7 @@ private fun ColumnScope.ConnectPage(
         style = MaterialTheme.typography.bodyLarge,
         fontSize = 17.sp,
         lineHeight = 23.sp,
-        color = Color.White.copy(alpha = 0.72f),
+        color = Color.White.copy(alpha = 0.75f),
     )
 
     Spacer(Modifier.weight(1f))
@@ -282,6 +301,8 @@ private fun ColumnScope.ConnectPage(
         label = stringResource(R.string.onboarding_sign_in_google),
         onClick = onSignIn,
         primary = true,
+        primaryColor = Color.White,
+        primaryTextColor = Color.Black,
         leading = {
             Image(
                 painter = painterResource(Res.drawable.ic_google_g),
@@ -299,11 +320,28 @@ private fun ColumnScope.ConnectPage(
     Spacer(Modifier.height(16.dp))
 }
 
-/** Replay's heading, scaled up: the one line each page exists to say. */
+/** Timbre heading with brand accent highlight */
 @Composable
 private fun Title(text: String) {
+    val annotated = remember(text) {
+        if (text.contains("Timbre")) {
+            val parts = text.split("Timbre")
+            buildAnnotatedString {
+                for (i in parts.indices) {
+                    append(parts[i])
+                    if (i < parts.size - 1) {
+                        withStyle(SpanStyle(color = TimbreCyan, fontWeight = FontWeight.W900)) {
+                            append("Timbre")
+                        }
+                    }
+                }
+            }
+        } else {
+            AnnotatedString(text)
+        }
+    }
     Text(
-        text = text,
+        text = annotated,
         style = MaterialTheme.typography.displayLarge.copy(
             fontSize = 40.sp,
             lineHeight = 44.sp,
@@ -314,8 +352,7 @@ private fun Title(text: String) {
 }
 
 /**
- * The name, set in the heading's own face and weight so what you type reads
- * as part of the page rather than a form on top of it.
+ * Text field with sleek Timbre cyan focus border and cyan cursor.
  */
 @Composable
 private fun NameField(value: String, onValueChange: (String) -> Unit, onDone: () -> Unit) {
@@ -330,7 +367,12 @@ private fun NameField(value: String, onValueChange: (String) -> Unit, onDone: ()
             .fillMaxWidth()
             .height(64.dp)
             .clip(CircleShape)
-            .background(Color.White.copy(alpha = 0.14f))
+            .background(Color.White.copy(alpha = 0.12f))
+            .border(
+                1.dp,
+                if (value.isNotEmpty()) TimbreCyan.copy(alpha = 0.65f) else Color.White.copy(alpha = 0.18f),
+                CircleShape,
+            )
             .padding(horizontal = 24.dp),
         contentAlignment = Alignment.CenterStart,
     ) {
@@ -347,7 +389,7 @@ private fun NameField(value: String, onValueChange: (String) -> Unit, onDone: ()
             onValueChange = onValueChange,
             singleLine = true,
             textStyle = style,
-            cursorBrush = SolidColor(Color.White),
+            cursorBrush = SolidColor(TimbreCyan),
             keyboardOptions = KeyboardOptions(
                 capitalization = KeyboardCapitalization.Words,
                 autoCorrectEnabled = false,
@@ -360,9 +402,7 @@ private fun NameField(value: String, onValueChange: (String) -> Unit, onDone: ()
 }
 
 /**
- * A full-width capsule. Primary is white on the mesh, the way Apple Music's
- * own welcome sheet does it; secondary is the same shape in frosted white, so
- * the pair reads as a choice rather than a button and an afterthought.
+ * Full-width capsule pill button with customizable primary theme accent.
  */
 @Composable
 private fun PillButton(
@@ -370,6 +410,8 @@ private fun PillButton(
     onClick: () -> Unit,
     primary: Boolean,
     enabled: Boolean = true,
+    primaryColor: Color = Color.White,
+    primaryTextColor: Color = Color.Black,
     leading: (@Composable () -> Unit)? = null,
 ) {
     val interaction = remember { MutableInteractionSource() }
@@ -386,7 +428,7 @@ private fun PillButton(
                 this.alpha = alpha
             }
             .clip(CircleShape)
-            .background(if (primary) Color.White else Color.White.copy(alpha = 0.16f))
+            .background(if (primary) primaryColor else Color.White.copy(alpha = 0.16f))
             .clickable(
                 interactionSource = interaction,
                 indication = null,
@@ -405,7 +447,7 @@ private fun PillButton(
             style = MaterialTheme.typography.titleMedium,
             fontSize = 17.sp,
             fontWeight = FontWeight.W700,
-            color = if (primary) Color.Black else Color.White,
+            color = if (primary) primaryTextColor else Color.White,
             textAlign = TextAlign.Center,
             maxLines = 1,
         )
@@ -435,14 +477,4 @@ private fun BackButton(onClick: () -> Unit) {
 
 private const val PAGE_NAME = 0
 private const val PAGE_CONNECT = 1
-
-/** Long enough for a full name; the party server keeps the first 80. */
 private const val NAME_LIMIT = 40
-
-/** The account page keeps leaning into YouTube's red while it moves. */
-private val ConnectPalettes = listOf(
-    MeshPalette(listOf(Color(0xFFFF1E3C), Color(0xFFC2185B), Color(0xFFFF8F3D), Color(0xFF4A1C8C))),
-    MeshPalette(listOf(Color(0xFFE53935), Color(0xFFFF6E40), Color(0xFFAD1457), Color(0xFF311B92))),
-    MeshPalette(listOf(Color(0xFFFF3D00), Color(0xFFD81B60), Color(0xFF8E24AA), Color(0xFFB71C1C))),
-    MeshPalette(listOf(Color(0xFFF50057), Color(0xFFFF9100), Color(0xFFC51162), Color(0xFF4527A0))),
-)
