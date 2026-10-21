@@ -1,12 +1,12 @@
 package com.music.bitchord.ui.screens
 
+import com.music.bitchord.wear.WatchInstaller
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.material.icons.rounded.Apps
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.viewinterop.AndroidView
 import com.music.bitchord.AppIcon
-
 import android.content.Context
 import android.content.Intent
 import android.media.AudioFormat
@@ -21,12 +21,14 @@ import androidx.compose.foundation.border
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -44,6 +46,7 @@ import androidx.compose.material.icons.automirrored.rounded.QueueMusic
 import androidx.compose.material.icons.automirrored.rounded.Notes
 import androidx.compose.material.icons.automirrored.rounded.VolumeOff
 import androidx.compose.material.icons.rounded.Animation
+import androidx.compose.material.icons.rounded.Apps
 import androidx.compose.material.icons.rounded.BarChart
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Diamond
@@ -85,6 +88,7 @@ import androidx.compose.material.icons.rounded.LocalOffer
 import androidx.compose.material.icons.rounded.MusicOff
 import androidx.compose.material.icons.rounded.MotionPhotosOff
 import androidx.compose.material.icons.rounded.Extension
+import androidx.compose.material.icons.rounded.Draw
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.PlaylistPlay
 import androidx.compose.material.icons.rounded.SignalCellularAlt
@@ -93,6 +97,7 @@ import androidx.compose.material.icons.rounded.Storage
 import androidx.compose.material.icons.rounded.SurroundSound
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material.icons.rounded.VolumeOff
+import androidx.compose.material.icons.rounded.WebAssetOff
 import androidx.compose.material.icons.rounded.VolumeUp
 import androidx.compose.material.icons.rounded.Waves
 import androidx.compose.material.icons.rounded.Wifi
@@ -125,6 +130,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -134,6 +140,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.viewinterop.AndroidView
+import com.music.bitchord.AppIcon
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.SpanStyle
@@ -212,8 +221,10 @@ fun SettingsScreen(
     onTranslationLanguage: () -> Unit,
     onSources: () -> Unit,
     onListenTogether: () -> Unit,
+    onWearOs: () -> Unit,
     onSpotifyCanvasAuth: () -> Unit,
     onAppLanguage: () -> Unit,
+    onEditSignatureApi: () -> Unit,
     contentPadding: PaddingValues,
     modifier: Modifier = Modifier,
 ) {
@@ -240,6 +251,8 @@ fun SettingsScreen(
     val lyricsBlur by AppSettings.lyricsBlur.collectAsStateWithLifecycle()
     val animatedCanvas by AppSettings.animatedCanvas.collectAsStateWithLifecycle()
     val canvasOverCellular by AppSettings.canvasOverCellular.collectAsStateWithLifecycle()
+    val signatureApiEnabled by AppSettings.signatureApiEnabled.collectAsStateWithLifecycle()
+    val signatureApiUrl by AppSettings.signatureApiUrl.collectAsStateWithLifecycle()
     val fullBleedArtwork by AppSettings.fullBleedArtwork.collectAsStateWithLifecycle()
     val legacyMeshGradient by AppSettings.legacyMeshGradient.collectAsStateWithLifecycle()
     val syncedLyrics by AppSettings.syncedLyrics.collectAsStateWithLifecycle()
@@ -405,7 +418,9 @@ fun SettingsScreen(
     val exportDownloads by AppSettings.exportDownloads.collectAsStateWithLifecycle()
     val stopOnTaskRemoved by AppSettings.stopOnTaskRemoved.collectAsStateWithLifecycle()
     val hideVolumeBar by AppSettings.hideVolumeBar.collectAsStateWithLifecycle()
+    val hideStatusBarInPlayer by AppSettings.hideStatusBarInPlayer.collectAsStateWithLifecycle()
     val hideSongStatus by AppSettings.hideSongStatus.collectAsStateWithLifecycle()
+    val showQueueHistory by AppSettings.showQueueHistory.collectAsStateWithLifecycle()
     val swipeToPlayNext by AppSettings.swipeToPlayNext.collectAsStateWithLifecycle()
     val dontRepeatSuggestions by AppSettings.dontRepeatSuggestions.collectAsStateWithLifecycle()
     val preferMusicOnly by AppSettings.preferMusicOnly.collectAsStateWithLifecycle()
@@ -448,7 +463,8 @@ fun SettingsScreen(
 
     // Filters the rows below — see [SettingsSearch]. Blank shows everything,
     // exactly as if the field weren't there.
-    var searchQuery by remember { mutableStateOf("") }
+    // Saveable so a search survives a trip into one of the pages it found.
+    var searchQuery by rememberSaveable { mutableStateOf("") }
     var picking by remember { mutableStateOf<QualityTarget?>(null) }
     var pickingDownloadQuality by remember { mutableStateOf(false) }
     var pickingAutomixPerformance by remember { mutableStateOf(false) }
@@ -542,9 +558,10 @@ fun SettingsScreen(
     val scrollState = rememberSaveable(saver = ScrollState.Saver) { ScrollState(0) }
     var isFirstSearchComposition by remember { mutableStateOf(true) }
     LaunchedEffect(searchQuery) {
-        if (isFirstSearchComposition && searchQuery.isEmpty()) {
-            // Skip the initial composition during Activity recreation:
-            // rememberSaveable already restored the scroll position.
+        if (isFirstSearchComposition) {
+            // Skip the initial composition — on Activity recreation, and on
+            // coming back from a page opened here: rememberSaveable already
+            // restored the scroll position and the query it belongs to.
             isFirstSearchComposition = false
         } else {
             isFirstSearchComposition = false
@@ -1380,6 +1397,49 @@ fun SettingsScreen(
                     }
                 }
             }
+            val artistSignaturesTitle = stringResource(R.string.artist_signatures)
+            row(artistSignaturesTitle, "signature", "artist", "logo") {
+                SettingsRow(
+                    icon = Icons.Rounded.Draw,
+                    title = artistSignaturesTitle,
+                    subtitle = stringResource(R.string.artist_signatures_subtitle),
+                    trailing = {
+                        Switch(
+                            checked = signatureApiEnabled,
+                            onCheckedChange = AppSettings::setSignatureApiEnabled,
+                            colors = SwitchDefaults.colors(
+                                checkedTrackColor = MaterialTheme.colorScheme.primary,
+                                checkedBorderColor = MaterialTheme.colorScheme.primary,
+                            ),
+                        )
+                    },
+                    onClick = { AppSettings.setSignatureApiEnabled(!signatureApiEnabled) },
+                )
+            }
+            if (signatureApiEnabled) {
+                val signatureUrlTitle = stringResource(R.string.artist_signatures_url)
+                row(signatureUrlTitle, "signature", "api", "url", divided = false) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable(onClick = onEditSignatureApi)
+                            .padding(start = ROW_INSET, end = ROW_INSET, top = 4.dp, bottom = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            text = signatureApiUrl.ifBlank {
+                                stringResource(R.string.artist_signatures_unconfigured)
+                            },
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onBackground,
+                            modifier = Modifier.weight(1f),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        Chevron()
+                    }
+                }
+            }
             val syncedLyricsTitle = stringResource(R.string.synced_lyrics)
             // Same reasoning as Animated cover art above: the lyrics source and
             // translation rows are only here while this is on.
@@ -1631,6 +1691,15 @@ fun SettingsScreen(
             }
         }
 
+        // Only in a build that carries the watch app — see app/build.gradle.kts.
+        if (remember { WatchInstaller.available(context) }) {
+            SearchableSettingsGroup(search) {
+                row(stringResource(R.string.wear_os_section), "watch", "wear os", "galaxy watch", "pixel watch", "install") {
+                    WearOsSettingsRow(onClick = onWearOs)
+                }
+            }
+        }
+
         SearchableSettingsGroup(search, header = stringResource(R.string.your_data)) {
             val replayTitle = stringResource(R.string.replay)
             row(replayTitle, "stats", "history", "wrapped") {
@@ -1767,6 +1836,44 @@ fun SettingsScreen(
                     onClick = { AppSettings.setHideVolumeBar(!hideVolumeBar) },
                 )
             }
+            val hideStatusBarTitle = stringResource(R.string.hide_status_bar_in_player)
+            row(hideStatusBarTitle, "status bar", "immersive", "fullscreen", "player") {
+                SettingsRow(
+                    icon = Icons.Rounded.WebAssetOff,
+                    title = hideStatusBarTitle,
+                    subtitle = stringResource(R.string.hide_status_bar_in_player_subtitle),
+                    trailing = {
+                        Switch(
+                            checked = hideStatusBarInPlayer,
+                            onCheckedChange = AppSettings::setHideStatusBarInPlayer,
+                            colors = SwitchDefaults.colors(
+                                checkedTrackColor = MaterialTheme.colorScheme.primary,
+                                checkedBorderColor = MaterialTheme.colorScheme.primary,
+                            ),
+                        )
+                    },
+                    onClick = { AppSettings.setHideStatusBarInPlayer(!hideStatusBarInPlayer) },
+                )
+            }
+            val showQueueHistoryTitle = stringResource(R.string.show_queue_history)
+            row(showQueueHistoryTitle, "player", "queue", "history", "previously played") {
+                SettingsRow(
+                    icon = Icons.Rounded.History,
+                    title = showQueueHistoryTitle,
+                    subtitle = stringResource(R.string.show_queue_history_subtitle),
+                    trailing = {
+                        Switch(
+                            checked = showQueueHistory,
+                            onCheckedChange = AppSettings::setShowQueueHistory,
+                            colors = SwitchDefaults.colors(
+                                checkedTrackColor = MaterialTheme.colorScheme.primary,
+                                checkedBorderColor = MaterialTheme.colorScheme.primary,
+                            ),
+                        )
+                    },
+                    onClick = { AppSettings.setShowQueueHistory(!showQueueHistory) },
+                )
+            }
             val hideSongStatusTitle = stringResource(R.string.hide_song_status)
             row(hideSongStatusTitle, "player", "playing from", "played by") {
                 SettingsRow(
@@ -1865,6 +1972,9 @@ fun SettingsScreen(
                                 .padding(vertical = 6.dp),
                             horizontalAlignment = Alignment.CenterHorizontally,
                         ) {
+                            // A glass foreground holds the finished icon in its own shape on the
+                            // central 72 of 108 dp: scaled 1.5× it fills the tile as designed.
+                            // Only the default goes through an adaptive mask.
                             val preview = option.previewRes
                             if (preview == null) {
                                 AndroidView(
@@ -1899,7 +2009,10 @@ fun SettingsScreen(
                     }
                 }
             }
+<<<<<<< HEAD
 
+=======
+>>>>>>> upstream/v1.8.1
         }
 
         // Read after every group above has had its turn at the query, which is

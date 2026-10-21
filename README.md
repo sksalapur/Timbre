@@ -70,6 +70,7 @@
 
 ## 🏛️ Timbre Audiophile Architecture
 
+<<<<<<< HEAD
 ```text
 +-------------------------------------------------------------------------+
 |                       Timbre Audiophile Signal Path                     |
@@ -95,6 +96,16 @@
 |   +-----------------------------------------------------------------+   |
 +-------------------------------------------------------------------------+
 ```
+=======
+<h1><a id="download"></a>Download</h1>
+
+<a href="https://github.com/kushagrasinghx/BitChord/releases" target="_blank" rel="noopener noreferrer"><img src="https://cdn.jsdelivr.net/gh/JMcrafter26/badges@main/src/assets/supported/android/cozy.svg" alt="Download for Android" height="55"/></a>
+
+Grab the latest signed APK from the [Releases](https://github.com/kushagrasinghx/BitChord/releases) page. Sideloading requires enabling "Install unknown apps" for whichever app you download it with.
+
+
+</div>
+>>>>>>> upstream/v1.8.1
 
 ---
 
