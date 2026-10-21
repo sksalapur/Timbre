@@ -6,7 +6,7 @@ import json
 import re
 import html
 
-DEFAULT_BOT_TOKEN = "8851295493:AAGc1sLYeu23iS43OL5dF6fXkkeQXGAxF1c"
+DEFAULT_BOT_TOKEN = ""
 DEFAULT_CHAT_ID = "@Timbre_Community"
 
 def post_telegram_release(tag, repo, notes_file, banner_image):

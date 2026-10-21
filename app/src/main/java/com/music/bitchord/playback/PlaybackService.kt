@@ -1431,8 +1431,10 @@ class PlaybackService : MediaLibraryService() {
             StreamChoice.of(videoId)?.let { serving ->
                 val wantsLossless = SourceResolver.canSubstituteForYouTube() &&
                     SourceResolver.requestForNow() is com.music.bitchord.data.sources.StreamRequest.Lossless
-                if (serving.format.isLossless != true && wantsLossless) {
-                    // Do not serve a stale lossy choice directly; let it respect the Priority Resolution Window!
+                val isContinuation = dataSpec.position > 0L
+                val isCurrentlyPlaying = (player?.currentMediaItem?.mediaId == videoId) && (player?.isPlaying == true)
+                if (!isContinuation && !isCurrentlyPlaying && serving.format.isLossless != true && wantsLossless) {
+                    // Do not serve a stale lossy choice directly when opening a new track; let it respect the Priority Resolution Window!
                     StreamChoice.forget(videoId)
                 } else {
                     val sourceName = serving.sourceConfigId?.let { SourceRegistry.config(it)?.displayName }

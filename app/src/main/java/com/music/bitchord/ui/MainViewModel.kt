@@ -3054,6 +3054,97 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /** Re-reads credentials from AuthStore after a backup import. */
+    fun refreshAuth() {
+        val active = authStore.activeSession
+        _googleAccounts.value = authStore.sessions
+        _activeAccountId.value = authStore.activeAccountId
+        _activeProfileId.value = authStore.activeProfileId
+        _selectedChannelKey.value = authStore.activeProfileId
+        _selectedChannelName.value = authStore.channelName ?: active?.name
+        _signedIn.value = authStore.isSignedIn
+        if (authStore.isSignedIn) {
+            reloadForAccount()
+            loadChannels(force = true)
+        }
+    }
+
+    /** Direct cookie login (e.g. pasted from Metrolist / browser / backup). */
+    fun loginWithCookie(
+        rawCookie: String,
+        onComplete: (Boolean, String?) -> Unit = { _, _ -> },
+    ) {
+        val cookie = rawCookie.trim().trim('"', '\'')
+        if (!AuthStore.hasApiSid(cookie)) {
+            onComplete(false, "Invalid cookie header: missing SAPISID or __Secure-3PAPISID")
+            return
+        }
+        val oldAccountId = _activeAccountId.value
+        val oldProfileId = _activeProfileId.value
+        viewModelScope.launch {
+            try {
+                com.music.bitchord.auth.BrowserSession.installGoogleCookies(cookie)
+                Innertube.cookie = cookie
+                Innertube.ensureSessionScope()
+
+                val account = withTimeoutOrNull(20_000L) {
+                    var result = YtMusicRepository.account()
+                    if (result.isFailure) {
+                        delay(750L)
+                        result = YtMusicRepository.account()
+                    }
+                    result.getOrNull()
+                }
+                if (account == null) {
+                    restoreActiveSession(oldAccountId, oldProfileId)
+                    onComplete(false, "Could not fetch YouTube Music account with this cookie")
+                    return@launch
+                }
+
+                val accountId = sessionId(cookie, null)
+                val pId = profileId(null, null, account.name)
+                val profile = YouTubeProfile(
+                    profileId = pId,
+                    name = account.name,
+                    handle = account.email,
+                    avatar = account.thumbnailUrl,
+                    authUser = "0",
+                    isBrandAccount = false,
+                )
+                val stored = com.music.bitchord.auth.GoogleAccountSession(
+                    accountId = accountId,
+                    cookie = cookie,
+                    name = account.name,
+                    email = account.email,
+                    profiles = listOf(profile),
+                    activeProfileId = profile.profileId,
+                )
+
+                val wasSignedIn = _signedIn.value
+                if (wasSignedIn) cacheCurrentListener()
+                authStore.upsertSession(stored)
+                authStore.cookie = cookie
+                _googleAccounts.value = authStore.sessions
+                _activeAccountId.value = accountId
+                _activeProfileId.value = profile.profileId
+                _selectedChannelKey.value = profile.profileId
+                _selectedChannelName.value = account.name
+                _account.value = account
+                _channels.value = emptyList()
+                _signedIn.value = true
+
+                StreamResolver.onSessionChanged()
+                if (wasSignedIn) clearListenerState()
+                reloadForAccount()
+                loadChannels(force = true)
+                onComplete(true, null)
+            } catch (e: Exception) {
+                restoreActiveSession(oldAccountId, oldProfileId)
+                onComplete(false, e.message ?: "Login failed")
+            }
+        }
+    }
+
     /** Put request signing back exactly as it was after a rejected candidate. */
     private fun restoreActiveSession(accountId: String?, selectedProfileId: String?) {
         val account = authStore.sessions.firstOrNull { it.accountId == accountId }

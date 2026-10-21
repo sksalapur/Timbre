@@ -3,8 +3,16 @@ package com.music.bitchord.data.stats
 import android.content.Context
 import android.net.Uri
 import com.music.bitchord.BuildConfig
+import com.music.bitchord.BitChordApplication
+import com.music.bitchord.auth.AuthStore
+import com.music.bitchord.auth.BrowserSession
+import com.music.bitchord.auth.sessionsFromJson
+import com.music.bitchord.auth.toJson
+import com.music.bitchord.data.innertube.Innertube
 import com.music.bitchord.data.settings.AppSettings
 import com.music.bitchord.data.settings.SearchHistory
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
@@ -63,6 +71,20 @@ object Backup {
     suspend fun exportTo(context: Context, target: Uri): Result<Int> = withContext(Dispatchers.IO) {
         runCatching {
             val buckets = ListeningStats.exportAll()
+            val authStore = BitChordApplication.authStore
+            val authBackup = if (authStore.cookie != null || authStore.sessions.isNotEmpty()) {
+                AuthBackup(
+                    cookie = authStore.activeSession?.cookie ?: authStore.cookie,
+                    sessionsJson = authStore.sessions.toJson(),
+                    activeAccountId = authStore.activeAccountId,
+                    activeProfileId = authStore.activeProfileId,
+                    channelPageId = authStore.channelPageId,
+                    channelDataSyncId = authStore.channelDataSyncId,
+                    channelName = authStore.channelName,
+                    channelAuthUser = authStore.channelAuthUser,
+                    discordToken = authStore.discordToken,
+                )
+            } else null
             val file = BackupFile(
                 versionName = BuildConfig.VERSION_NAME,
                 exportedAt = Instant.now().toString(),
@@ -71,6 +93,7 @@ object Backup {
                 }.toMap(),
                 listening = buckets,
                 sources = com.music.bitchord.data.sources.SourceRegistry.exportSources(),
+                auth = authBackup,
             )
             val text = json.encodeToString(BackupFile.serializer(), file)
             context.contentResolver.openOutputStream(target, "wt")
@@ -105,6 +128,45 @@ object Backup {
             if (file.sources.isNotEmpty()) {
                 com.music.bitchord.data.sources.SourceRegistry.importSources(file.sources)
             }
+            var accountRestored = false
+            if (file.auth != null) {
+                val authStore = BitChordApplication.authStore
+                if (file.auth.cookie != null) {
+                    authStore.cookie = file.auth.cookie
+                }
+                if (file.auth.sessionsJson != null) {
+                    val importedSessions = sessionsFromJson(file.auth.sessionsJson)
+                    if (importedSessions.isNotEmpty()) {
+                        authStore.replaceSessions(importedSessions)
+                    }
+                }
+                if (file.auth.activeAccountId != null || file.auth.activeProfileId != null) {
+                    authStore.select(file.auth.activeAccountId.orEmpty(), file.auth.activeProfileId)
+                }
+                authStore.selectChannel(
+                    pageId = file.auth.channelPageId,
+                    dataSyncId = file.auth.channelDataSyncId,
+                    name = file.auth.channelName,
+                    authUser = file.auth.channelAuthUser,
+                )
+                if (file.auth.discordToken != null) {
+                    authStore.discordToken = file.auth.discordToken
+                }
+                val activeCookie = authStore.activeSession?.cookie ?: file.auth.cookie
+                if (activeCookie != null) {
+                    BrowserSession.installGoogleCookies(activeCookie)
+                    Innertube.cookie = activeCookie
+                    val activeSession = authStore.activeSession
+                    val profile = activeSession?.profiles?.firstOrNull { it.profileId == authStore.activeProfileId }
+                    if (profile != null) {
+                        Innertube.selectChannel(profile.pageId, profile.dataSyncId, profile.authUser)
+                    }
+                    CoroutineScope(Dispatchers.IO).launch {
+                        runCatching { Innertube.ensureSessionScope() }
+                    }
+                    accountRestored = true
+                }
+            }
             // Shares AppSettings' preference file, so it has already been
             // overwritten by the line above — it just doesn't know yet.
             SearchHistory.reload()
@@ -114,6 +176,7 @@ object Backup {
                 sources = file.sources.count { it.kind.isUserAdded },
                 from = file.versionName,
                 at = file.exportedAt,
+                accountRestored = accountRestored,
             )
         }
     }
@@ -125,6 +188,7 @@ object Backup {
         val from: String,
         val at: String,
         val sources: Int = 0,
+        val accountRestored: Boolean = false,
     )
 
     private const val APP_TAG = "timbre"
@@ -137,6 +201,19 @@ object Backup {
     private const val SCHEMA_VERSION = 1
 
     @Serializable
+    data class AuthBackup(
+        val cookie: String? = null,
+        val sessionsJson: String? = null,
+        val activeAccountId: String? = null,
+        val activeProfileId: String? = null,
+        val channelPageId: String? = null,
+        val channelDataSyncId: String? = null,
+        val channelName: String? = null,
+        val channelAuthUser: String? = null,
+        val discordToken: String? = null,
+    )
+
+    @Serializable
     data class BackupFile(
         val app: String = APP_TAG,
         val version: Int = SCHEMA_VERSION,
@@ -146,6 +223,7 @@ object Backup {
         val settings: Map<String, PrefValue> = emptyMap(),
         val listening: List<StoredBucket> = emptyList(),
         val sources: List<com.music.bitchord.data.sources.SourceConfig> = emptyList(),
+        val auth: AuthBackup? = null,
     )
 
     /** One preference, with the type it has to be restored as. */

@@ -2775,6 +2775,7 @@ private fun BitChordApp(
                             windowWidth = windowWidth,
                             signedIn = signedIn,
                             account = account,
+                            onAuthRestored = { viewModel.refreshAuth() },
                             onSignIn = {
                                 showSettings = false
                                 webSession = WebSessionMode.SIGN_IN
