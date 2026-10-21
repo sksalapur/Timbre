@@ -430,10 +430,6 @@
             </intent-filter>
         </activity-alias>
 
-<<<<<<< HEAD
-
-=======
->>>>>>> upstream/v1.8.1
         <service
             android:name=".playback.PlaybackService"
             android:exported="true"
